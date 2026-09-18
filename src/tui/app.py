@@ -1,130 +1,61 @@
-from itertools import accumulate
-from textual.app import App, Screen, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Static, Footer, RichLog, Input, Markdown
-from textual import work
+from textual.app import App
+from textual.widgets import Input, OptionList
 
+from src.config import models
 from src.core import Agent
-from src.tui import menu
+from src.agent.models import ollama
+from src.tui.screens.base_screen import BaseScreen
+from src.tui.screens.menu_screen import MenuScreen
+from src.tui.screens.chat_screen import ChatScreen
 
 
-class StartTUI(App):
-    CSS_PATH = "tcss/menu.tcss"
+class MainApp(App):
     BINDINGS = [
-        ("ctrl+c", "quit"),
-        ("ctrl+d", "start_default_session"),
+        ("escape", "escape_handler"),
+        ("ctrl+n", "start_default_session"),
         ("ctrl+m", "to_menu")
     ]
 
 
-    def __init__(self):
-        super().__init__()
-
-
-    def compose(self) -> ComposeResult:
-        with Horizontal(id="top_container"):
-            yield Static(id="icon", classes="box")
-            yield Static(id="description", classes="box")
-        yield Static(id="status", classes="box")
+    def compose(self):
+        """Returns nothing."""
+        return []
 
 
     def on_mount(self) -> None:
-        self.show_menu()
+        """Show menu screen on startup."""
+        self.push_screen(MenuScreen())
 
 
-    def show_menu(self):
-        icon_panel = menu.app_icon()
-        dsrption_panel = menu.app_description()
-        status_panel = menu.app_status()
+    def action_escape_handler(self) -> None:
+        """All scenarios for when the escape button is pressed."""
+        cmd_input = self.screen.query_one("#cmd_input", Input)
 
-        self.query_one("#icon", Static).update(icon_panel)
-        self.query_one("#description", Static).update(dsrption_panel)
-        self.query_one("#status", Static).update(status_panel)
+        # Close command bar if focused
+        if cmd_input.has_focus:
+            cmd_input.value = ""
+            cmd_input.add_class("hidden")
+            self.set_focus(None)
+            return
+
+        # Unfocus screen if focused
+        if self.focused is not None:
+            self.set_focus(None)
+            return
+
+        # Unhighlight if highlighted
+        for opt_list in self.query(OptionList):
+            if opt_list.highlighted is not None:
+                opt_list.highlighted = None
+
+    
+    def action_start_default_session(self) -> None:
+        """Go to the default session chat interface."""
+        self.push_screen(ChatScreen(sess_name=None))
 
 
     def action_to_menu(self) -> None:
-        self.show_menu()
+        """Go to the menu page."""
+        self.switch_screen(MenuScreen())
 
 
-    def action_start_default_session(self, sess_name: str | None = None) -> None:
-        self.push_screen(ChatInterface(sess_name=sess_name))
-
-
-    def action_quit(self) -> None:
-        self.exit()
-
-
-class ChatInterface(Screen):
-    CSS_PATH = "tcss/chat_interface.tcss"
-
-
-    def __init__(self, sess_name: str | None):
-        super().__init__()
-        self.agent = Agent(sess_name=sess_name)
-        self.sess_name = sess_name or "Default session"
-
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            with VerticalScroll(id="chat_container"):
-                pass
-            yield Input(placeholder="Write a message...", id="prompt_input")
-
-
-    def on_mount(self) -> None:
-        self.query_one("#prompt_input", Input).focus()
-        self.load_chat_history()
-
-
-    def load_chat_history(self) -> None:
-        chat_container = self.query_one("#chat_container", VerticalScroll)
-
-        chat_hist = self.agent.chat_logs.get_chat_history(filter="all")
-
-        if not chat_hist:
-            return
-
-        for msg in chat_hist:
-            role = msg.get("role")
-            content = msg.get("content", "")
-
-            if role == "user":
-                chat_container.mount(Static(f"[bold]USER:[/] {content}"))
-            elif role == "assistant":
-                chat_container.mount(Markdown(content))
-
-        chat_container.scroll_end(animate=False)
-
-
-    def on_input_submitted(self, msg: Input.Submitted) -> None:
-        prompt = msg.value.strip()
-        if not prompt:
-            return
-
-        chat_container = self.query_one("#chat_container", VerticalScroll)
-
-        user_msg = Static(f"[bold]USER[/]: {prompt}")
-        chat_container.mount(user_msg)
-        chat_container.scroll_end(animate=False)
-
-        self.query_one("#prompt_input", Input).clear()
-
-        self.fetch_agent_response(prompt)
-
-
-    @work(exclusive=True, thread=True)
-    def fetch_agent_response(self, prompt: str) -> None:
-        chat_container = self.query_one("#chat_container", VerticalScroll)
-
-        md_widget = Markdown("")
-        self.app.call_from_thread(chat_container.mount, md_widget)
-
-        full_txt = ""
-
-        def on_token(tkn: str) -> None:
-            nonlocal full_txt
-            full_txt += tkn
-            self.app.call_from_thread(md_widget.update, full_txt)
-            self.app.call_from_thread(chat_container.scroll_end, animate=False)
-
-        self.agent.ask(prompt=prompt, callback=on_token)

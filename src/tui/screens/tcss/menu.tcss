@@ -1,0 +1,76 @@
+Screen {
+    layout: vertical;
+    padding: 1 3;
+}
+
+#top_container {
+    layout: horizontal;
+    height: 13;
+    padding: 1 3;
+}
+
+#icon {
+    width: 28;
+    height: 100%;
+}
+
+#description {
+    width: 1fr;
+    height: 100%;
+}
+
+#cmd_input {
+    dock: bottom;
+    layer: overlay;
+    height: 1;
+    border: none;
+}
+
+#cmd_input.hidden {
+    display: none;
+}
+
+.hidden {
+    display: none;
+}
+
+#status_container {
+    height: auto;
+    padding: 1 3;
+}
+
+
+/* Section titles */
+
+#model_section {
+    height: auto;
+    margin-bottom: 1
+}
+
+#tknizr_section {
+    height: auto;
+    margin-bottom: 1
+}
+
+#sess_section {
+    height: auto;
+    margin-bottom: 1
+}
+
+
+/* Option lists */
+
+#model_role_list {
+    height: auto;
+    margin-bottom: 1
+}
+
+#fb_tknizr {
+    height: auto;
+    margin-bottom: 1
+}
+
+#latest_sess {
+    height: auto;
+    margin-bottom: 1
+}
