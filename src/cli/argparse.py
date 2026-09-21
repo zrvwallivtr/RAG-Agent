@@ -1,7 +1,6 @@
 import argparse
 from pathlib import Path
 from rich.console import Console
-from agent import tokenizers
 from rich_argparse import RichHelpFormatter
 
 from src.config import files_and_directories as files_n_dir
@@ -51,7 +50,7 @@ def build_parser() -> None:
     interface.init_logger(args)
     logger.set_verbose(verbose=args.verbose)
 
-    from agent.models import ollama
+    from src.agent.models import ollama
     from src.cli import flag_functions
     from src.agent.chat_logs import ChatLogs
     from src.core import Agent
@@ -155,6 +154,6 @@ def build_parser() -> None:
 
     # === NO ARGUMENTS AND QUESTION ===================================
     if not args.prompt and not any([args.attachments]):
-        from src.tui.app import StartTUI
-        StartTUI().run()
+        from src.tui.app import MainApp
+        MainApp().run()
         return

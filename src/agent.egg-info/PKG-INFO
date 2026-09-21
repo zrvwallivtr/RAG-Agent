@@ -21,4 +21,5 @@ Requires-Dist: langchain-text-splitters>=1.1.2
 Requires-Dist: feedparser>=6.0.14
 Requires-Dist: rich-argparse>=1.8.0
 Requires-Dist: textual>=8.2.8
+Requires-Dist: tomli-w>=1.2.0
 Dynamic: license-file

@@ -67,3 +67,9 @@ def ollama_pull_model(model: str) -> bool:
     except Exception as e:
         app_log.warning("Failed to pull model '%s': %s", model, e)
         return False
+
+
+def ollama_models_list() -> list[str]:
+    """Return a list of models installed via Ollama."""
+    response = ollama_clt.list()
+    return [m.model for m in response.models]

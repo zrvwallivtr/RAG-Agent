@@ -42,17 +42,17 @@ Screen {
 
 /* Section titles */
 
-#model_section {
+#model_section_title {
     height: auto;
     margin-bottom: 1
 }
 
-#tknizr_section {
+#tknizr_section_title {
     height: auto;
     margin-bottom: 1
 }
 
-#sess_section {
+#sess_section_title {
     height: auto;
     margin-bottom: 1
 }
@@ -62,12 +62,14 @@ Screen {
 
 #model_role_list {
     height: auto;
-    margin-bottom: 1
+    padding-left: 1;
+    margin-bottom: 3
 }
 
 #fb_tknizr {
     height: auto;
-    margin-bottom: 1
+    padding-left: 1;
+    margin-bottom: 3
 }
 
 #latest_sess {

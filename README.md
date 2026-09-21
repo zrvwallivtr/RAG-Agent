@@ -1,8 +1,10 @@
-# AI Agent
+# RAG Agent
 
 A local Command-Line Interface (CLI) AI assistant featuring long-term memory, file context injection, (isolated web crawling / search and automated token management).
 
 ---
+
+### Document currently outof date
 
 ## Table of Contents
 

@@ -134,7 +134,7 @@ class ChatLogs:
 
         if not row:
             app_log.warning(
-                "Session name for session id '%s' not found: Database miss-match",
+                "Session name for session id '%s' not found",
                 sess_id
             )
             return
@@ -142,6 +142,99 @@ class ChatLogs:
         sess_name = str(row[0])
         app_log.debug("Retrieved session name '%s' from session id '%s'", sess_name, sess_id)
         return sess_name
+
+
+    def get_sess_id_from_name(self, sess_name: str) -> str | None:
+        """Fetch session id from the chat session table with the given session name."""
+        app_log.debug("Fetching session id from session name '%s'", sess_name)
+        self.cur.execute(
+            """
+            SELECT session_id
+            FROM chat_sessions
+            WHERE session_name = %s;
+            """,
+            (sess_name,)
+        )
+        self.conn.commit()
+        row = self.cur.fetchone()
+
+        if not row:
+            app_log.warning(
+                "Session id for session name '%s' not found",
+                sess_name
+            )
+            return
+
+        sess_id = str(row[0])
+        app_log.debug("Retrieved session id '%s' from session name '%s'", sess_id, sess_name)
+        return sess_id
+
+
+    def get_session_last_modified_time(self, sess_id: str) -> str | None:
+        """Get the latest created time from session id in the chat logs."""
+        self.cur.execute(
+            """
+            SELECT created_at
+            FROM chat_logs
+            WHERE session_id = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (sess_id,)
+        )
+        self.conn.commit()
+        row = self.cur.fetchone()
+
+        if not row:
+            app_log.debug(
+                "No conversation stored in the database."
+            )
+            return
+
+        created_at = str(row[0])
+        app_log.debug(
+            "Retrieved session id '%s' that contains the latest conversation turn across the database: Latest entry at = %s",
+            sess_id,
+            created_at
+        )
+        return created_at
+
+
+    def get_latest_modified_chat_session(self) ->  tuple[str, str] | None:
+        """
+        Get the chat 'session_name' and 'created_time' that has
+        the latest 'created_time' of the chat logs.
+        """
+        self.cur.execute(
+            """
+            SELECT session_id, created_at
+            FROM chat_logs
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        )
+        self.conn.commit()
+        rows = self.cur.fetchone()
+
+        if not rows:
+            app_log.debug(
+                "No conversation stored in the database"
+            )
+            return
+
+        sess_id = str(rows[0])
+        created_at = str(rows[1])
+        app_log.debug(
+            "Retrieved session id '%s' that contains the latest conversation turn across the database: Latest entry at = %s",
+            sess_id,
+            created_at
+        )
+
+        sess_name = self.get_sess_name(sess_id=sess_id)
+        if not sess_name:
+            return
+
+        return sess_name, created_at
 
 
     def get_all_existing_sess_metadata(self) -> dict | None:
@@ -169,6 +262,10 @@ class ChatLogs:
         app_log.debug("%d session(s) found on the table 'chat_sessions' in the database", len(rows))
         return sess_dict
 
+
+    # =============================================================
+    # CREATE SESSION
+    # =============================================================
 
     def create_sess(self) -> str:
         """Create session entry on the chat_sessions table and return its session id."""
@@ -459,46 +556,9 @@ class ChatLogs:
         )
         return convs
 
-
-    def latest_modified_chat_session(self) ->  tuple[str, str] | None:
-        """
-        Get the chat 'session_name' and 'created_time' that has
-        the latest 'created_time' of the chat logs.
-        """
-        self.cur.execute(
-            """
-            SELECT session_id, created_at
-            FROM chat_logs
-            ORDER BY created_at DESC
-            LIMIT 1
-            """
-        )
-        self.conn.commit()
-        rows = self.cur.fetchone()
-
-        if not rows:
-            app_log.debug(
-                "No conversation stored in the database"
-            )
-            return
-
-        sess_id = str(rows[0])
-        created_at = str(rows[1])
-        app_log.debug(
-            "Retrieved session id '%s' that contains the latest conversation turn across the database: Latest entry at = %s",
-            sess_id,
-            created_at
-        )
-
-        sess_name = self.get_sess_name(sess_id=sess_id)
-        if not sess_name:
-            return
-
-        return sess_name, created_at
-
-
+    
     # =============================================================
-    # METADATA
+    # TOOL CALL METADATA
     # =============================================================
 
     def _attachments_metadata(

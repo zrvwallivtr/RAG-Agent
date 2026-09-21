@@ -24,6 +24,7 @@ dependencies = [
   "feedparser>=6.0.14",
   "rich-argparse>=1.8.0",
   "textual>=8.2.8",
+  "tomli-w>=1.2.0",
 ]
 
 [project.scripts]

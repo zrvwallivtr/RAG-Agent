@@ -25,6 +25,8 @@ src/config/memory.py
 src/config/models.py
 src/config/postgres.py
 src/config/prompts.py
+src/config/runtime_config.py
+src/config/toml_config.py
 src/config/web_search.py
 src/rag/__init__.py
 src/rag/knowledge_base.py
@@ -47,5 +49,10 @@ src/rag/web_search/web_scraping/technical/arxiv.py
 src/rag/web_search/web_scraping/technical/esa_publications.py
 src/rag/web_search/web_scraping/technical/nasa_ntrs.py
 src/rag/web_search/web_scraping/technical/semantic_scholar.py
+src/tui/app.py
+src/tui/screens/base_screen.py
+src/tui/screens/chat_screen.py
+src/tui/screens/menu.py
+src/tui/screens/menu_screen.py
 tests/test_error_message.py
 tests/test_setup.py
