@@ -1,15 +1,8 @@
-import psycopg2
-from typing_extensions import Doc
-from pathlib import Path
-
 from src.config import postgres
 
-from src.agent import ollama
 from src.agent import chat_logs
-from src.core import Agent
 from src.rag import knowledge_base
 from src import logger
-from src.cli import interface
 
 
 conn = postgres.conn

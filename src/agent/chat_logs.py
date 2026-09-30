@@ -432,7 +432,7 @@ class ChatLogs:
         if filter == "compressed":
             self.cur.execute(
                 """
-                SELECT prompt, response
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = TRUE
                 ORDER BY created_at ASC;
@@ -442,7 +442,7 @@ class ChatLogs:
         elif filter == "not_compressed":
             self.cur.execute(
                 """
-                SELECT prompt, response
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
@@ -452,7 +452,7 @@ class ChatLogs:
         else:
             self.cur.execute(
                 """
-                SELECT prompt, response
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external'
                 ORDER BY created_at ASC;
@@ -472,9 +472,19 @@ class ChatLogs:
             return
 
         convs = []
+
         for row in rows:
-            convs.append({"role": "user", "content": row[0]})
-            convs.append({"role": "assistant", "content": row[1]})
+            convs.append({
+                "role": "user",
+                "content": row[0]
+            })
+            convs.append({
+                "role": "assistant",
+                "content": row[1],
+                "prompt_tokens": row[2],
+                "output_tokens": row[3]
+            })
+
         app_log.debug(
             "%d '%s' conversation turns retrieved from session '%s' chat logs",
             len(rows),
@@ -655,7 +665,7 @@ class ChatLogs:
     # CHAT COMPRESSION
     # =============================================================
 
-    def compress_active_conv(self, prompt: str, contxt: list[dict] | None = None):
+    def compress_active_conv(self, prompt: str, contxt: list[dict] | None = None) -> tuple[str, int, int] | None:
         """Call model to summarise all conversations where 'is_compressed' = FALSE in the database."""
         app_log.info("Compressing session '%s' chat logs", self.sess_name)
 
@@ -663,9 +673,13 @@ class ChatLogs:
             prompt=prompt, cmp_convs=self.get_chat_history("not_compressed")
         )
 
-        smry, p_tkns, o_tkns = llm.response_with_new_sys_prompt_and_context(
+        response = llm.response_with_new_sys_prompt_and_context(
             model=MODEL, sys_prompt=COMPRESS_PROMPT, contxt=contxt, prompt=cmbind_prompt,
         )
+        if not response:
+            return
+        smry, p_tkns, o_tkns = response
+
         app_log.debug("Chat compression complete. Updating chat logs metadata")
 
         # Update 'is_compress' status for previous conversations
@@ -696,14 +710,19 @@ class ChatLogs:
         )
 
         self.actv_convs = self.get_actv_convs() # resync messages
+        return smry, p_tkns, o_tkns
 
 
-    def auto_compresss_active_conv(self):
+    def auto_compresss_active_conv(self) -> tuple[str, int, int] | None:
         """Auto compress session."""
         app_log.info("Chat compression was triggered for session '%s'", self.sess_name)
         prompt = "Summarise all previous conversations."
-        self.compress_active_conv(prompt)
+        result = self.compress_active_conv(prompt)
+        if not result:
+            return
+        smry, p_tkns, o_tkns = result
         app_log.info("Auto compression complete. Continuing session")
+        return smry, p_tkns, o_tkns
 
 
     # =============================================================

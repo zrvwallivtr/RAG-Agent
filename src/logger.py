@@ -3,7 +3,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from src.config import files_and_directories as files_n_dir
-from src.cli import interface
+from src.app.cli import interface
 
 
 APP_LOG_FILE    = files_n_dir.APP_LOG_FILE

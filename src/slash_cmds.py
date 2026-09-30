@@ -66,7 +66,7 @@ class SlashCmds:
 
     def cmd_memorise(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
-    ) -> None:
+    ) -> tuple[str, int, int] | None:
         """
         Extract key info from user prompt and attachments (optional),
         save extracted memory entries to database.
@@ -142,7 +142,7 @@ class SlashCmds:
 
     def cmd_recall(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
-    ) -> str | None:
+    ) -> tuple[str, int, int] | None:
         """
         Retrieve and print relevant entries according to user prompt.
 
@@ -152,7 +152,7 @@ class SlashCmds:
         """
         if not prompt:
             app_log.warning("Command '/recall' aborted: No prompt was provided")
-            return "Please specify what to recall."
+            return
 
         if is_attchmnt and paths:
             app_log.warning(
@@ -170,7 +170,7 @@ class SlashCmds:
         mem_list = self.mem.query_similar_content(qry=prompt, qry_embdings=prompt_embdings)
 
         # === MODEL INTERPRET RECALLED MEMORIES =====================
-        answer, p_tkns, o_tkns = llm.response_memory_recall_format(
+        ans, p_tkns, o_tkns = llm.response_memory_recall_format(
             model=self.mem.model,
             sys_prompt=MEM_RECALL_INTERPRET_PROMPT,
             prompt=prompt,
@@ -180,12 +180,13 @@ class SlashCmds:
         # === SAVE MESSAGES =========================================
         self.chat_logs.add_conv_turn(
             prompt=prompt,
-            response=answer,
+            response=ans,
             state="external",
             p_tkns=p_tkns,
             o_tkns=o_tkns
+            # /// Add embed tokens log ///
         )
-        return
+        return ans, p_tkns, o_tkns
 
 
     # ========================================================
@@ -194,7 +195,7 @@ class SlashCmds:
 
     def cmd_compress(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
-    ) -> str | None:
+    ) -> tuple[str, int, int] | None:
         """
         Retrieve and print relevant entries according to user prompt.
 
@@ -226,16 +227,24 @@ class SlashCmds:
             app_log.info(
                 "No prompt was provided for command '/compress': Running with default instructions"
             )
-            self.chat_logs.auto_compresss_active_conv()
+            result = self.chat_logs.auto_compresss_active_conv()
+            if not result:
+                return
+            smry, p_tkns, o_tkns = result
 
-        print(f"Compression session '{self.sess_name}' conversations...")
-        self.chat_logs.compress_active_conv(prompt=cmbind_prompt)
-        app_log.info("Session '%s' compression completed", self.sess_name)
+        else:
+            print(f"Compression session '{self.sess_name}' conversations...")
+            result = self.chat_logs.compress_active_conv(prompt=cmbind_prompt)
+            if not result:
+                return
+            smry, p_tkns, o_tkns = result
+            app_log.info("Session '%s' compression completed", self.sess_name)
 
-        # === STORE ATTACHMENT(S) ===================================
-        if attchmnt_dict:
-            self.doc_kw_bs.store_attachments(attchmnt_dict)
-        return
+            # === STORE ATTACHMENT(S) ===================================
+            if attchmnt_dict:
+                self.doc_kw_bs.store_attachments(attchmnt_dict)
+
+        return smry, p_tkns, o_tkns
 
     # ========================================================
     # SEARCH

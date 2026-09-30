@@ -11,11 +11,6 @@ from src.logger import app_logger
 
 
 MODEL_NAME_TO_HF_TOKENIZER = {
-    # ==============        ===============================
-    # | MODEL NAME |        | HUGGINGFACE REPOSITORY NAME |
-    # ==============        ===============================
-
-    # === LLMS ============================================
     # Mistral
     "mistral":              "mistralai/Mistral-7B-Instruct-v0.2",
     "dolphin-mistral":      "mistralai/Mistral-7B-Instruct-v0.2",
@@ -31,7 +26,6 @@ MODEL_NAME_TO_HF_TOKENIZER = {
     # Phi
     "dolphin-phi":          "microsoft/phi-2",
 
-    # === EMBEDDING MODELS ================================
     # Nomic
     "nomic-embed-text":     "nomic-ai/nomic-embed-text-v1.5",
 }
@@ -46,10 +40,6 @@ MODEL_MAX           = models_database.MODEL_MAX
 
 ollama_clt = ollama.ollama_clt
 
-
-# =============================================================
-# INSTALLATION
-# =============================================================
 
 def install_tokenizers():
     """Install tokenizers from model list, internet required."""
@@ -125,10 +115,6 @@ def install_tokenizers():
             )
 
 
-# =============================================================
-# INSTALLED TOKENIZERS
-# =============================================================
-
 def fetch_all_installed_tokenizers() -> list[dict]:
     """Return the name and modified time of all installed tokenizers in the tokenizer directory."""
     return [
@@ -140,10 +126,6 @@ def fetch_all_installed_tokenizers() -> list[dict]:
         if file.is_file()
     ]
 
-
-# =============================================================
-# TOKENIZER
-# =============================================================
 
 class Tknizr:
     def __init__(self, model: str):

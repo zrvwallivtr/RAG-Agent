@@ -4,9 +4,10 @@ from textual.widgets import Input, OptionList
 from src.config import models
 from src.core import Agent
 from src.agent.models import ollama
-from src.tui.screens.base_screen import BaseScreen
-from src.tui.screens.menu_screen import MenuScreen
-from src.tui.screens.chat_screen import ChatScreen
+
+from src.app.tui.screens.base_screen import BaseScreen
+from src.app.tui.screens.dashboard_screen import DashboardScreen
+from src.app.tui.screens.chat_screen import ChatScreen
 
 
 class MainApp(App):
@@ -24,12 +25,12 @@ class MainApp(App):
 
     def on_mount(self) -> None:
         """Show menu screen on startup."""
-        self.push_screen(MenuScreen())
+        self.push_screen(DashboardScreen())
 
 
     def action_escape_handler(self) -> None:
         """All scenarios for when the escape button is pressed."""
-        cmd_input = self.screen.query_one("#cmd_input", Input)
+        cmd_input = self.screen.query_one("#cmd-input", Input)
 
         # Close command bar if focused
         if cmd_input.has_focus:
@@ -56,6 +57,4 @@ class MainApp(App):
 
     def action_to_menu(self) -> None:
         """Go to the menu page."""
-        self.switch_screen(MenuScreen())
-
-
+        self.switch_screen(DashboardScreen())

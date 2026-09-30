@@ -7,7 +7,7 @@ from src.config import files_and_directories as files_n_dir
 from src.config import models
 from src.config import postgres
 
-from src.cli import interface
+from src.app.cli import interface
 from src import logger
 
 
@@ -50,11 +50,11 @@ def build_parser() -> None:
     interface.init_logger(args)
     logger.set_verbose(verbose=args.verbose)
 
-    from src.agent.models import ollama
-    from src.cli import flag_functions
-    from src.agent.chat_logs import ChatLogs
     from src.core import Agent
+    from src.agent.models import ollama
+    from src.agent.chat_logs import ChatLogs
     from src.agent import tokenizers
+    from src.app.operations import sessions
 
     # =================================================================
     # FUNCTIONS
@@ -62,7 +62,7 @@ def build_parser() -> None:
 
     # === DELETE ======================================================
     if args.delete_default_session:
-        flag_functions.del_sess()
+        sessions.del_sess()
         return
 
     # === INSTALL MODELS ==============================================
@@ -86,7 +86,7 @@ def build_parser() -> None:
         return
 
     if args.delete_session:
-        response = flag_functions.del_sess(args.delete_session)
+        response = sessions.del_sess(args.delete_session)
         if response:
             print(response)
         return
@@ -154,6 +154,6 @@ def build_parser() -> None:
 
     # === NO ARGUMENTS AND QUESTION ===================================
     if not args.prompt and not any([args.attachments]):
-        from src.tui.app import MainApp
+        from src.app.tui.main_app import MainApp
         MainApp().run()
         return

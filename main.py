@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from src.cli import argparse
+from src.app.cli import argparse
 
 
 if __name__ == "__main__":

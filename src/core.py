@@ -102,14 +102,13 @@ class Agent:
     # Token management
     # ===================================
 
-    def _manage_token_budget(self, prompt: str) -> None:
+    def _manage_token_budget(self, prompt: str, reserve: int) -> None:
         """
         Reserves extra tokens for model response. If exceeds
         maximum tokens, the model summarise previous messages
         to free up token space.
         """
         app_log.debug("Estimating token usage for session '%s'", self.sess_name)
-        reserve = 1000 # (tokens)
         curr_hist_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_actv_convs())
         if not curr_hist_tkns:
             return
@@ -140,7 +139,7 @@ class Agent:
         is_attchmnt: bool = False,
         callback: Callable[[str], None] | None = None,
         paths: list[Path] | None = None
-    ) -> None | str:
+    ) -> tuple[str, int, int] | None:
         """
         Model decide what memories to read.
         Manage tokens, compress session if needed.
@@ -149,7 +148,7 @@ class Agent:
         - Only the user question and LLM response will be
           stored into chat history.
         """
-        self._manage_token_budget(prompt)
+        self._manage_token_budget(prompt=prompt, reserve=1000)
 
         msgs = self.chat_logs.get_actv_convs()
 
@@ -160,38 +159,38 @@ class Agent:
             if cmd == "/memorise":
                 app_log.debug("'/memorise' command triggered")
                 msgs.append(llm.user_message(user_prompt))
-                self.slash_cmd.cmd_memorise(
+                result = self.slash_cmd.cmd_memorise(
                     prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
                 )
-                return
+                return result if result else None
                 # // END HERE //
 
             if cmd == "/recall":
                 app_log.debug("'/recall' command triggered")
                 msgs.append(llm.user_message(user_prompt))
-                self.slash_cmd.cmd_recall(
+                result = self.slash_cmd.cmd_recall(
                     prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
                 )
-                return
+                return result if result else None
                 # // END HERE //
 
             if cmd == "/compress":
                 app_log.debug("'/compress' command triggered")
                 msgs.append(llm.user_message(user_prompt))
-                self.slash_cmd.cmd_compress(
+                result = self.slash_cmd.cmd_compress(
                     prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
                 )
-                return
+                return result if result else None
                 # // END HERE //
 
-            if cmd == "/search":
-                app_log.debug("'/search' command tirggered")
-                # User's question were saved
-                self.slash_cmd.cmd_search(
-                    prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
-                )
-                return
-                # // END HERE //
+            # if cmd == "/search":
+            #     app_log.debug("'/search' command tirggered")
+            #     # User's question were saved
+            #     self.slash_cmd.cmd_search(
+            #         prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+            #     )
+            #     return
+            #     # // END HERE //
 
         # === FULL CONTEXT ======================================
         embed_response = embed.embedding_content(prompt)
@@ -265,5 +264,5 @@ class Agent:
         # === STORE ATTACHMENT(S) ===============================
         if attchmnt_dict:
             self.doc_kw_bs.store_attachments(attchmnt_dict)
-        return ans
+        return ans, total_p_tkns, total_o_tkns
         # // END HERE //
