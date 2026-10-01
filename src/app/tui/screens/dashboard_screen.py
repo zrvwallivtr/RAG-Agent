@@ -271,7 +271,7 @@ class DashboardScreen(BaseScreen):
                 event.stop()
                 self.focused.action_cursor_down()
 
-        if event.key == "enter":
+        elif event.key == "enter":
             # If focus is on the session list or in session list
             if self.focused and (self.focused == sess_list or sess_list in self.focused.ancestors):
                 # If no option is highlighted
@@ -283,13 +283,34 @@ class DashboardScreen(BaseScreen):
                     elif sess_list.option_count > 0:
                         sess_list.highlighted = 0
 
+        if event.key == "tab":
+            event.prevent_default()
+            event.stop()
+
+            inputs = [
+                self.query_one("#session-search-input", Input),
+                self.query_one("#new-session-input", Input),
+                self.query_one("#delete-session-input", Input),
+            ]
+
+            if self.focused in inputs:
+                if sess_list.option_count > 0:
+                    if sess_list.highlighted is None:
+                        sess_list.highlighted = 1 if sess_list.option_count > 1 else 0
+                    else:
+                        next_idx = (sess_list.highlighted + 1) % sess_list.option_count
+
+                        if next_idx == 0 and sess_list.option_count > 1:
+                            next_idx = 1
+
+                        sess_list.highlighted = next_idx
+
+            # Ensure focus stays on active input bar
+            self.focused.focus()
+
         if event.key == "escape":
             event.prevent_default()
             event.stop()
-            self._reset_session_list_layout()
-            self._option_list_hightlight_none()
-
-        if event.key == "tab":
             self._reset_session_list_layout()
             self._option_list_hightlight_none()
 
