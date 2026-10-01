@@ -27,7 +27,7 @@ class ConfirmationPopupScreen(ModalScreen[None]):
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "modal-positive-button":
+        if event.button.id == "confirmation-modal-true-button":
             self.dismiss(True)
         else:
             self.dismiss(False)

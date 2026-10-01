@@ -5,23 +5,8 @@ from textual.widgets.option_list import Option
 
 from src.config import postgres
 
+from src.app.tui.screens.helpers import sessions_helpers
 from src.app.tui.screens.helpers import date_helpers
-
-
-def get_session_list() -> list | None:
-    """Return all existing session as a list."""
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
-
-    sess_dict = chat_logs.get_all_existing_sess_metadata()
-    if not sess_dict:
-        return
-
-    sess_list = []
-
-    for sess in sess_dict:
-        sess_list.append(sess_dict[sess]["session_name"])
-    return sess_list
 
 
 def _show_session_list(sess_list: OptionList) -> None:
@@ -53,7 +38,8 @@ def _show_session_list(sess_list: OptionList) -> None:
 
 def _fuzzy_search_behaviour(
     event: Input.Changed,
-    opt_list: OptionList
+    id: str,
+    opt_list: Option
 ) -> None:
     """
     Filters the OptionList based on fuzzy matching.
@@ -68,7 +54,7 @@ def _fuzzy_search_behaviour(
     if not sess_dict:
         return
 
-    sess_list = get_session_list()
+    sess_list = sessions_helpers.get_session_list()
     if not sess_list:
         return
 
@@ -81,7 +67,7 @@ def _fuzzy_search_behaviour(
 
     if not qry:
         # Show entire list if query is empty
-        _show_session_list(sess_list=opt_list)
+        _show_session_list(sess_list=sess_list)
 
     else:
         # Create an option for every matches

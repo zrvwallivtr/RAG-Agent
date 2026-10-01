@@ -4,7 +4,7 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, VerticalScroll
-from textual.widgets import Static, Input, Markdown, Button
+from textual.widgets import Static, Input, Markdown, Button, LoadingIndicator
 from textual.events import Key
 
 from src.config import models, postgres, files_and_directories
@@ -398,19 +398,29 @@ class ChatScreen(BaseScreen):
         status when done. Call ONCE when the user submits the prompt.
         """
         chat_container = self.query_one("#chat-container", VerticalScroll)
-        md_widget = Markdown("")
 
         # Assistant message box
+        md_widget = Markdown("")
         assistant_box, tkn_widget = self._create_assistant_message_box(cont_widget=md_widget, tol_tkns=0)
-        tkn_widget.add_class("hidden")
-
+        tkn_widget.add_class("hidden") # Hide widget box until entire response is generated
         self.app.call_from_thread(chat_container.mount, assistant_box)
 
-        full_txt = ""
+        # Adding loading indicator
+        self.app.call_from_thread(md_widget.update, "Thinking...")
 
-        # Token streaming
+        full_txt = ""
+        first_tkn_received = False # Checker for when to swap spinner to message box
+
         def on_token(tkn: str) -> None:
-            nonlocal full_txt
+            """Remove loading indicator when first token is received, then start token streaming."""
+            nonlocal full_txt, first_tkn_received
+
+            # If checker is still false
+            if not first_tkn_received:
+                full_txt = ""
+                first_tkn_received = True
+
+            # Stream tokens and append to full text varriable
             full_txt += tkn
             self.app.call_from_thread(md_widget.update, full_txt)
             self.app.call_from_thread(chat_container.scroll_end, animate=False)
@@ -423,11 +433,12 @@ class ChatScreen(BaseScreen):
         # Update number of tokens used from current response,
         # reveal widget agent finished responding.
         if result:
+            # Format from agent.ask() result
             _, p_tkns, o_tkns, metadata = result
             msg_tol_tkns = p_tkns + o_tkns
-
             attchmnt_metadata = metadata.get("attachments") if metadata else None
 
+            # Update user message box
             def _reveal_user_attachment_widget() -> None:
                 if attchmnt_metadata:
                     for filename, metadata in attchmnt_metadata.items():
@@ -437,12 +448,12 @@ class ChatScreen(BaseScreen):
                             Static(f"{filename} ({fmt_size})", classes="user-attachments")
                         )
                 return
+            self.app.call_from_thread(_reveal_user_attachment_widget)
 
+            # Update assistant message box
             def _reveal_token_count_widget() -> None:
                 tkn_widget.update(f"{msg_tol_tkns} tokens used")
                 tkn_widget.remove_class("hidden")
-
-            self.app.call_from_thread(_reveal_user_attachment_widget)
             self.app.call_from_thread(_reveal_token_count_widget)
 
         # Reset pending attachment status

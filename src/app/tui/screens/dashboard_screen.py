@@ -157,15 +157,22 @@ class DashboardScreen(BaseScreen):
     def on_input_changed(self, event: Input.Changed) -> None:
         """Fuzzy search for models, tokenizers and sessions."""
         super().on_input_changed(event)
+        opt_list = self.query_one("#session-list", OptionList)
 
         if event.input.id == "session-search-input":
-            self._fuzzy_search_behaviour(event=event, id="#session-list")
+            sessions_helpers._fuzzy_search_behaviour(
+                event=event, opt_list=opt_list
+            )
 
         if event.input.id == "new-session-input":
-            self._fuzzy_search_behaviour(event=event, id="#session-list")
+            sessions_helpers._fuzzy_search_behaviour(
+                event=event, opt_list=opt_list
+            )
 
         if event.input.id == "delete-session-input":
-            self._fuzzy_search_behaviour(event=event, id="#session-list")
+            sessions_helpers._fuzzy_search_behaviour(
+                event=event, opt_list=opt_list
+            )
 
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -205,8 +212,17 @@ class DashboardScreen(BaseScreen):
         sess_act_bar = self.query_one("#session-action-bar", Horizontal)
         sess_list = self.query_one("#session-list", OptionList)
 
+        def _go_to_first_widget_if_not_focuse(first_wid: Widget) -> None:
+            if not self.focused:
+                buttons = list(first_wid.query(Button))
+                buttons[0].focus()
+
+        def _focus_first_button_in_bar(wid: Widget) -> None:
+            buttons = list(wid.query(Button))
+            buttons[0].focus()
+
         if event.key == "h":
-            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+            _go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
@@ -222,7 +238,7 @@ class DashboardScreen(BaseScreen):
                     buttons[0].focus()
 
         elif event.key == "l":
-            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+            _go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
@@ -238,7 +254,7 @@ class DashboardScreen(BaseScreen):
                     buttons[0].focus()
 
         elif event.key == "k":
-            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+            _go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
@@ -246,7 +262,7 @@ class DashboardScreen(BaseScreen):
 
             # If focus is in session list but no option is highlighted
             elif self.focused == sess_list and sess_list.highlighted is None:
-                self._focus_first_button_in_bar(wid=sess_act_bar)
+                _focus_first_button_in_bar(wid=sess_act_bar)
 
             # If focus is in option list and option is highlighted
             elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
@@ -255,7 +271,7 @@ class DashboardScreen(BaseScreen):
                 self.focused.action_cursor_up()
 
         elif event.key == "j":
-            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+            _go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
@@ -263,7 +279,7 @@ class DashboardScreen(BaseScreen):
 
             # If focus is in session list but no option is highlighted
             elif self.focused == sess_list and sess_list.highlighted is None:
-                self._focus_first_button_in_bar(wid=sess_act_bar)
+                _focus_first_button_in_bar(wid=sess_act_bar)
 
             # If focus is in option list and option is highlighted
             elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
@@ -283,7 +299,7 @@ class DashboardScreen(BaseScreen):
                     elif sess_list.option_count > 0:
                         sess_list.highlighted = 0
 
-        if event.key == "tab":
+        elif event.key == "tab":
             event.prevent_default()
             event.stop()
 
@@ -308,22 +324,11 @@ class DashboardScreen(BaseScreen):
             # Ensure focus stays on active input bar
             self.focused.focus()
 
-        if event.key == "escape":
+        elif event.key == "escape":
             event.prevent_default()
             event.stop()
             self._reset_session_list_layout()
             self._option_list_hightlight_none()
-
-
-    def _go_to_first_widget_if_not_focuse(self, first_wid: Widget) -> None:
-        if not self.focused:
-            buttons = list(first_wid.query(Button))
-            buttons[0].focus()
-
-
-    def _focus_first_button_in_bar(self, wid: Widget) -> None:
-        buttons = list(wid.query(Button))
-        buttons[0].focus()
 
 
     def _reset_session_list_layout(self) -> None:
@@ -378,34 +383,6 @@ class DashboardScreen(BaseScreen):
         self.query_one("#search-session-button", Button).focus()
 
 
-    def _show_session_list(self) -> None:
-        """
-        Show list of sessions with created time, modified time and session name.
-        """
-        from src.agent.chat_logs import ChatLogs
-        chat_logs = ChatLogs(conn=postgres.conn)
-
-        sess_dict = chat_logs.get_all_existing_sess_metadata()
-        if not sess_dict:
-            return
-
-        sess_list = self.query_one("#session-list", OptionList)
-        sess_list.clear_options()
-
-        list_title = Option("Last modified\t\tCreated at\t\tSession name\n", id="session-option-list-title")
-        list_title.disabled = True
-        sess_list.add_option(list_title)
-
-        for sess_id in sess_dict:
-            sess_name = sess_dict[sess_id]["session_name"]
-            sess_with_dates = date_helpers.get_session_with_dates(
-                sess_dict=sess_dict, sess_id=sess_id
-            )
-            sess_list.add_option(Option(sess_with_dates, id=sess_name))
-
-        sess_list.remove_class("hidden")
-
-
     def _show_sessions(self) -> None:
         """
         Consist:
@@ -431,7 +408,8 @@ class DashboardScreen(BaseScreen):
 
         # Session selector
         self._show_session_action_bar()
-        self._show_session_list()
+        sess_list = self.query_one("#session-list", OptionList)
+        sessions_helpers._show_session_list(sess_list=sess_list)
 
         # Hide widgets
         self.query_one("#session-search-input", Input).add_class("hidden")
@@ -477,7 +455,8 @@ class DashboardScreen(BaseScreen):
         Show existing session list with fuzzy search on.
         """
         self.in_new_sess_input = True # User is entering session name
-        self._show_session_list()
+        sess_list = self.query_one("#session-list", OptionList)
+        sessions_helpers._show_session_list(sess_list=sess_list)
 
         # Existing session list
         sess_list = self.query_one("#session-list", OptionList)
@@ -540,6 +519,19 @@ class DashboardScreen(BaseScreen):
         self.query_one("#session-action-bar").add_class("hidden")
 
 
+    def _delete_session(self, sess_name: str) -> None:
+        """Delete session."""
+        from src.app.operations import sessions
+        result = sessions.del_sess(sess_name=sess_name)
+
+        if result and "fail" in result.lower():
+            self.notify(result, severity="error")
+            return
+
+        self.notify(f"Session deleted: {sess_name}")
+        self._show_sessions()
+
+
     def _confirm_and_delete_session(self, sess_name: str) -> None:
         clean_name = sess_name.strip()
         if not clean_name:
@@ -559,83 +551,3 @@ class DashboardScreen(BaseScreen):
             ConfirmationPopupScreen(title=title, positive=positive, negative=negative),
             callback=handle_confirmation
         )
-
-
-    def _delete_session(self, sess_name: str) -> None:
-        """Delete session."""
-        from src.app.operations import sessions
-        result = sessions.del_sess(sess_name=sess_name)
-
-        if result and "fail" in result.lower():
-            self.notify(result, severity="error")
-            return
-
-        self.notify(f"Session deleted: {sess_name}")
-        self._show_sessions()
-
-
-    def _fuzzy_search_behaviour(
-        self,
-        event: Input.Changed,
-        id: Literal["#session-list"],
-    ) -> None:
-        """
-        Filters the OptionList based on fuzzy matching.
-        Controls:
-        - The behaviour of the model list when the
-          search input is changed.
-        """
-        from src.agent.chat_logs import ChatLogs
-        chat_logs = ChatLogs(conn=postgres.conn)
-
-        sess_dict = chat_logs.get_all_existing_sess_metadata()
-        if not sess_dict:
-            return
-
-        sess_list = sessions_helpers.get_session_list()
-        if not sess_list:
-            return
-
-        qry = event.value.strip().lower()
-        opt_list = self.query_one(id, OptionList)
-        opt_list.clear_options()
-
-        list_title = Option("Last modified\t\tCreated at\t\tSession name\n")
-        list_title.disabled = True
-        opt_list.add_option(list_title)
-
-        if not qry:
-            # Show entire list if query is empty
-            self._show_session_list()
-
-        else:
-            # Create an option for every matches
-            exact_matches = [entry for entry in sess_list if qry in entry.lower()]
-            fuzzy_matches = get_close_matches(
-                qry,
-                [entry.lower() for entry in sess_list],
-                n=5,
-                cutoff=0.4
-            )
-
-            name_list = []
-            for name in sess_list:
-                if name in exact_matches or name.lower() in fuzzy_matches:
-                    name_list.append(name)
-
-            for name in name_list:
-                sess_id = chat_logs.get_sess_id_from_name(sess_name=name)
-                if not sess_id:
-                    continue
-
-                if not sess_dict:
-                    return
-
-                sess_with_dates = date_helpers.get_session_with_dates(
-                    sess_dict=sess_dict, sess_id=sess_id
-                )
-                opt_list.add_option(Option(sess_with_dates, id=name))
-
-        # Re-highlight first match after every update
-        if opt_list.option_count > 1:
-            opt_list.highlighted = 1

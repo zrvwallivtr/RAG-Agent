@@ -25,6 +25,7 @@ class BaseScreen(Screen):
         cmd_input = self.query_one("#cmd-input", Input)
 
         if event.character == ":":
+            # Do not activate command bar if focus is on prompt input
             if self.focused and self.focused.id == "prompt-input":
                 return
 
