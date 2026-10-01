@@ -9,6 +9,7 @@ from rich.align import Align
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widget import Widget
 from textual.widgets import Static, Input, OptionList, Button
 from textual.widgets.option_list import Option
 from textual.events import Key
@@ -112,7 +113,6 @@ class DashboardScreen(BaseScreen):
     def on_mount(self) -> None:
         """Show app icon, app description and status on startup."""
         self.query_one("#app-icon", Static).update(app_icon())
-        # self._show_status_container_panel()
         self._update_model_status_section()
         self._update_tokenizer_status_section()
         self._show_sessions()
@@ -120,9 +120,7 @@ class DashboardScreen(BaseScreen):
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """
-        Controls the behaviour when action bar button is pressed.
-        """
+        """Controls the behaviour when action bar button is pressed."""
         if event.button.id == "search-session-button":
             self._show_session_search_input()
 
@@ -137,6 +135,9 @@ class DashboardScreen(BaseScreen):
         """
         Controls the behaviour when option is selected.
         """
+        event.prevent_default()
+        event.stop()
+
         list_id = event.option_list.id
 
         if list_id == "session-list":
@@ -201,17 +202,86 @@ class DashboardScreen(BaseScreen):
         """Menu and option list keybinds."""
         super().on_key(event)
 
-        # List navigation
-        if isinstance(self.focused, OptionList):
-            if event.key == "k":
+        sess_act_bar = self.query_one("#session-action-bar", Horizontal)
+        sess_list = self.query_one("#session-list", OptionList)
+
+        if event.key == "h":
+            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+
+            # If focus is in session action bar
+            if self.focused and sess_act_bar in self.focused.ancestors:
+                buttons = list(sess_act_bar.query(Button))
+
+                if self.focused in buttons:
+                    # Go to previous button in session action bar
+                    curr_idx = buttons.index(self.focused)
+                    prev_idx = (curr_idx - 1) % len(buttons)
+                    buttons[prev_idx].focus()
+                else:
+                    # Focus on the first button if none focused
+                    buttons[0].focus()
+
+        elif event.key == "l":
+            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+
+            # If focus is in session action bar
+            if self.focused and sess_act_bar in self.focused.ancestors:
+                buttons = list(sess_act_bar.query(Button))
+
+                if self.focused in buttons:
+                    # Go to next button in session action bar
+                    curr_idx = buttons.index(self.focused)
+                    next_idx = (curr_idx + 1) % len(buttons)
+                    buttons[next_idx].focus()
+                else:
+                    # Focus on the first button if none focused
+                    buttons[0].focus()
+
+        elif event.key == "k":
+            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+
+            # If focus is in session action bar
+            if self.focused and sess_act_bar in self.focused.ancestors:
+                sess_list.focus() # Go to session list
+
+            # If focus is in session list but no option is highlighted
+            elif self.focused == sess_list and sess_list.highlighted is None:
+                self._focus_first_button_in_bar(wid=sess_act_bar)
+
+            # If focus is in option list and option is highlighted
+            elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
                 event.prevent_default()
                 event.stop()
                 self.focused.action_cursor_up()
 
-            elif event.key == "j":
+        elif event.key == "j":
+            self._go_to_first_widget_if_not_focuse(first_wid=sess_act_bar)
+
+            # If focus is in session action bar
+            if self.focused and sess_act_bar in self.focused.ancestors:
+                sess_list.focus() # Go to session list
+
+            # If focus is in session list but no option is highlighted
+            elif self.focused == sess_list and sess_list.highlighted is None:
+                self._focus_first_button_in_bar(wid=sess_act_bar)
+
+            # If focus is in option list and option is highlighted
+            elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
                 event.prevent_default()
                 event.stop()
                 self.focused.action_cursor_down()
+
+        if event.key == "enter":
+            # If focus is on the session list or in session list
+            if self.focused and (self.focused == sess_list or sess_list in self.focused.ancestors):
+                # If no option is highlighted
+                if sess_list.highlighted is None:
+                    event.prevent_default()
+                    event.stop()
+                    if sess_list.option_count > 1:
+                        sess_list.highlighted = 1
+                    elif sess_list.option_count > 0:
+                        sess_list.highlighted = 0
 
         if event.key == "escape":
             event.prevent_default()
@@ -222,6 +292,17 @@ class DashboardScreen(BaseScreen):
         if event.key == "tab":
             self._reset_session_list_layout()
             self._option_list_hightlight_none()
+
+
+    def _go_to_first_widget_if_not_focuse(self, first_wid: Widget) -> None:
+        if not self.focused:
+            buttons = list(first_wid.query(Button))
+            buttons[0].focus()
+
+
+    def _focus_first_button_in_bar(self, wid: Widget) -> None:
+        buttons = list(wid.query(Button))
+        buttons[0].focus()
 
 
     def _reset_session_list_layout(self) -> None:

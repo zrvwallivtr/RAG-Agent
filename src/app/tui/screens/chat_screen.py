@@ -39,33 +39,28 @@ class ChatScreen(BaseScreen):
 
 
     def compose(self) -> ComposeResult:
-        """
-        Chat interface, with chat container (contains all the chat messages)
-        and user section (contains session status, attachment indicator and
-        tokens counter).
-        """
         with Vertical():
-
+            # Chat container:
+            # - All chat message boxes (user and assistant) only
             with VerticalScroll(id="chat-container"):
                 pass
 
+            # User section
             with Vertical(id="user-section", classes="user-box"):
-
+                # User bar widgets
                 with Horizontal(id="sess-status", classes="user-bar"):
+                    # Pending attachment indicator
                     yield Static(
-                        "0 pending attachments",
-                        id="pending-attachments-counter",
-                        classes="user-item"
-                    )
-                    yield Static(
-                        self._session_used_tokens_status(),
-                        id="tokens-counter",
-                        classes="user-item"
+                        "Attachments (0 pending)", id="pending-attachments-counter", classes="user-item"
                     )
 
-                yield Input(
-                    placeholder="Write a message...", id="prompt-input", select_on_focus=False
-                )
+                    # Tokens counter
+                    yield Static(
+                        self._session_used_tokens_status(), id="tokens-counter", classes="user-item"
+                    )
+
+                # Prompt input bar
+                yield Input(placeholder="Write a message...", id="prompt-input", select_on_focus=False)
 
         yield from self.compose_command_bar()
 
@@ -77,19 +72,17 @@ class ChatScreen(BaseScreen):
 
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Enter prompts into the prompt input bar."""
+        """Contains actions only for content change in prompt input bar."""
         if event.input.id != "prompt-input":
             return
 
+        # Live token count
         prompt = event.value.strip()
         self._debounced_token_count(prompt)
 
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """
-        Once the prompt is submitted, the application displays
-        user prompt and assistant response.
-        """
+        """Contains actions only for prompt submitted by user."""
         if event.input.id != "prompt-input":
             return
 
@@ -97,12 +90,16 @@ class ChatScreen(BaseScreen):
         if not prompt:
             return
 
-        chat_container = self.query_one("#chat-container", VerticalScroll)
+        # Create new user message box with new prompt
         user_msg_box = self._create_user_message_box(Static(prompt))
+
+        # Show new message box in chat-container immediately after sent
+        chat_container = self.query_one("#chat-container", VerticalScroll)
         chat_container.mount(user_msg_box)
         chat_container.scroll_end(animate=False)
-
         self.query_one("#prompt-input", Input).clear()
+
+        # Get agent response
         self._fetch_agent_response(prompt, user_msg_box)
 
 
@@ -113,41 +110,68 @@ class ChatScreen(BaseScreen):
         - 'G' -> go to the bottom.
         - 'gg' -> go to the top.
         - 'space' then 'a' -> go to manage attachments screen.
+        - 'i' or 'a' -> focuse on to the input bar.
         """
         super().on_key(event)
+
+        # All following keybinds only works if none of them are in focus (normal mode)
         prompt_input = self.query_one("#prompt-input", Input)
         cmd_input = self.query_one("#cmd-input", Input)
-
         if prompt_input.has_focus or cmd_input.has_focus:
             return
 
         scroll_bar = self.query_one("#chat-container", VerticalScroll)
 
-        if event.key == "k":
-            scroll_bar.scroll_up()
-            self.pending_key = None
-
-        elif event.key == "j":
-            scroll_bar.scroll_down()
-            self.pending_key = None
-
-        elif event.character == "G":
-            scroll_bar.scroll_end(animate=False)
-            self.pending_key = None
-
-        elif event.character == "g":
-            if self.pending_key == "g":
-                scroll_bar.scroll_home(animate=False)
-                self.pending_key = None
-            else:
+        # Set pending key 'g'
+        if event.character == "g":
+            # Set as first pending key
+            if self.pending_key == None:
                 self.pending_key = "g"
 
+            # 'g' then 'g'
+            elif self.pending_key == "g":
+                scroll_bar.scroll_home(animate=False)
+                self.pending_key = None
+
+        # Set pending key 'space'
         elif event.key == "space":
-            self.pending_key = "space"
+            # Set as first pending key
+            if self.pending_key == None:
+                self.pending_key = "space"
 
         elif event.character == "a":
+            # 'space' then 'a'
             if self.pending_key == "space":
                 self._to_attachments_popup()
+                self.pending_key = None
+
+            # Single
+            if self.pending_key == None:
+                prompt_input.focus()
+                self.pending_key = None
+
+        elif event.key == "k":
+            # Single
+            if self.pending_key == None:
+                scroll_bar.scroll_up()
+                self.pending_key = None
+
+        elif event.key == "j":
+            # Single
+            if self.pending_key == None:
+                scroll_bar.scroll_down()
+                self.pending_key = None
+
+        elif event.character == "G":
+            # Single
+            if self.pending_key == None:
+                scroll_bar.scroll_end(animate=False)
+                self.pending_key = None
+
+        elif event.key == "i":
+            # Single
+            if self.pending_key == None:
+                prompt_input.focus()
                 self.pending_key = None
 
         else:
@@ -282,7 +306,7 @@ class ChatScreen(BaseScreen):
         feedback."""
         self.pending_attchmnt.extend(paths)
         self.query_one("#pending-attachments-counter", Static).update(
-            f"{len(self.pending_attchmnt)} pending attachment(s)"
+            f"Attachment ({len(self.pending_attchmnt)} pending)"
         )
         self.show_command_message(
             f"{len(paths)} file(s) attached. "
@@ -333,7 +357,7 @@ class ChatScreen(BaseScreen):
             if updated_paths is not None:
                 self.pending_attchmnt = updated_paths
                 self.query_one("#pending-attachments-counter", Static).update(
-                    f"{len(self.pending_attchmnt)} pending attachment(s)"
+                    f"Attachments ({len(self.pending_attchmnt)} pending)"
                 )
 
         self.app.push_screen(
@@ -355,7 +379,7 @@ class ChatScreen(BaseScreen):
         # Pending attachment widget
         self.pending_attchmnt = []
         self.query_one("#pending-attachments-counter", Static).update(
-            f"{len(self.pending_attchmnt)} pending attachment(s)"
+            f"Attachments ({len(self.pending_attchmnt)} pending)"
         )
 
         # Token count widget
