@@ -1,0 +1,36 @@
+ConfirmationPopupScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+#confirmation-popup-modal {
+    max-width: 100;
+    height: auto;
+    border: solid cyan;
+    max-height: 60;
+    padding: 1 2;
+}
+
+#confirmation-modal-title {
+    height: auto;
+    width: auto;
+    align: center middle;
+    margin: 1;
+}
+
+#confirmation-modal-button-section {
+    align: center middle;
+    height: auto;
+    margin: 0 1;
+    padding: 0 1;
+}
+
+#confirmation-modal-true-button {
+    background: cyan;
+    color: black;
+}
+
+#confirmation-modal-false-button {
+    background: darkcyan;
+    color: black;
+}

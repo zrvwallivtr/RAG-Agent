@@ -15,8 +15,8 @@ def _clean_id_string(path: Path):
     return f"path-{clean_str}"
 
 
-class ManageAttachmentsScreen(ModalScreen[None]):
-    CSS_PATH = "tcss/manage_attachments.tcss"
+class AttachmentsPopupScreen(ModalScreen[None]):
+    CSS_PATH = "tcss/attachments_popup.tcss"
 
 
     def __init__(self, paths: list[Path]):
@@ -31,15 +31,10 @@ class ManageAttachmentsScreen(ModalScreen[None]):
             if self.paths:
                 for path in self.paths:
                     with Horizontal(classes="attachment-modal-list"):
-                        yield Button("x", id=f"delete-{_clean_id_string(path)}")
-                        yield Static(str(path), id=_clean_id_string(path))
+                        yield Button("x", id=f"delete-{_clean_id_string(path)}", classes="remove-attachment")
+                        yield Static(str(path), id=_clean_id_string(path), classes="attachment-name")
             else:
                 yield Static("[dim]No pending attachments[/]")
-
-
-    # def on_mount(self) -> None:
-    #     if self.paths:
-    #         self.query_one("#attachment-modal-list", Horizontal).focus()
 
 
     def on_key(self, event: Key) -> None:
@@ -47,8 +42,7 @@ class ManageAttachmentsScreen(ModalScreen[None]):
             event.prevent_default()
             event.stop()
             
-            # Return updated paths list on dismiss
-            self.dismiss(self.paths)
+            self.dismiss(self.paths) # Return updated paths list on dismiss
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

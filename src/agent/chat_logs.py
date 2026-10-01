@@ -35,10 +35,6 @@ class ChatLogs:
         self._init_chat_logs_db()
 
 
-    # =============================================================
-    # INITIALISE CHAT LOGS DATABASE
-    # =============================================================
-
     def _init_chat_logs_db(self):
         """Create session lookup and chat logs table if missing."""
         app_log.debug(
@@ -87,10 +83,6 @@ class ChatLogs:
 
         self.conn.commit()
 
-
-    # =============================================================
-    # MANAGE SESSIONS
-    # =============================================================
 
     def get_sess_id(self) -> str | None:
         """Fetch session id from chat_sessions table."""
@@ -263,10 +255,6 @@ class ChatLogs:
         return sess_dict
 
 
-    # =============================================================
-    # CREATE SESSION
-    # =============================================================
-
     def create_sess(self) -> str:
         """Create session entry on the chat_sessions table and return its session id."""
         app_log.debug("Creating new session '%s'", self.sess_name)
@@ -304,10 +292,6 @@ class ChatLogs:
         return sess_id
 
 
-    # =============================================================
-    # EDIT CHAT LOGS
-    # =============================================================
-
     def add_conv_turn(
         self,
         prompt: str,
@@ -317,10 +301,11 @@ class ChatLogs:
         qry_wth_urls: list[dict[str, list[str]]] | None = None,
         p_tkns: int = 0,
         o_tkns: int = 0
-    ):
+    ) -> dict[str, dict[str, Any]]:
         """
         Insert new conversation turn including metadata 
-        into the specified session database table.
+        into the specified session database table. Return
+        the all tool calls metadata.
 
         State:
         - 'internal': Pre-written prompt.
@@ -344,6 +329,8 @@ class ChatLogs:
         # Resync messages
         self.actv_convs = self.get_actv_convs()
         app_log.debug("Resynced session '%s' conversations", self.sess_name)
+
+        return metadata
 
 
     def clear_sess_chat_logs(self) -> bool:
@@ -371,10 +358,6 @@ class ChatLogs:
         app_log.debug("Resynced session '%s' conversations", self.sess_name)
         return True
 
-
-    # =============================================================
-    # FROM CHAT LOGS
-    # =============================================================
 
     def get_actv_convs(self) -> list[dict]:
         """
@@ -432,7 +415,7 @@ class ChatLogs:
         if filter == "compressed":
             self.cur.execute(
                 """
-                SELECT prompt, response, total_prompt_tokens, total_output_tokens
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = TRUE
                 ORDER BY created_at ASC;
@@ -442,7 +425,7 @@ class ChatLogs:
         elif filter == "not_compressed":
             self.cur.execute(
                 """
-                SELECT prompt, response, total_prompt_tokens, total_output_tokens
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
@@ -452,7 +435,7 @@ class ChatLogs:
         else:
             self.cur.execute(
                 """
-                SELECT prompt, response, total_prompt_tokens, total_output_tokens
+                SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external'
                 ORDER BY created_at ASC;
@@ -474,9 +457,13 @@ class ChatLogs:
         convs = []
 
         for row in rows:
+            attchmnt_metadata = {}
+            if row[4]:
+                attchmnt_metadata = row[4].get("attachments")
             convs.append({
                 "role": "user",
-                "content": row[0]
+                "content": row[0],
+                "attachments": attchmnt_metadata
             })
             convs.append({
                 "role": "assistant",
@@ -566,12 +553,8 @@ class ChatLogs:
         )
         return convs
 
-    
-    # =============================================================
-    # TOOL CALL METADATA
-    # =============================================================
 
-    def _attachments_metadata(
+    def _add_attachments_metadata(
         self,
         attchmnts: list[Path] | None
     ) -> dict[str, dict[str, Any]] | None:
@@ -609,31 +592,31 @@ class ChatLogs:
         return attchmnts_dict
 
 
-    def _web_search_metadata(
-        self,
-        qry_wth_urls: list[dict[str, list[str]]] | None,
-    ) -> dict[str, list[str]]:
-        """
-        Add all URL(s) to every query in the list of queries.
+    # def _add_web_search_metadata(
+    #     self,
+    #     qry_wth_urls: list[dict[str, list[str]]] | None,
+    # ) -> dict[str, list[str]]:
+    #     """
+    #     Add all URL(s) to every query in the list of queries.
 
-        {
-            "query_name": [
-                "query_url_1",
-                "query_url_2",
-                "query_url_3"
-            ]
-        }
-        """
-        # /////////////////////////////////////////////
-        # MIGHT REQUIRE UPDATE FOR METADATA STRUCTURE
-        app_log.debug("Updating web search metadata")
-        if qry_wth_urls:
-            wb_search_dict = {}
-            for qry_dict in qry_wth_urls:
-                wb_search_dict.update(qry_dict)
-            return wb_search_dict
-        # /////////////////////////////////////////////
-        return {}
+    #     {
+    #         "query_name": [
+    #             "query_url_1",
+    #             "query_url_2",
+    #             "query_url_3"
+    #         ]
+    #     }
+    #     """
+    #     # /////////////////////////////////////////////
+    #     # MIGHT REQUIRE UPDATE FOR METADATA STRUCTURE
+    #     app_log.debug("Updating web search metadata")
+    #     if qry_wth_urls:
+    #         wb_search_dict = {}
+    #         for qry_dict in qry_wth_urls:
+    #             wb_search_dict.update(qry_dict)
+    #         return wb_search_dict
+    #     # /////////////////////////////////////////////
+    #     return {}
 
 
     def _tool_calls_metadata(
@@ -653,19 +636,19 @@ class ChatLogs:
         tool_entries = {}
 
         if attchmnts:
-            tool_entries["attachments"] = self._attachments_metadata(attchmnts)
+            tool_entries["attachments"] = self._add_attachments_metadata(attchmnts)
 
-        if qry_wth_urls:
-            tool_entries["web_search"] = self._web_search_metadata(qry_wth_urls)
+        # if qry_wth_urls:
+        #     tool_entries["web_search"] = self._add_web_search_metadata(qry_wth_urls)
 
         return tool_entries
 
 
-    # =============================================================
-    # CHAT COMPRESSION
-    # =============================================================
-
-    def compress_active_conv(self, prompt: str, contxt: list[dict] | None = None) -> tuple[str, int, int] | None:
+    def compress_active_conv(
+        self,
+        prompt: str,
+        contxt: list[dict] | None = None
+    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """Call model to summarise all conversations where 'is_compressed' = FALSE in the database."""
         app_log.info("Compressing session '%s' chat logs", self.sess_name)
 
@@ -697,7 +680,7 @@ class ChatLogs:
             self.sess_name
         )
 
-        self.add_conv_turn(
+        metadata = self.add_conv_turn(
             prompt=prompt,
             response=smry,
             state="external",
@@ -710,24 +693,20 @@ class ChatLogs:
         )
 
         self.actv_convs = self.get_actv_convs() # resync messages
-        return smry, p_tkns, o_tkns
+        return smry, p_tkns, o_tkns, metadata
 
 
-    def auto_compresss_active_conv(self) -> tuple[str, int, int] | None:
+    def auto_compresss_active_conv(self) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """Auto compress session."""
         app_log.info("Chat compression was triggered for session '%s'", self.sess_name)
         prompt = "Summarise all previous conversations."
         result = self.compress_active_conv(prompt)
         if not result:
             return
-        smry, p_tkns, o_tkns = result
+        smry, p_tkns, o_tkns, metadata = result
         app_log.info("Auto compression complete. Continuing session")
-        return smry, p_tkns, o_tkns
+        return smry, p_tkns, o_tkns, metadata
 
-
-    # =============================================================
-    # Exit
-    # =============================================================
 
     def _close_conn(self):
         """Close connection to database."""

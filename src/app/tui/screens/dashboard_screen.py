@@ -19,83 +19,17 @@ from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
+from src.app.tui.screens.helpers import date_helpers
+from src.app.tui.screens.helpers import tokenizers_helpers
+from src.app.tui.screens.helpers import sessions_helpers
+
 
 MODEL_ROLES = ["chat_model", "memory_model", "web_search_model", "embedding_model"]
 
 
-def _get_tknizr_list() -> list | None:
-    """Return all installed tokenizers as a list."""
-    tknizr_dict = tokenizers.fetch_all_installed_tokenizers()
-    if not tknizr_dict:
-        return
-
-    tknizr_list = []
-
-    for tknizr in tknizr_dict:
-        tknizr_list.append(tknizr["name"])
-    return tknizr_list
-
-
-def _get_session_list() -> list | None:
-    """Return all existing session as a list."""
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
-
-    sess_dict = chat_logs.get_all_existing_sess_metadata()
-    if not sess_dict:
-        return
-
-    sess_list = []
-
-    for sess in sess_dict:
-        sess_list.append(sess_dict[sess]["session_name"])
-    return sess_list
-
-
-def _trimmed_date(iso_str: str | None) -> str:
-    """
-    Trim the date format from 'ISO 8601 with microseconds'
-    to 'DD/MM/YYYY HH:MM'
-    """
-    if not iso_str: # Fallback
-        return "    ---         "
-
-    dt = datetime.fromisoformat(iso_str.split("+")[0])
-    return dt.strftime("%d/%m/%Y %H:%M")
-   
-
-def _get_session_with_dates(sess_dict: dict, sess_id: str) -> str | None:
-    """Return a string containing session last modified at, created at and session name."""
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
-
-    sess_name = sess_dict[sess_id]["session_name"]
-    created_at = _trimmed_date(iso_str=sess_dict[sess_id]["created_at"])
-
-    last_mod_iso = chat_logs.get_session_last_modified_time(sess_id=sess_id)
-    if not last_mod_iso:
-        last_mod_iso = sess_dict[sess_id]["created_at"]
-
-    last_mod = _trimmed_date(
-        iso_str=last_mod_iso
-    )
-    sep = " "
-
-    return (
-        f"[magenta]{last_mod}[/]{sep}\t"
-        f"[green]{created_at}[/]{sep}\t"
-        f"[yellow]{sess_name}[/]"
-    )
-
-
-def app_icon() -> Panel:
+def app_icon() -> str:
     """Return app icon as Panel."""
-    return Panel(
-        Align.center(f"[bright_cyan bold not italic]{app_icon_ascii.RAG}", vertical="middle"),
-        height=13,
-        width=26,
-        box=box.SQUARE
-    )
+    return app_icon_ascii.RAG
 
 
 class DashboardScreen(BaseScreen):
@@ -111,7 +45,9 @@ class DashboardScreen(BaseScreen):
             MODEL_ROLES[2]: models.SEAR_MODEL,
             MODEL_ROLES[3]: models.EMBED_MODEL,
         }
+
         self.fb_tknizr = models.FALLBACK_TOKENIZER
+
         self.curr_model_role: str | None = None
         self.curr_fb_tknizr: str | None = None
         self.curr_to_sess: str | None = None
@@ -122,60 +58,63 @@ class DashboardScreen(BaseScreen):
 
 
     def compose(self) -> ComposeResult:
-        """
-        The top container contains:
-        - App icon
-        - App description
+        with Horizontal(id="app-banner"):
+            yield Static(id="app-icon", classes="box")
 
-        The status container contains:
-        - Models section
-        - Tokenizers section
-        - Sessions section
-        """
-        with Horizontal(id="top-container"):
-            yield Static(id="icon", classes="box")
-            yield Static(id="status-container", classes="box")
+            with Vertical(id="app-config", classes="box"):
+                # Models
+                yield Static(id="model-section-title", classes="models-section")
+                with Horizontal(id="model-section-list"):
+                    yield Static(id="model-type-list", classes="model-list")
+                    yield Static(id="selected-model-list", classes="model-list")
 
-        with Vertical(id="sessions", classes="box"):
+                # Tokenizers
+                yield Static(id="tokenizer-section-title", classes="tokenizer-section")
+                with Horizontal(id="tokenizer-section-list"):
+                    yield Static(id="fallback-tokenizer", classes="tokenizer-list")
+                    yield Static(id="selected-tokenizer", classes="tokenizer-list")
 
+        with Vertical(id="sessions-section"):
             # Sessions title
-            yield Static(id="sess-section-title")
+            yield Static(id="session-section-title")
 
             # Sessions actions
-            with Horizontal(id="sess-actions", classes="action-bar"):
-                yield Button("Search session", id="sear-sess", classes="action-item")
-                yield Button("New session", id="new-sess", classes="action-item")
-                yield Button("Delete session", id="del-sess", classes="action-item")
+            with Horizontal(id="session-action-bar", classes="action-bar"):
+                yield Button("Search session", id="search-session-button", classes="action-item")
+                yield Button("New session", id="new-session-button", classes="action-item")
+                yield Button("Delete session", id="delete-session-button", classes="action-item")
 
             yield Input(
-                id="sess-sear-input",
+                id="session-search-input",
                 placeholder="Search session name...",
                 classes="hidden",
                 select_on_focus=False
             )
             yield Input(
-                id="new-sess-input",
+                id="new-session-input",
                 placeholder="New session name...",
                 classes="hidden",
                 select_on_focus=False
             )
             yield Input(
-                id="del-sess-input",
+                id="delete-session-input",
                 placeholder="Delete session name...",
                 classes="hidden",
                 select_on_focus=False
             )
 
             # Sessions list
-            yield OptionList(id="sess-list", classes="hidden")
+            yield OptionList(id="session-list", classes="hidden")
 
         yield from self.compose_command_bar()
 
 
     def on_mount(self) -> None:
         """Show app icon, app description and status on startup."""
-        self.query_one("#icon", Static).update(app_icon())
-        self._show_status_container_panel()
+        self.query_one("#app-icon", Static).update(app_icon())
+        # self._show_status_container_panel()
+        self._update_model_status_section()
+        self._update_tokenizer_status_section()
         self._show_sessions()
         self.refresh(layout=True)
 
@@ -184,13 +123,13 @@ class DashboardScreen(BaseScreen):
         """
         Controls the behaviour when action bar button is pressed.
         """
-        if event.button.id == "sear-sess":
+        if event.button.id == "search-session-button":
             self._show_session_search_input()
 
-        elif event.button.id == "new-sess":
+        elif event.button.id == "new-session-button":
             self._show_new_session_input()
 
-        elif event.button.id == "del-sess":
+        elif event.button.id == "delete-session-button":
             self._show_delete_session_input()
 
 
@@ -200,7 +139,7 @@ class DashboardScreen(BaseScreen):
         """
         list_id = event.option_list.id
 
-        if list_id == "sess-list":
+        if list_id == "session-list":
             if not event.option.id:
                 return
 
@@ -208,7 +147,7 @@ class DashboardScreen(BaseScreen):
                 self._go_to_session(sess_name=event.option.id)
 
             elif self.in_del_sess_input:
-                self._delete_session(sess_name=event.option.id)
+                self._confirm_and_delete_session(sess_name=event.option.id)
 
             else:
                 self._go_to_session(sess_name=event.option.id)
@@ -218,14 +157,14 @@ class DashboardScreen(BaseScreen):
         """Fuzzy search for models, tokenizers and sessions."""
         super().on_input_changed(event)
 
-        if event.input.id == "sess-sear-input":
-            self._fuzzy_search_behaviour(event=event, id="#sess-list")
+        if event.input.id == "session-search-input":
+            self._fuzzy_search_behaviour(event=event, id="#session-list")
 
-        if event.input.id == "new-sess-input":
-            self._fuzzy_search_behaviour(event=event, id="#sess-list")
+        if event.input.id == "new-session-input":
+            self._fuzzy_search_behaviour(event=event, id="#session-list")
 
-        if event.input.id == "del-sess-input":
-            self._fuzzy_search_behaviour(event=event, id="#sess-list")
+        if event.input.id == "delete-session-input":
+            self._fuzzy_search_behaviour(event=event, id="#session-list")
 
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -235,10 +174,9 @@ class DashboardScreen(BaseScreen):
         """
         super().on_input_submitted(event)
 
-        # === SESSION SEARCH BAR ===========================
-        if event.input.id == "sess-sear-input":
-
-            sess_list = self.query_one("#sess-list", OptionList)
+        # Session search bar
+        if event.input.id == "session-search-input":
+            sess_list = self.query_one("#session-list", OptionList)
             if sess_list.highlighted is None:
                 return
 
@@ -248,14 +186,14 @@ class DashboardScreen(BaseScreen):
 
             self._go_to_session(sess_name=selected_option.id)
 
-        # === NEW SESSION INPUT BAR ========================
-        if event.input.id == "new-sess-input":
+        # New session naming bar
+        if event.input.id == "new-session-input":
             self._create_new_session(sess_name=event.value)
             return
 
-        # === DELETE SESSION INPUT BAR =====================
-        if event.input.id == "del-sess-input":
-            self._delete_session(sess_name=event.value)
+        # Delete session search bar
+        if event.input.id == "delete-session-input":
+            self._confirm_and_delete_session(sess_name=event.value)
             return
 
 
@@ -276,55 +214,56 @@ class DashboardScreen(BaseScreen):
                 self.focused.action_cursor_down()
 
         if event.key == "escape":
-            if self.in_sess_search or self.in_new_sess_input or self.in_del_sess_input:
-                event.prevent_default()
-                event.stop()
-                self._show_sessions()
+            event.prevent_default()
+            event.stop()
+            self._reset_session_list_layout()
+            self._option_list_hightlight_none()
 
-            # Only highlight when focused
-            for opt_list in self.query(OptionList):
-                if opt_list.highlighted is not None:
-                    opt_list.highlighted = None
-
-        # Only highlight when focused
         if event.key == "tab":
-            for opt_list in self.query(OptionList):
-                if opt_list.highlighted is not None:
-                    opt_list.highlighted = None
+            self._reset_session_list_layout()
+            self._option_list_hightlight_none()
 
 
-    def _show_status_container_panel(self) -> None:
-        """Renders models and tokenizers info in a single Rich Panel."""
+    def _reset_session_list_layout(self) -> None:
+        """Return to default sessions view if in an input mode."""
+        if self.in_sess_search or self.in_new_sess_input or self.in_del_sess_input:
+            self.in_new_sess_input = False
+            self.in_del_sess_input = False
+            self._show_sessions()
 
-        # Models section
-        model_lines = []
-        label_width = max(len(role.replace("_", " ").capitalize()) for role in MODEL_ROLES) + 2
-        for role in MODEL_ROLES:
-            label = role.replace("_", " ").capitalize()
-            padded_label = f"{label}:".ljust(label_width)
-            model_lines.append(f"\t{padded_label}\t[yellow]{self.selected_models[role]}[/]")
-        models_list = "\n".join(model_lines)
 
-        # Tokenizers section
-        tknizr_list = _get_tknizr_list()
+    def _option_list_hightlight_none(self) -> None:
+        """Exist highlight if any OptionList is highlighted."""
+        for opt_list in self.query(OptionList):
+            if opt_list.highlighted is not None:
+                opt_list.highlighted = None
+
+
+    def _update_model_status_section(self):
+        self.query_one("#model-section-title", Static).update(f"[bold]Models[/] ({len(self.ava_models)} installed)")
+
+        model_list = []
+        for model_type in MODEL_ROLES:
+            model_names = model_type.replace("_", " ").capitalize()
+            model_list.append(f"{model_names}")
+        models_str = "\n".join(model_list)
+
+        selected_list = []
+        for model in self.selected_models.values():
+            selected_list.append(f"{model}")
+        selected_str = "\n".join(selected_list)
+
+        self.query_one("#model-type-list", Static).update(models_str)
+        self.query_one("#selected-model-list", Static).update(selected_str)
+
+
+    def _update_tokenizer_status_section(self):
+        tknizr_list = tokenizers_helpers.get_tknizr_list()
         tknizr_count = len(tknizr_list) if tknizr_list else 0
-        fb_tknizr = f"\tFallback tokenizer:\t[yellow]{models.FALLBACK_TOKENIZER}[/]"
 
-        # Combined sections
-        comb_cont = (
-            f"[bold]Models[/] ({len(self.ava_models)} installed)\n\n"
-            f"{models_list}\n\n"
-            f"[bold]Tokenizers[/] ({tknizr_count} installed)\n\n"
-            f"{fb_tknizr}"
-        )
-
-        panel = Panel(
-            comb_cont,
-            title="[bright_cyan bold not italic]STATUS[/]",
-            box=box.SQUARE
-        )
-
-        self.query_one("#status-container", Static).update(panel)
+        self.query_one("#tokenizer-section-title", Static).update(f"[bold]Tokenizers[/] ({tknizr_count} installed)")
+        self.query_one("#fallback-tokenizer", Static).update("Fallback tokenizer:")
+        self.query_one("#selected-tokenizer", Static).update(f"{models.FALLBACK_TOKENIZER}")
 
 
     def _show_session_action_bar(self) -> None:
@@ -332,9 +271,9 @@ class DashboardScreen(BaseScreen):
         self.in_sess_search = False # User not searching sessions
         self.curr_to_sess = None
 
-        action_bar = self.query_one("#sess-actions")
+        action_bar = self.query_one("#session-action-bar")
         action_bar.remove_class("hidden")
-        self.query_one("#sear-sess", Button).focus()
+        self.query_one("#search-session-button", Button).focus()
 
 
     def _show_session_list(self) -> None:
@@ -348,16 +287,16 @@ class DashboardScreen(BaseScreen):
         if not sess_dict:
             return
 
-        sess_list = self.query_one("#sess-list", OptionList)
+        sess_list = self.query_one("#session-list", OptionList)
         sess_list.clear_options()
 
-        list_title = Option("Last modified\t\tCreated at\t\tSession name\n")
+        list_title = Option("Last modified\t\tCreated at\t\tSession name\n", id="session-option-list-title")
         list_title.disabled = True
         sess_list.add_option(list_title)
 
         for sess_id in sess_dict:
             sess_name = sess_dict[sess_id]["session_name"]
-            sess_with_dates = _get_session_with_dates(
+            sess_with_dates = date_helpers.get_session_with_dates(
                 sess_dict=sess_dict, sess_id=sess_id
             )
             sess_list.add_option(Option(sess_with_dates, id=sess_name))
@@ -386,16 +325,16 @@ class DashboardScreen(BaseScreen):
             if sess_dict
             else f"[bold]Sessions[/bold] (0 created)\n"
         )
-        self.query_one("#sess-section-title", Static).update(title)
+        self.query_one("#session-section-title", Static).update(title)
 
         # Session selector
         self._show_session_action_bar()
         self._show_session_list()
 
         # Hide widgets
-        self.query_one("#sess-sear-input", Input).add_class("hidden")
-        self.query_one("#new-sess-input", Input).add_class("hidden")
-        self.query_one("#del-sess-input", Input).add_class("hidden")
+        self.query_one("#session-search-input", Input).add_class("hidden")
+        self.query_one("#new-session-input", Input).add_class("hidden")
+        self.query_one("#delete-session-input", Input).add_class("hidden")
 
 
     def _show_session_search_input(self) -> None:
@@ -406,21 +345,21 @@ class DashboardScreen(BaseScreen):
         self.in_sess_search = True # User is searching sessions
 
         # Session option list
-        sess_list = self.query_one("#sess-list", OptionList)
+        sess_list = self.query_one("#session-list", OptionList)
 
         # Highlight first match
         if sess_list.option_count > 1:
             sess_list.highlighted = 1
 
         # Fuzzy search
-        search_input = self.query_one("#sess-sear-input", Input)
+        search_input = self.query_one("#session-search-input", Input)
         search_input.value = ""
         search_input.remove_class("hidden")
         sess_list.remove_class("hidden")
         search_input.focus()
 
         # Hide session search input trigger
-        self.query_one("#sess-actions").add_class("hidden")
+        self.query_one("#session-action-bar").add_class("hidden")
 
 
     def _go_to_session(self, sess_name: str) -> None:
@@ -439,21 +378,21 @@ class DashboardScreen(BaseScreen):
         self._show_session_list()
 
         # Existing session list
-        sess_list = self.query_one("#sess-list", OptionList)
+        sess_list = self.query_one("#session-list", OptionList)
 
         # Highlight first match
         if sess_list.option_count > 1:
             sess_list.highlighted = 1
 
         # Input bar
-        new_sess_input = self.query_one("#new-sess-input", Input)
+        new_sess_input = self.query_one("#new-session-input", Input)
         new_sess_input.value = ""
         new_sess_input.remove_class("hidden")
         sess_list.remove_class("hidden")
         new_sess_input.focus()
 
         # Hide widgets
-        self.query_one("#sess-actions").add_class("hidden")
+        self.query_one("#session-action-bar").add_class("hidden")
 
 
     def _create_new_session(self, sess_name: str) -> None:
@@ -486,28 +425,44 @@ class DashboardScreen(BaseScreen):
         self.in_del_sess_input = True # User is entering session name
 
         # Existing session list
-        sess_list = self.query_one("#sess-list", OptionList)
+        sess_list = self.query_one("#session-list", OptionList)
 
         # Input bar
-        del_sess_input = self.query_one("#del-sess-input", Input)
+        del_sess_input = self.query_one("#delete-session-input", Input)
         del_sess_input.value = ""
         del_sess_input.remove_class("hidden")
         sess_list.remove_class("hidden")
         del_sess_input.focus()
 
         # Hide widgets
-        self.query_one("#sess-actions").add_class("hidden")
+        self.query_one("#session-action-bar").add_class("hidden")
 
 
-    def _delete_session(self, sess_name: str) -> None:
-        """Delete session."""
+    def _confirm_and_delete_session(self, sess_name: str) -> None:
         clean_name = sess_name.strip()
         if not clean_name:
             self.notify("Session name cannot be empty.", severity="error")
             return
 
+        from src.app.tui.screens.confirmation_popup_screen import ConfirmationPopupScreen
+
+        def handle_confirmation(is_confirm: bool | None) -> None:
+            if is_confirm:
+                self._delete_session(sess_name=clean_name)
+
+        title = f"Proceed to delete session '{sess_name}'?"
+        positive = "Proceed"
+        negative = "Cancel"
+        self.app.push_screen(
+            ConfirmationPopupScreen(title=title, positive=positive, negative=negative),
+            callback=handle_confirmation
+        )
+
+
+    def _delete_session(self, sess_name: str) -> None:
+        """Delete session."""
         from src.app.operations import sessions
-        result = sessions.del_sess(sess_name=clean_name)
+        result = sessions.del_sess(sess_name=sess_name)
 
         if result and "fail" in result.lower():
             self.notify(result, severity="error")
@@ -520,7 +475,7 @@ class DashboardScreen(BaseScreen):
     def _fuzzy_search_behaviour(
         self,
         event: Input.Changed,
-        id: Literal["#sess-list"],
+        id: Literal["#session-list"],
     ) -> None:
         """
         Filters the OptionList based on fuzzy matching.
@@ -535,7 +490,7 @@ class DashboardScreen(BaseScreen):
         if not sess_dict:
             return
 
-        sess_list = _get_session_list()
+        sess_list = sessions_helpers.get_session_list()
         if not sess_list:
             return
 
@@ -574,7 +529,7 @@ class DashboardScreen(BaseScreen):
                 if not sess_dict:
                     return
 
-                sess_with_dates = _get_session_with_dates(
+                sess_with_dates = date_helpers.get_session_with_dates(
                     sess_dict=sess_dict, sess_id=sess_id
                 )
                 opt_list.add_option(Option(sess_with_dates, id=name))

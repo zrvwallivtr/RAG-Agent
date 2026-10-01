@@ -13,8 +13,6 @@ from src.app.tui.screens.chat_screen import ChatScreen
 class MainApp(App):
     BINDINGS = [
         ("escape", "escape_handler"),
-        ("ctrl+n", "start_default_session"),
-        ("ctrl+m", "to_menu")
     ]
 
 
@@ -48,13 +46,3 @@ class MainApp(App):
         for opt_list in self.query(OptionList):
             if opt_list.highlighted is not None:
                 opt_list.highlighted = None
-
-    
-    def action_start_default_session(self) -> None:
-        """Go to the default session chat interface."""
-        self.push_screen(ChatScreen(sess_name=None))
-
-
-    def action_to_menu(self) -> None:
-        """Go to the menu page."""
-        self.switch_screen(DashboardScreen())

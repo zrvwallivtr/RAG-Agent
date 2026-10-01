@@ -7,13 +7,18 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.widgets import Static, Input, Markdown, Button
 from textual.events import Key
 
-from src.config import models, postgres
+from src.config import models, postgres, files_and_directories
 
 from src.core import Agent 
 from src.agent.chat_logs import ChatLogs
 from src.agent.tokenizers import Tknizr
 from src.app.tui.screens.base_screen import BaseScreen
-from src.app.tui.screens.manage_attachments_screen import ManageAttachmentsScreen
+from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
+
+from src.app.tui.screens.helpers import size_bytes_helpers
+
+
+UPLOAD_DIR = Path(files_and_directories.UPLOAD_DIR).expanduser()
 
 
 class ChatScreen(BaseScreen):
@@ -93,13 +98,12 @@ class ChatScreen(BaseScreen):
             return
 
         chat_container = self.query_one("#chat-container", VerticalScroll)
-        chat_container.mount(
-            self._create_user_message_box(Static(prompt))
-        )
+        user_msg_box = self._create_user_message_box(Static(prompt))
+        chat_container.mount(user_msg_box)
         chat_container.scroll_end(animate=False)
 
         self.query_one("#prompt-input", Input).clear()
-        self._fetch_agent_response(prompt)
+        self._fetch_agent_response(prompt, user_msg_box)
 
 
     def on_key(self, event: Key) -> None:
@@ -143,7 +147,7 @@ class ChatScreen(BaseScreen):
 
         elif event.character == "a":
             if self.pending_key == "space":
-                self._to_manage_attachments_screen()
+                self._to_attachments_popup()
                 self.pending_key = None
 
         else:
@@ -161,12 +165,17 @@ class ChatScreen(BaseScreen):
         for msg in chat_hist:
             role = msg.get("role")
             cont = msg.get("content", "")
+
             p_tkns = msg.get("prompt_tokens") or 0
             o_tkns = msg.get("output_tokens") or 0
             tol_tkns = p_tkns + o_tkns
 
+            attchmnt_metadata = msg.get("attachments", {}) or None
+
             if role == "user":
-                msg_box = self._create_user_message_box(cont_widget=Static(cont))
+                msg_box = self._create_user_message_box(
+                    cont_widget=Static(cont), attchmnt_metadata=attchmnt_metadata
+                )
                 chat_container.mount(msg_box)
 
             elif role == "assistant":
@@ -179,12 +188,21 @@ class ChatScreen(BaseScreen):
     def _create_user_message_box(
         self,
         cont_widget: Static | Markdown,
+        attchmnt_metadata: dict | None = None
     ) -> Vertical:
-        """Contains the content sent from the user."""
-        return Vertical(
-            cont_widget,
-            classes=f"msg-box user-box"
-        )
+        """
+        Contains the content sent from the user, show widget
+        if attachments was attached in that conversation turn.
+        """
+        widgets = [cont_widget]
+
+        if attchmnt_metadata:
+            for filename, metadata in attchmnt_metadata.items():
+                size = metadata.get("size_bytes")
+                fmt_size = size_bytes_helpers.format_size_bytes(size)
+                widgets.append(Static(f"{filename} ({fmt_size})", classes="user-attachments"))
+
+        return Vertical(*widgets, classes=f"msg-box user-box")
 
 
     def _create_assistant_message_box(
@@ -272,25 +290,6 @@ class ChatScreen(BaseScreen):
         )
 
 
-    def _reset_pending_attachment_status(self) -> None:
-        """
-        Clear pending attachment path list, reset attachment
-        count in the attachment indicator widget, refresh session
-        used token cache value, and update tokens counter in the
-        user section.
-        ONLY call this when user has sent the prompt to the agent.
-        """
-        self.pending_attchmnt = []
-        self.query_one("#pending-attachments-counter", Static).update(
-            f"{len(self.pending_attchmnt)} pending attachment(s)"
-        )
-        self.app.call_from_thread(self._refresh_session_token_cache())
-        self.app.call_from_thread(
-            self.query_one("#tokens-counter", Static).update,
-            f"{self._cached_sess_tkns}/{self.tknizr.model_max_tkns} tokens"
-        )
-
-
     def filter_and_add_pending(self, cmd: str, prefix: str) -> None:
         """
         Retrieve all provided path(s) in the user input command;
@@ -315,7 +314,7 @@ class ChatScreen(BaseScreen):
 
         # Filter out the non-existing paths
         for p in all_paths:
-            path = Path(p).expanduser()
+            path = (UPLOAD_DIR / Path(p)).expanduser()
             if path.exists():
                 attchmnts.append(path)
             else:
@@ -329,7 +328,7 @@ class ChatScreen(BaseScreen):
         self._add_pending_attachments(attchmnts)
 
 
-    def _to_manage_attachments_screen(self) -> None:
+    def _to_attachments_popup(self) -> None:
         def _on_manage_attachments_close(updated_paths: list[Path] | None) -> None:
             if updated_paths is not None:
                 self.pending_attchmnt = updated_paths
@@ -338,14 +337,37 @@ class ChatScreen(BaseScreen):
                 )
 
         self.app.push_screen(
-            ManageAttachmentsScreen(self.pending_attchmnt),
+            AttachmentsPopupScreen(self.pending_attchmnt),
             _on_manage_attachments_close
         )
         return
 
 
+    def _reset_user_section_widgets(self) -> None:
+        """
+        1. Clear pending attachment path list, reset attachment
+        count in the attachment indicator widget.
+        2. Refresh session used token cache value, and update
+        tokens counter in the user section.
+
+        ONLY call this when user has sent the prompt to the agent.
+        """
+        # Pending attachment widget
+        self.pending_attchmnt = []
+        self.query_one("#pending-attachments-counter", Static).update(
+            f"{len(self.pending_attchmnt)} pending attachment(s)"
+        )
+
+        # Token count widget
+        self.app.call_from_thread(self._refresh_session_token_cache())
+        self.app.call_from_thread(
+            self.query_one("#tokens-counter", Static).update,
+            f"{self._cached_sess_tkns}/{self.tknizr.model_max_tkns} tokens"
+        )
+
+
     @work(exclusive=True, thread=True)
-    def _fetch_agent_response(self, prompt: str) -> None:
+    def _fetch_agent_response(self, prompt: str, user_msg_box: Vertical) -> None:
         """
         Stream agent response in Markdown format in the newly created
         assistant message box; update token count and reset pending
@@ -354,6 +376,7 @@ class ChatScreen(BaseScreen):
         chat_container = self.query_one("#chat-container", VerticalScroll)
         md_widget = Markdown("")
 
+        # Assistant message box
         assistant_box, tkn_widget = self._create_assistant_message_box(cont_widget=md_widget, tol_tkns=0)
         tkn_widget.add_class("hidden")
 
@@ -376,14 +399,27 @@ class ChatScreen(BaseScreen):
         # Update number of tokens used from current response,
         # reveal widget agent finished responding.
         if result:
-            _, p_tkns, o_tkns = result
+            _, p_tkns, o_tkns, metadata = result
             msg_tol_tkns = p_tkns + o_tkns
 
-            def _reveal_token_count() -> None:
+            attchmnt_metadata = metadata.get("attachments") if metadata else None
+
+            def _reveal_user_attachment_widget() -> None:
+                if attchmnt_metadata:
+                    for filename, metadata in attchmnt_metadata.items():
+                        size = metadata.get("size_bytes")
+                        fmt_size = size_bytes_helpers.format_size_bytes(size)
+                        user_msg_box.mount(
+                            Static(f"{filename} ({fmt_size})", classes="user-attachments")
+                        )
+                return
+
+            def _reveal_token_count_widget() -> None:
                 tkn_widget.update(f"{msg_tol_tkns} tokens used")
                 tkn_widget.remove_class("hidden")
 
-            self.app.call_from_thread(_reveal_token_count)
+            self.app.call_from_thread(_reveal_user_attachment_widget)
+            self.app.call_from_thread(_reveal_token_count_widget)
 
         # Reset pending attachment status
-        self._reset_pending_attachment_status()
+        self._reset_user_section_widgets()

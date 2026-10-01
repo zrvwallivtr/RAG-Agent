@@ -1,0 +1,10 @@
+#cmd-input {
+    dock: bottom;
+    layer: overlay;
+    height: 1;
+    border: none;
+}
+
+#cmd-input.hidden {
+    display: none;
+}

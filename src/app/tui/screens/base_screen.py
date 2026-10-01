@@ -7,6 +7,9 @@ from textual.events import Key
 
 
 class BaseScreen(Screen):
+    CSS_PATH = "tcss/base.tcss"
+
+
     def __init__(self):
         super().__init__()
         self.is_displaying_message = False
@@ -28,12 +31,17 @@ class BaseScreen(Screen):
             if not cmd_input.has_focus:
                 event.prevent_default()
                 event.stop()
-
                 self.is_displaying_message = False
                 cmd_input.remove_class("hidden")
                 cmd_input.value = ":"
                 cmd_input.cursor_position = 1
                 cmd_input.focus()
+
+        if event.key == "escape":
+            if cmd_input.has_focus:
+                cmd_input.value = ""
+                cmd_input.add_class("hidden")
+                self.set_focus(None)
 
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -65,7 +73,7 @@ class BaseScreen(Screen):
             self.app.exit()
             self._reset_and_hide_command_bar(event=event)
 
-        elif cmd in (":m", ":menu"):
+        elif cmd in (":d", ":dashboard"):
             self.app.switch_screen(DashboardScreen())
             self._reset_and_hide_command_bar(event=event)
 

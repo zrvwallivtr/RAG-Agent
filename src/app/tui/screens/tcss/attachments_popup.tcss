@@ -1,0 +1,28 @@
+AttachmentsPopupScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.6);
+}
+
+#attachments-modal {
+    max-width: 100;
+    height: auto;
+    border: solid cyan;
+    min-height: 40;
+    padding: 1 2;
+}
+
+.attachment-modal-list {
+    height: auto;
+    margin-top: 1;
+}
+
+.remove-attachment {
+    min-width: 3;
+    width: 3;
+    height: 1;
+    margin-right: 1;
+}
+
+.attachment-name {
+    content-align: left middle;
+}

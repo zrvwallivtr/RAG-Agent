@@ -1,6 +1,6 @@
 import socket
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Any
 
 from src.config.postgres import conn
 from src.config import models
@@ -139,7 +139,7 @@ class Agent:
         is_attchmnt: bool = False,
         callback: Callable[[str], None] | None = None,
         paths: list[Path] | None = None
-    ) -> tuple[str, int, int] | None:
+    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
         Model decide what memories to read.
         Manage tokens, compress session if needed.
@@ -245,7 +245,7 @@ class Agent:
         total_o_tkns = o_tkns
 
         # === SAVE MESSAGES =====================================
-        self.chat_logs.add_conv_turn(
+        metadata = self.chat_logs.add_conv_turn(
             prompt=prompt,
             response=ans,
             state="external",
@@ -264,5 +264,5 @@ class Agent:
         # === STORE ATTACHMENT(S) ===============================
         if attchmnt_dict:
             self.doc_kw_bs.store_attachments(attchmnt_dict)
-        return ans, total_p_tkns, total_o_tkns
+        return ans, total_p_tkns, total_o_tkns, metadata
         # // END HERE //
