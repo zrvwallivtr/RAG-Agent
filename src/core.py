@@ -2,10 +2,19 @@ import socket
 from pathlib import Path
 from typing import Callable, Any
 
+from textual.widgets import Markdown
+
 from src.config.postgres import conn
 from src.config import models
 
 from src import format_context
+from src.slash_commands import (
+    slash_commands_helpers,
+    slash_commands_dictionary,
+    memories,
+    recall,
+    compress
+)
 from src.agent import (
     ollama,
     llm,
@@ -18,7 +27,6 @@ from src.rag import (
     knowledge_base,
     document_knowledge_base
 )
-from src import slash_cmds
 from src import logger
 
 
@@ -35,19 +43,21 @@ Memory                  = memory.Memory
 KnowledgeBase           = knowledge_base.KnowledgeBase
 DocumentKnowledgeBase   = document_knowledge_base.DocumentKnowledgeBase
 
+SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
 
-def _detect_cmd(prompt: str) -> tuple[str | None, str]:
-    """Extracts shortcut if detected."""
-    question_trimmed = prompt.strip()
 
-    if question_trimmed.startswith(f"/"):
-        parts           = question_trimmed.split(" ", 1)
-        cmd             = parts[0]
-        cleaned_text    = parts[1].strip() if len(parts) > 1 else ""
-        app_log.debug("Command detected: %s", cmd)
-        return cmd, cleaned_text
-
-    return None, prompt
+# def detect_cmd(prompt: str) -> tuple[str | None, str]:
+#     """Extracts shortcut if detected."""
+#     question_trimmed = prompt.strip()
+# 
+#     if question_trimmed.startswith(f"/"):
+#         parts           = question_trimmed.split(" ", 1)
+#         cmd             = parts[0]
+#         cleaned_text    = parts[1].strip() if len(parts) > 1 else ""
+#         app_log.debug("Command detected: %s", cmd)
+#         return cmd, cleaned_text
+# 
+#     return None, prompt
 
 
 def _is_connected(host="1.1.1.1", port=53, timeout=3) -> bool:
@@ -89,13 +99,21 @@ class Agent:
         self.kw_bs = KnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
-        self.slash_cmd = slash_cmds.SlashCmds(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
         # self.search_agent   = SearchAgent()
+
+        # Slash command classes
+        self.slash_memories = memories.SlashMemories(
+            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+        )
+        self.slash_recall = recall.SlashRecall(
+            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+        )
+        self.slash_compress = compress.SlashCompress(
+            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+        )
 
 
     # ===================================
@@ -138,7 +156,12 @@ class Agent:
         is_auto_web_sear: bool = False,
         is_attchmnt: bool = False,
         callback: Callable[[str], None] | None = None,
-        paths: list[Path] | None = None
+        paths: list[Path] | None = None,
+
+        # TUI related
+        in_tui: bool | None = None,
+        screen: Any | None = None,
+        md_widget: Markdown | None = None
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
         Model decide what memories to read.
@@ -152,36 +175,37 @@ class Agent:
 
         msgs = self.chat_logs.get_actv_convs()
 
-        # === SLASH COMMANDS ====================================
-        cmd, user_prompt = _detect_cmd(prompt)
+        cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
 
-        if cmd: # Only use 'user_prompt' as 'prompt' here
-            if cmd == "/memorise":
-                app_log.debug("'/memorise' command triggered")
+        if cmd: # Slash command detected
+            if cmd == SLASH_CMD_DICT["memorise"].get("cmd"):
+                app_log.debug("'%s' command triggered", cmd)
                 msgs.append(llm.user_message(user_prompt))
-                result = self.slash_cmd.cmd_memorise(
+                result = self.slash_memories.cmd_memorise(
                     prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
                 )
                 return result if result else None
-                # // END HERE //
 
-            if cmd == "/recall":
-                app_log.debug("'/recall' command triggered")
+            if cmd == SLASH_CMD_DICT["recall"].get("cmd"):
+                app_log.debug("'%s' command triggered", cmd)
                 msgs.append(llm.user_message(user_prompt))
-                result = self.slash_cmd.cmd_recall(
+                result = self.slash_recall.cmd_recall(
                     prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
                 )
                 return result if result else None
-                # // END HERE //
 
-            if cmd == "/compress":
-                app_log.debug("'/compress' command triggered")
+            if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
+                app_log.debug("'%s' command triggered", cmd)
                 msgs.append(llm.user_message(user_prompt))
-                result = self.slash_cmd.cmd_compress(
-                    prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+                result = self.slash_compress.cmd_compress(
+                    prompt=user_prompt,
+                    is_attchmnt=is_attchmnt,
+                    paths=paths,
+                    in_tui=in_tui,
+                    screen=screen,
+                    md_widget=md_widget
                 )
                 return result if result else None
-                # // END HERE //
 
             # if cmd == "/search":
             #     app_log.debug("'/search' command tirggered")
