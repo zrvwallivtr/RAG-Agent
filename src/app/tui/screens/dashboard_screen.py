@@ -20,9 +20,7 @@ from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
-from src.app.tui.screens.helpers import date_helpers
-from src.app.tui.screens.helpers import tokenizers_helpers
-from src.app.tui.screens.helpers import sessions_helpers
+from src.app.tui.screens.tui_helpers import date_helpers, tokenizers_helpers, sessions_helpers
 
 
 MODEL_ROLES = ["chat_model", "memory_model", "web_search_model", "embedding_model"]
@@ -328,23 +326,10 @@ class DashboardScreen(BaseScreen):
             event.prevent_default()
             event.stop()
             self._reset_session_list_layout()
-            self._option_list_hightlight_none()
+            self._option_list_highlight_none()
 
 
-    def _reset_session_list_layout(self) -> None:
-        """Return to default sessions view if in an input mode."""
-        if self.in_sess_search or self.in_new_sess_input or self.in_del_sess_input:
-            self.in_new_sess_input = False
-            self.in_del_sess_input = False
-            self._show_sessions()
-
-
-    def _option_list_hightlight_none(self) -> None:
-        """Exist highlight if any OptionList is highlighted."""
-        for opt_list in self.query(OptionList):
-            if opt_list.highlighted is not None:
-                opt_list.highlighted = None
-
+    # The following contains static widgets listing the models and tokenizers status
 
     def _update_model_status_section(self):
         self.query_one("#model-section-title", Static).update(f"[bold]Models[/] ({len(self.ava_models)} installed)")
@@ -373,6 +358,11 @@ class DashboardScreen(BaseScreen):
         self.query_one("#selected-tokenizer", Static).update(f"{models.FALLBACK_TOKENIZER}")
 
 
+    # Session action bar:
+    # - Contains three buttons that triggers and show the input bar to
+    #   search existing session, name and create new session, and delete
+    #   existing session.
+     
     def _show_session_action_bar(self) -> None:
         """Option list for search session, new session, delete session."""
         self.in_sess_search = False # User not searching sessions
@@ -381,6 +371,24 @@ class DashboardScreen(BaseScreen):
         action_bar = self.query_one("#session-action-bar")
         action_bar.remove_class("hidden")
         self.query_one("#search-session-button", Button).focus()
+
+
+    # Session list default behaviour section. Where the session list
+    # should return to the uninterupted default layout in normal mode.
+
+    def _reset_session_list_layout(self) -> None:
+        """Return to default sessions view if in an input mode."""
+        if self.in_sess_search or self.in_new_sess_input or self.in_del_sess_input:
+            self.in_new_sess_input = False
+            self.in_del_sess_input = False
+            self._show_sessions()
+
+
+    def _option_list_highlight_none(self) -> None:
+        """Remove all highlightings if any OptionList is highlighted."""
+        for opt_list in self.query(OptionList):
+            if opt_list.highlighted is not None:
+                opt_list.highlighted = None
 
 
     def _show_sessions(self) -> None:
@@ -411,11 +419,15 @@ class DashboardScreen(BaseScreen):
         sess_list = self.query_one("#session-list", OptionList)
         sessions_helpers._show_session_list(sess_list=sess_list)
 
-        # Hide widgets
+        # Hide input bar
         self.query_one("#session-search-input", Input).add_class("hidden")
         self.query_one("#new-session-input", Input).add_class("hidden")
         self.query_one("#delete-session-input", Input).add_class("hidden")
 
+
+    # Search session input bar behaviour section. This input bar
+    # searches all existing session name, mainly used for quick
+    # search and continue chat session.
 
     def _show_session_search_input(self) -> None:
         """
@@ -448,6 +460,9 @@ class DashboardScreen(BaseScreen):
         from src.app.tui.screens.chat_screen import ChatScreen
         self.app.push_screen(ChatScreen(sess_name=sess_name))
 
+
+    # Create session input bar behaviour section. The submitted
+    # string will be the name of the newly created chat session.
 
     def _show_new_session_input(self) -> None:
         """
@@ -497,6 +512,10 @@ class DashboardScreen(BaseScreen):
         self.notify(f"New session created: {clean_name}")
         self._go_to_session(clean_name)
 
+
+    # Delete session input bar behaviour section. Search for existing chat
+    # session for quick deletetion. A confirmation popup will show to prevent
+    # accidental deletetion.
 
     def _show_delete_session_input(self) -> None:
         """

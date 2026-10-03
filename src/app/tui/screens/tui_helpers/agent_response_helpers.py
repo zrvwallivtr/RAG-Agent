@@ -6,21 +6,14 @@ from textual.widgets import Static, Input, Markdown, Button
 
 from src.core import Agent
 from src.slash_commands import slash_commands_helpers, slash_commands_dictionary
-from src.app.tui.screens.helpers import size_bytes_helpers
 
+from src.app.tui.screens.helpers import size_bytes_helpers, agent_interface_helper
+
+
+# The following sets the behaviour when slash commands is used
+# in the TUI.
 
 SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
-
-
-def show_loading_indicator(screen, md_widget: Markdown, info: str):
-    screen.app.call_from_thread(md_widget.update, info)
-
-
-def end_loading_and_show_content(
-    screen, md_widget: Markdown, full_txt, chat_container: VerticalScroll
-):
-    screen.app.call_from_thread(md_widget.update, full_txt)
-    screen.app.call_from_thread(chat_container.scroll_end, animate=False)
 
 
 def slash_command_if_called_start_behaviour(screen, prompt: str, md_widget: Markdown):
@@ -28,26 +21,31 @@ def slash_command_if_called_start_behaviour(screen, prompt: str, md_widget: Mark
 
     if cmd:
         if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
-            show_loading_indicator(
+            agent_interface_helper.show_loading_indicator(
                 screen=screen,
                 md_widget=md_widget,
                 info=SLASH_CMD_DICT["compress"].get("a") or ""
             )
 
 
+# The following functions update the user/assistant message boxes
+# when the model has finished responding. Only call them at the
+# end of the response function.
+
 def _update_user_message_box(
     screen, attchmnt_metadata: dict | None, user_msg_box: Vertical
 ):
-    def _reveal_user_attachment_widget(
-        attchmnt_metadata: dict | None, user_msg_box: Vertical
-    ) -> None:
-        if attchmnt_metadata:
-            for filename, metadata in attchmnt_metadata.items():
-                size = metadata.get("size_bytes")
-                fmt_size = size_bytes_helpers.format_size_bytes(size)
-                user_msg_box.mount(
-                    Static(f"{filename} ({fmt_size})", classes="user-attachments")
-                )
+    if not attchmnt_metadata:
+        return
+
+    def _reveal_user_attachment_widget() -> None:
+        for filename, metadata in attchmnt_metadata.items():
+            size = metadata.get("size_bytes")
+            fmt_size = size_bytes_helpers.format_size_bytes(size)
+            user_msg_box.mount(
+                Static(f"{filename} ({fmt_size})", classes="user-attachments")
+            )
+
     screen.app.call_from_thread(_reveal_user_attachment_widget)
 
 
@@ -57,6 +55,8 @@ def _update_assistant_message_box(screen, tkn_wid: Static, msg_tol_tkns: int):
         tkn_wid.remove_class("hidden")
     screen.app.call_from_thread(_reveal_token_count_widget)
 
+
+# The following integrates the agent behaviour to the TUI application.
 
 def fetch_agent_response(
     screen,
@@ -78,7 +78,7 @@ def fetch_agent_response(
     tkn_wid.add_class("hidden") # Hide widget box until entire response is generated
     screen.app.call_from_thread(chat_container.mount, assistant_box)
 
-    show_loading_indicator(screen=screen, md_widget=md_widget, info="Thinking...")
+    agent_interface_helper.show_loading_indicator(screen=screen, md_widget=md_widget, info="Thinking...")
 
     full_txt = ""
     first_tkn_received = False # Checker for when to swap spinner to message box
@@ -94,7 +94,7 @@ def fetch_agent_response(
 
         # Stream tokens and append to full text varriable
         full_txt += tkn
-        end_loading_and_show_content(
+        agent_interface_helper.end_loading_and_show_content(
             screen=screen, md_widget=md_widget, full_txt=full_txt, chat_container=chat_container
         )
 
@@ -110,7 +110,7 @@ def fetch_agent_response(
     )
 
     # Update number of tokens used from current response,
-    # reveal widget agent finished responding.
+    # reveal widget after agent finished responding.
     if result:
         # Format from agent.ask() result
         _, p_tkns, o_tkns, metadata = result
@@ -121,4 +121,4 @@ def fetch_agent_response(
         _update_assistant_message_box(screen=screen, tkn_wid=tkn_wid, msg_tol_tkns=msg_tol_tkns)
 
     # Reset pending attachment status
-    screen._reset_user_section_widgets()
+    screen.app.call_from_thread(screen._reset_pending_attachment_widget)

@@ -1,4 +1,3 @@
-import socket
 from pathlib import Path
 from typing import Callable, Any
 
@@ -8,6 +7,7 @@ from src.config.postgres import conn
 from src.config import models
 
 from src import format_context
+from src.main_helpers import chat_database_helpers
 from src.slash_commands import (
     slash_commands_helpers,
     slash_commands_dictionary,
@@ -27,57 +27,24 @@ from src.rag import (
     knowledge_base,
     document_knowledge_base
 )
+
 from src import logger
 
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-MODEL               = models.MODEL
-MODEL_MAX_TOKENS    = models.MODEL_MAX_TOKENS
-EMBED_MODEL         = models.EMBED_MODEL
-EMBED_MAX_TOKENS    = models.EMBED_MAX_TOKENS
+MODEL            = models.MODEL
+MODEL_MAX_TOKENS = models.MODEL_MAX_TOKENS
+EMBED_MODEL      = models.EMBED_MODEL
+EMBED_MAX_TOKENS = models.EMBED_MAX_TOKENS
 
-Tknizr                  = tokenizers.Tknizr
-ChatLogs                = chat_logs.ChatLogs
-Memory                  = memory.Memory
-KnowledgeBase           = knowledge_base.KnowledgeBase
-DocumentKnowledgeBase   = document_knowledge_base.DocumentKnowledgeBase
+Tknizr                = tokenizers.Tknizr
+ChatLogs              = chat_logs.ChatLogs
+Memory                = memory.Memory
+KnowledgeBase         = knowledge_base.KnowledgeBase
+DocumentKnowledgeBase = document_knowledge_base.DocumentKnowledgeBase
 
 SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
-
-
-# def detect_cmd(prompt: str) -> tuple[str | None, str]:
-#     """Extracts shortcut if detected."""
-#     question_trimmed = prompt.strip()
-# 
-#     if question_trimmed.startswith(f"/"):
-#         parts           = question_trimmed.split(" ", 1)
-#         cmd             = parts[0]
-#         cleaned_text    = parts[1].strip() if len(parts) > 1 else ""
-#         app_log.debug("Command detected: %s", cmd)
-#         return cmd, cleaned_text
-# 
-#     return None, prompt
-
-
-def _is_connected(host="1.1.1.1", port=53, timeout=3) -> bool:
-    """
-    Returns True if the system can connect to the host/port,
-    otherwise returns false.
-    Host (Cloudflare DNS):  1.1.1.1
-    Port (DNS traffic):     53
-    """
-    try:
-        # Create socket object with connection timeout
-        socket.setdefaulttimeout(timeout)
-
-        # Attempt to connect to the host
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, port))
-        return True
-
-    except (socket.timeout, OSError):
-        return False
 
 
 class Agent:
@@ -85,11 +52,11 @@ class Agent:
         self,
         sess_name: str | None = None,
     ):
-        self.tknizr = Tknizr(MODEL)
+        self.tknizr    = Tknizr(MODEL)
+        self.sess_name = sess_name
+        self.conn      = conn
 
-        self.sess_name  = sess_name
-
-        self.conn       = conn
+        # Main classes
         self.chat_logs = ChatLogs(
             conn=self.conn, sess_name=self.sess_name
         )
@@ -102,7 +69,6 @@ class Agent:
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
-        # self.search_agent   = SearchAgent()
 
         # Slash command classes
         self.slash_memories = memories.SlashMemories(
@@ -115,10 +81,6 @@ class Agent:
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
 
-
-    # ===================================
-    # Token management
-    # ===================================
 
     def _manage_token_budget(self, prompt: str, reserve: int) -> None:
         """
@@ -143,9 +105,111 @@ class Agent:
             return
 
 
-    # ===================================
-    # Execution
-    # ===================================
+    def _route_to_slash_command(
+        self,
+        msgs: list[dict],
+        cmd: str,
+        user_prompt: str,
+        is_attchmnt: bool,
+        paths: list[Path] | None = None,
+
+        # TUI related
+        in_tui: bool | None = None,
+        screen: Any | None = None,
+        md_widget: Markdown | None = None
+    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+        if cmd == SLASH_CMD_DICT["memorise"].get("cmd"):
+            app_log.debug("'%s' command triggered", cmd)
+            msgs.append(llm.user_message(user_prompt))
+            result = self.slash_memories.cmd_memorise(
+                prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+            )
+            return result if result else None
+
+        if cmd == SLASH_CMD_DICT["recall"].get("cmd"):
+            app_log.debug("'%s' command triggered", cmd)
+            msgs.append(llm.user_message(user_prompt))
+            result = self.slash_recall.cmd_recall(
+                prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+            )
+            return result if result else None
+
+        if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
+            app_log.debug("'%s' command triggered", cmd)
+            msgs.append(llm.user_message(user_prompt))
+            result = self.slash_compress.cmd_compress(
+                prompt=user_prompt,
+                is_attchmnt=is_attchmnt,
+                paths=paths,
+                in_tui=in_tui,
+                screen=screen,
+                md_widget=md_widget
+            )
+            return result if result else None
+
+
+    def _embedding_content_retrieval_controller(
+        self, prompt: str, is_auto_mem_rtve: bool, is_auto_doc_rtve: bool
+    ):
+        """
+        Return embeddings for user prompt for memory and document content retrieval
+        features, if no embedding failed turn off related featurs.
+        """
+        embed_response = embed.embedding_content(prompt)
+
+        if embed_response:
+            prompt, prompt_embdings, prompt_tkns = embed_response
+
+        else:
+            app_log.warning(
+                "Turning off features that requires embeddings: "
+                "Auto memory retrieval, Auto document content retrieval"
+            )
+            prompt_embdings = [0.0]
+            prompt_tkns = 0
+
+            # Turn off auto memory retrieve
+            is_auto_mem_rtve = False
+
+            # Turn off auto document chunk retrieve
+            is_auto_doc_rtve = False
+
+        return prompt_tkns, is_auto_mem_rtve, prompt_embdings, is_auto_doc_rtve
+
+
+    def _combind_context(
+        self,
+        prompt: str,
+        prompt_embdings: list[float],
+        is_auto_mem_rtve: bool,
+        is_auto_doc_rtve: bool,
+        is_attchmnt: bool,
+        paths: list[Path] | None = None
+    ) -> tuple[str, dict] | tuple[str, None]:
+        # Auto retrieve relevant memories
+        mem_list = self.mem.toggle_auto_retrive_memory_entries(
+            is_auto_mem_rtve=is_auto_mem_rtve, prompt=prompt, prompt_embdings=prompt_embdings
+        )
+
+        # Auto retrieve relevant session documents
+        doc_list = self.doc_kw_bs.toggle_auto_retrieve_sess_docs(
+            is_auto_doc_rtve=is_auto_doc_rtve, prompt=prompt, prompt_embdings=prompt_embdings
+        )
+
+        # Uploaded attachments (optional)
+        attchmnt_dict = self.doc_kw_bs.get_attachments_content(
+            is_attchmnt=is_attchmnt, attch_paths=paths
+        )
+
+        # All context combined (won't be saved to chat history)
+        cmbind_prompt = format_context.build_prompt(
+            prompt=prompt, mem_list=mem_list, doc_list=doc_list, attchmnt_dict=attchmnt_dict
+        )
+
+        if attchmnt_dict:
+            return cmbind_prompt, attchmnt_dict
+        return cmbind_prompt, None
+
 
     def ask(
         self,
@@ -175,90 +239,35 @@ class Agent:
 
         msgs = self.chat_logs.get_actv_convs()
 
+        # Slash commands
         cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
-
-        if cmd: # Slash command detected
-            if cmd == SLASH_CMD_DICT["memorise"].get("cmd"):
-                app_log.debug("'%s' command triggered", cmd)
-                msgs.append(llm.user_message(user_prompt))
-                result = self.slash_memories.cmd_memorise(
-                    prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
-                )
-                return result if result else None
-
-            if cmd == SLASH_CMD_DICT["recall"].get("cmd"):
-                app_log.debug("'%s' command triggered", cmd)
-                msgs.append(llm.user_message(user_prompt))
-                result = self.slash_recall.cmd_recall(
-                    prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
-                )
-                return result if result else None
-
-            if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
-                app_log.debug("'%s' command triggered", cmd)
-                msgs.append(llm.user_message(user_prompt))
-                result = self.slash_compress.cmd_compress(
-                    prompt=user_prompt,
-                    is_attchmnt=is_attchmnt,
-                    paths=paths,
-                    in_tui=in_tui,
-                    screen=screen,
-                    md_widget=md_widget
-                )
-                return result if result else None
-
-            # if cmd == "/search":
-            #     app_log.debug("'/search' command tirggered")
-            #     # User's question were saved
-            #     self.slash_cmd.cmd_search(
-            #         prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
-            #     )
-            #     return
-            #     # // END HERE //
-
-        # === FULL CONTEXT ======================================
-        embed_response = embed.embedding_content(prompt)
-        if embed_response:
-            prompt, prompt_embdings, prompt_tkns = embed_response
-        else:
-            app_log.warning(
-                "Turning off features that requires embeddings: "
-                "Auto memory retrieval, Auto document content retrieval"
+        if cmd:
+            return self._route_to_slash_command(
+                msgs=msgs,
+                cmd=cmd,
+                user_prompt=user_prompt,
+                is_attchmnt=is_attchmnt,
+                paths=paths,
+                in_tui=in_tui,
+                screen=screen,
+                md_widget=md_widget
             )
-            prompt_embdings = [0.0]
-            prompt_tkns = 0
-            is_auto_mem_rtve = False
-            is_auto_doc_rtve = False
 
-        # AUTO RETRIEVE RELEVANT MEMORIES
-        mem_list = self.mem.toggle_auto_retrive_memory_entries(
+        prompt_tkns, is_auto_mem_rtve, prompt_embdings, is_auto_doc_rtve = self._embedding_content_retrieval_controller(
+            prompt=prompt, is_auto_mem_rtve=is_auto_mem_rtve, is_auto_doc_rtve=is_auto_doc_rtve
+        )
+
+        # Combind all context for sending to the model
+        cmbind_prompt, attchmnt_dict = self._combind_context(
+            prompt=prompt,
+            prompt_embdings=prompt_embdings,
             is_auto_mem_rtve=is_auto_mem_rtve,
-            prompt=prompt,
-            prompt_embdings=prompt_embdings
-        )
-
-        # AUTO RETRIEVE RELEVANT SESSION DOCUMENTS
-        doc_list = self.doc_kw_bs.toggle_auto_retrieve_sess_docs(
             is_auto_doc_rtve=is_auto_doc_rtve,
-            prompt=prompt,
-            prompt_embdings=prompt_embdings
-        )
-
-        # UPLOADED ATTACHMENTS (OPTIONAL)
-        attchmnt_dict = self.doc_kw_bs.get_attachments_content(
-            is_attchmnt=is_attchmnt, attch_paths=paths
-        )
-
-        # AUTO WEB SEARCH
-        # if _is_connected() and is_auto_web_sear:
-
-        # ALL CONTEXT COMBINED (WON'T BE SAVED TO CHAT HISTORY)
-        cmbind_prompt = format_context.build_prompt(
-            prompt=prompt, mem_list=mem_list, doc_list=doc_list, attchmnt_dict=attchmnt_dict
+            is_attchmnt=is_attchmnt,
+            paths=paths
         )
         msgs.append(llm.user_message(cmbind_prompt))
 
-        # === MODEL ANSWER ======================================
         response = llm.model_response(model=MODEL, msgs=msgs, callback=callback)
         if not response:
             return
@@ -268,7 +277,7 @@ class Agent:
         total_p_tkns = prompt_tkns + p_tkns
         total_o_tkns = o_tkns
 
-        # === SAVE MESSAGES =====================================
+        # Save messages to database
         metadata = self.chat_logs.add_conv_turn(
             prompt=prompt,
             response=ans,
@@ -278,15 +287,18 @@ class Agent:
             o_tkns=total_o_tkns
         )
 
-        # === STORE MEMORY(S) ===================================
+        chat_database_helpers.update_session_used_tokens_on_prompt_submitted(
+            chat_logs=self.chat_logs, tknizr=self.tknizr, cur=conn.cursor()
+        )
+
+        # Store memory
         # self.memory.toggle_auto_store_memory_entries(
         #     is_auto_mem_store=is_auto_mem_store,
         #     model_max_tokens=self.get_model_max_tokens,
         #     context=self.chat.to_llm()
         # )
 
-        # === STORE ATTACHMENT(S) ===============================
+        # Store attachment(s)
         if attchmnt_dict:
             self.doc_kw_bs.store_attachments(attchmnt_dict)
         return ans, total_p_tkns, total_o_tkns, metadata
-        # // END HERE //

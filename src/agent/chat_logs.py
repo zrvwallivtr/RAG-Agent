@@ -37,24 +37,27 @@ class ChatLogs:
 
     def _init_chat_logs_db(self):
         """Create session lookup and chat logs table if missing."""
-        app_log.debug(
-            "Initialising table 'chat_sessions' for session '%s'",
-            self.sess_name
-        )
+        app_log.debug("Initialising table 'chat_sessions' for session '%s'", self.sess_name)
         self.cur.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_sessions (
-                session_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                session_name    VARCHAR(255) NOT NULL UNIQUE,
-                created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                session_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                session_name        VARCHAR(255) NOT NULL UNIQUE,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                session_used_tokens INTEGER NOT NULL DEFAULT 0
             );
             """
         )
 
-        app_log.debug(
-            "Initialising table 'chat_logs' for session '%s'",
-            self.sess_name
-        )
+        # Schema migration: Add missing column if table already existed
+        # self.cur.execute(
+        #     """
+        #     ALTER TABLE chat_sessions
+        #     ADD COLUMN IF NOT EXISTS session_used_tokens INTEGER NOT NULL DEFAULT 0;
+        #     """
+        # )
+
+        app_log.debug("Initialising table 'chat_logs' for session '%s'", self.sess_name)
         self.cur.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_logs (
@@ -84,8 +87,11 @@ class ChatLogs:
         self.conn.commit()
 
 
+    # The following functions retrieves data from 'chat_sessions' table,
+    # useful for querying basing session data.
+
     def get_sess_id(self) -> str | None:
-        """Fetch session id from chat_sessions table."""
+        """Fetch session id from chat_sessions table using current session name."""
         app_log.debug("Fetching session id for session '%s'", self.sess_name)
         self.cur.execute(
             """
@@ -111,7 +117,7 @@ class ChatLogs:
 
 
     def get_sess_name(self, sess_id: str) -> str | None:
-        """Fetch session name from with the given session id chat_session table."""
+        """Fetch session name from with the given session id chat session table."""
         app_log.debug("Fetching session name from session_id '%s'", sess_id)
         self.cur.execute(
             """
@@ -137,7 +143,10 @@ class ChatLogs:
 
 
     def get_sess_id_from_name(self, sess_name: str) -> str | None:
-        """Fetch session id from the chat session table with the given session name."""
+        """
+        Query to chat session table with a specified session name to look for its
+        corresponding session id.
+        """
         app_log.debug("Fetching session id from session name '%s'", sess_name)
         self.cur.execute(
             """
@@ -151,16 +160,74 @@ class ChatLogs:
         row = self.cur.fetchone()
 
         if not row:
-            app_log.warning(
-                "Session id for session name '%s' not found",
-                sess_name
-            )
+            app_log.warning("Session id for session name '%s' not found", sess_name)
             return
 
         sess_id = str(row[0])
         app_log.debug("Retrieved session id '%s' from session name '%s'", sess_id, sess_name)
         return sess_id
 
+
+    def update_session_used_tokens(self, sess_used_tkns: int):
+        self.cur.execute(
+            """
+            UPDATE chat_sessions
+            SET session_used_tokens = %s
+            WHERE LOWER(session_name) = LOWER(%s);
+            """,
+            (sess_used_tkns, self.sess_name)
+        )
+        self.conn.commit()
+
+
+    def get_session_used_tokens(self) -> int | None:
+        self.cur.execute(
+            """
+            SELECT session_used_tokens
+            FROM chat_sessions
+            WHERE session_name = %s;
+            """,
+            (self.sess_name,)
+        )
+        self.conn.commit()
+        row = self.cur.fetchone()
+
+        if not row:
+            app_log.warning("Session used tokens for session name '%s' not found", self.sess_name)
+            return
+
+        sess_used_tkns = int(row[0])
+        app_log.debug("Retrieved session used tokens from session '%s'", self.sess_name)
+        return sess_used_tkns
+
+
+    def get_all_existing_sess_metadata(self) -> dict | None:
+        """Fetch all session names from database."""
+        app_log.debug("Fetching all session name(s) in the database")
+        sess_dict = {}
+        self.cur.execute(
+            """
+            SELECT session_id, session_name, created_at
+            FROM chat_sessions
+            """
+        )
+        self.conn.commit()
+        rows = self.cur.fetchall()
+
+        if not rows:
+            app_log.debug("No existing session found on table 'chat_sessions' in the database")
+            return
+
+        for row in rows:
+            sess_dict[str(row[0])] = {
+                "session_name": str(row[1]),
+                "created_at": str(row[2])
+            }
+        app_log.debug("%d session(s) found on the table 'chat_sessions' in the database", len(rows))
+        return sess_dict
+
+
+    # The following functions retrieves data from 'chat_logs' table.
 
     def get_session_last_modified_time(self, sess_id: str) -> str | None:
         """Get the latest created time from session id in the chat logs."""
@@ -227,32 +294,6 @@ class ChatLogs:
             return
 
         return sess_name, created_at
-
-
-    def get_all_existing_sess_metadata(self) -> dict | None:
-        """Fetch all session names from database."""
-        app_log.debug("Fetching all session name(s) in the database")
-        sess_dict = {}
-        self.cur.execute(
-            """
-            SELECT session_id, session_name, created_at
-            FROM chat_sessions
-            """
-        )
-        self.conn.commit()
-        rows = self.cur.fetchall()
-
-        if not rows:
-            app_log.debug("No existing session found on table 'chat_sessions' in the database")
-            return
-
-        for row in rows:
-            sess_dict[str(row[0])] = {
-                "session_name": str(row[1]),
-                "created_at": str(row[2])
-            }
-        app_log.debug("%d session(s) found on the table 'chat_sessions' in the database", len(rows))
-        return sess_dict
 
 
     def create_sess(self) -> str:

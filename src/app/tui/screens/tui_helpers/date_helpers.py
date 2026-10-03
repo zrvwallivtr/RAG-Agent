@@ -4,10 +4,7 @@ from src.config import models, postgres
 
 
 def trimmed_date(iso_str: str | None) -> str:
-    """
-    Trim the date format from 'ISO 8601 with microseconds'
-    to 'DD/MM/YYYY HH:MM'
-    """
+    """Trim the date format from 'ISO 8601 with microseconds' to 'DD/MM/YYYY HH:MM'."""
     if not iso_str: # Fallback
         return "    ---         "
 
@@ -37,5 +34,3 @@ def get_session_with_dates(sess_dict: dict, sess_id: str) -> str | None:
         f"{created_at}{sep}[/]\t"
         f"{sess_name}"
     )
-
-
