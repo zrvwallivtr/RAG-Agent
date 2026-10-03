@@ -23,7 +23,8 @@ from src.rag import (
     search_agent,
     query_manager
 )
-from src.app.tui.screens.helpers import agent_interface_helper
+from src.app.tui.screens.tui_helpers import agent_interface_helper
+
 from src.logger import app_logger
 
 

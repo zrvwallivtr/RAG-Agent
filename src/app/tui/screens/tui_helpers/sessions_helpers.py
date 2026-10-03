@@ -5,7 +5,7 @@ from textual.widgets.option_list import Option
 
 from src.config import postgres
 
-from src.app.tui.screens.helpers import date_helpers
+from src.app.tui.screens.tui_helpers import date_helpers
 
 
 def get_session_list() -> list | None:

@@ -13,7 +13,8 @@ from src.agent import (
     chat_logs,
 )
 from src.rag import document_knowledge_base
-from src.app.tui.screens.helpers import agent_interface_helper
+from src.app.tui.screens.tui_helpers import agent_interface_helper
+
 from src.logger import app_logger
 
 

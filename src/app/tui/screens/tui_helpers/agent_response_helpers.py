@@ -7,7 +7,7 @@ from textual.widgets import Static, Input, Markdown, Button
 from src.core import Agent
 from src.slash_commands import slash_commands_helpers, slash_commands_dictionary
 
-from src.app.tui.screens.helpers import size_bytes_helpers, agent_interface_helper
+from src.app.tui.screens.tui_helpers import size_bytes_helpers, agent_interface_helper
 
 
 # The following sets the behaviour when slash commands is used
