@@ -1,8 +1,29 @@
 # RAG Agent
 
-A local Command-Line Interface (CLI) AI assistant featuring long-term memory, file context injection, (isolated web crawling / search and automated token management).
+A local AI assistant featuring long-term memory, file context injection and automatic token management. It runs on [Ollama](https://ollama.com) and PostgreSQL (pgvector), keeping all user's data on host machine.
+
+- **CLI and TUI support:** Interact with the agent in the terminal with `agent "MESSAGE"` or enter full-screen terminal UI with `agent`.
+- **Long-term memory:** Global, cross-session memories retrieved by vector similarity.
+- **File context:** Attach PDFs, documents, spreadsheets, code and more. Parsed content is injected into the prompt and stored to the database for later retrieval by vector similarity.
+- **Sessions:** Named sessions with persistent chat logs and message token counts.
+- **Token management:** Live token counter and auto compression when the context window reaches its limit.
+- **Single local database:** Sessions, memories and embeddings all live in a local PostgreSQL database.
+
+---
 
 ## Quick start
+
+### 1. Requirements
+
+- Docker with the compose plugin
+- Python 3.11 or newer
+
+Clone the repo by(No binary version is available yet.):
+```
+git clone https://github.com/zrvwallivtr/RAG-Agent.git
+```
+
+### 2. Start services
 
 All the docker services must be started before running the application:
 
@@ -10,105 +31,69 @@ All the docker services must be started before running the application:
 cd ~/.agent_app
 docker-compose up -d
 ```
+Compose reads credentials from `~/.agent_app/.env`.
 
-### CLI
+### 3. Install models
 
-Install a LLM and embedding model before you can start any conversation with the agent, to enable token count features install the tokenizer for the LLM as well:
+Install a caht model and an embedding model before you can start any conversation. To enable token counts and automatic compression features, install the tokenizer for the LLM as well:
 
 ```sh
 agent --install-model OLLAMA_LLM_NAME
 agent --install-model OLLAMA_EMBEDDING_MODEL_NAME
-agent --install-tokenizer HUGGING_FACE_REPO
+agent --install-tokenizer   # Auto installs a fallback tokenizer (specified in `~/.agent_app/config.toml` and all tokenizers for your installed models
 
-# Exmaples
-agent --install-model ministral-3:3b    # Install ollama model 'ministral-3:3b'
-agent --install-model nomic-embed-text  # Install ollama model 'nomic-embed-text'
-agent --install-tokenizer gpt2         # Install tokenizer for model 'gpt2'
+# Exmaple
+agent --install-model ministral-3:3b
+agent --install-model nomic-embed-text
 ```
 
-Chat with the agent in the terminal by typing:
+### 4. Chat
 
 ```sh
-agent "Write a message..."
+agent "Write a message..."                  # CLI: Prompt model
+agent --new-session SESSION_NAME            # CLI: Create a new session
+agent -s SESSION_NAME "Write a message..."  # CLI: Continue from a named session
+agent                                       # TUI: Open the terminal UI
 ```
 
-Use the native help command `-h` for more flag options:
-
-```sh
-agent -h
-```
-
-### TUI
-
-To enter the tui environment simply enter the application name:
-
-```sh
-agent
-```
-
----
-
-## Document index
-For in-depth guides and system specifications, refer to the project docs:
-
-* [Memory Architecture](./docs/MEMORY.md)
-* [Document Processing](./docs/DOCUMENT_PROCESSING.md)
-* [Web Search Features](./docs/WEB_SEARCH.md)
-* [Full Configuration References](./docs/CONFIGURATION.md)
-* [Command Line Interface References](./docs/CLI_REFERENCE.md)
-* [Terminal User Interface References](./docs/TUI_REFERENCE.md)
-* [Docker Services](./docs/DOCKER.md)
-
----
-
-## Features
-
-### Core Capabilities
-
-* **CLI Flags Support:** Built-in command-line arguments.
-* **Local Data Storage:** User data, session histories, chat logs, memories and document/web content embeddings are stored in a single **PostgreSQL** database (with the **pgvector** extension).
-
-### Context & History Management
-
-* **Logging:** Conversation turns (prompt, response, token counts, tool calling) are persisted per session to the `chat_logs` table, linked to a `chat_sessions` table via `session_id`.
-* **Automated Session Compression:** (needs update) Dynamically summarizes older conversations history when context limits are reached, preventing context-window crashes.
-* **Multi-session support:** Create, store and switch between chat sessions. Session names and IDs are managed in a dedicated `chat_sessions` table.
-
-### Long-Term Memory
-
-The agent automatically retrieves relevant memories using **pgvector** cosine-similarity search.
-Memory is **global and cross-session**, saved automatically or manually by `/memorise`.
-Each memory entry is tagged with a category (`preference`, `stack`, `fact`, `project`, `instruction`, `correction`), with an extraction method (`manual` or `auto`) to narrow down the entry context.
-
-### Document Reading & Retrieval
-
-Converts different file formats content into clean plaintext/markdown context strings, automatically injecting them into the active chat context and persisting them to the knowledge base for future retrieval.
-
-* **Plain Text:** `.txt`
-* **Data & Configuration Formats:** `.csv`, `.xlsx`, `.yaml`, `.yml`, `.toml`, `.xml`
-* **Documents:** `.pdf`, `.docx`, `.epub`
-* **Code & Scripts:** `.py`, `.js`, `.ts`, `.tsx`, `.json`, `.md`, `.sh`, `.html`, `.css`, `.rs`, `.go`
-* **Fallback Behavior:** Any unlisted text-based format defaults to be read as plain-text.
-* **Deduplication:** Documents are hashed (SHA-256) before embedding; re-uploading identical content is detected and skipped rather than re-embedded.
-* **Path Safety:** All document reads are resolved and validated against a fixed uploads directory to prevent path traversal outside the allowed folder.
+Run `agent -h` for all flags. See the [CLI reference](./docs/CLI_REFERENCE.md) and [TUI reference](./docs/TUI_REFERENCE.md).
 
 ---
 
 ## Slash Commands
 
-Activate by adding the commands at the start of every prompt.
+Activate by adding the command at the start of a prompt.
 
 | Command | Description |
 | --- | --- |
-| `/memorise <prompt>` | Instruct agent to extract and save key facts from the attached prompt to the embedding database. |
-| `/recall <prompt>` | Retrieves relevant memories from the app embedding database. |
-| `/compress <prompt (optional)>` | Manually calling model to summarise the conversations to free up session token usages, additional prompt could be added for model summarisation behavior. |
+| `/memorise <prompt>` | Extract key facts from the prompt and save them to long-term memory. |
+| `/recall <prompt>` | Retrieve relevant memories from the database. |
+| `/compress [prompt]` | Summarise the conversation to free up tokens. An optional prompt steers the summary. |
+
+---
+
+## How it works
+
+**Sessions:**
+Every conversation turn (prompt, response, token counts, attachment metadata) is saved to the `chat_logs` table and linked to a row in `chat_sessions`. Allowing the creating, storing and switching between sessions.
+
+**Memory:**
+Memories are global and shared across sessions. Each prompt is embedded, and the most similar memories are injected into the context for that turn. For more details: [Memory](./docs/MEMORY.md).
+
+**Documents:**
+Attached files are converted to plain text or Markdown, injected into the current conversation turn and stored in the knowledge base for similarity retrieval in later turns. Details: [Document Processing](./docs/DOCUMENT_PROCESSING.md).
+
+**Token management:**
+Before each turn the agent estimates the size of the history plus the new prompt, with 1,000 tokens reserved for the reply. If that exceeds teh model's limit, older turns are summarised automatically. `/compress` does the same on demand. The auto compression requires a known token limit for the chat model, sess [Configuration](./docs/CONFIGURATION.md).
+
+**Web search:**
+Still in development. See [Web Search](./docs/WEB_SEARCH.md).
 
 ---
 
 ## Configuration
 
-All agent behavior, models and feature toggles are managed through `~/.agent_app/config.toml`. Here is the default configuarion, which will be copied from the code base to the app directory if no custom config file is detected:
+Behaviour, models and features toggles live in `~/.agent_app/config.toml`. A default file is copied there on first run if none exists. Secrets (database and pgAdmin credentials) live in `~/.agent_app/.env`, never in `config.toml`.
 
 ```toml
 [models]
@@ -141,78 +126,23 @@ auto_web_search_enable_at_model_tokens  = 128000
 enable_auto_web_search                  = true
 ```
 
-## Secrets
+Every option is described in the [configuration reference](./docs/CONFIGURATION.md).
 
-Secrets (database password, `CRAWL4AI_API_TOKEN`, pgAdmin credentials) are kept in a separate `.env` file, never in `config.toml`.
+---
 
-## Docker Services
+## Document index
+For in-depth guides and system specifications, refer to the project docs:
 
-Backing services are managed via `docker compose` and are all bound to `127.0.0.1` (never exposed to the network):
+* [Memory Architecture](./docs/MEMORY.md)
+* [Document Processing](./docs/DOCUMENT_PROCESSING.md)
+* [Web Search Features](./docs/WEB_SEARCH.md)
+* [Full Configuration References](./docs/CONFIGURATION.md)
+* [Command Line Interface References](./docs/CLI_REFERENCE.md)
+* [Terminal User Interface References](./docs/TUI_REFERENCE.md)
+* [Docker Services](./docs/DOCKER.md)
 
-| Service | Purpose | Port | Notes |
-| --- | --- | --- | --- |
+---
 
-The docker compose file is stored inside the app directory in `~/.agent_app/docker-compose.yaml`. The following is the default settings for the docker services:
+## License
 
-```yaml
-services:
-  # Ollama
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    networks:
-      - internal
-    volumes:
-      - ollama_models:/root/.ollama
-    restart: unless-stopped
-
-  # Postgres
-  postgres:
-    image: pgvector/pgvector:pg17
-    container_name: pgcontainer
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${PGDB_USER:-pguser}
-      POSTGRES_PASSWORD: ${PGDB_PASSWORD}
-      POSTGRES_DB: ${PGDB_DBNAME:-pgdb}
-    ports:
-      - "127.0.0.1:5432:5432" # Localhost only
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - internal # Isolated network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGDB_USER:-pguser} -d ${PGDB_DBNAME:-pgdb}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # Pgadmin
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    restart: unless-stopped
-    # profiles: ["admin"] # Opt-in via 'docker compose --profile admin up'
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-    ports:
-      - "127.0.0.1:5050:80" # Localhost only
-    networks:
-      - internal
-    depends_on:
-      - postgres
-
-networks:
-  internal:
-    driver: bridge
-
-volumes:
-  ollama_models:
-  pgdata:
-```
-
-### License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE).

@@ -8,16 +8,11 @@ def _prompt_path_handler(
     filename: str, config_file: Path, dir: Path
 ) -> tuple[Path, str]:
     """
-    Check if file exist, then read file contents
-    and return it's path and contents as string.
+    Check if file exist, then read file contents and return it's path
+    and contents as string.
     """
     path = dir / filename
     if not path.exists():
-        # logger.critical(
-        #     "System prompt file does not exists: field=%s, path=%s",
-        #     field_name,
-        #     path
-        # )
         print(f"Error in {config_file}:")
         print(f"'{filename}' prompt file not found: '{path}'")
         sys.exit(1)
@@ -29,7 +24,10 @@ def _prompt_path_handler(
 def _prioritise_custom_prompt(
     filename: str, config_file: Path, custom_prompt_dir: Path, default_prompt_dir: Path
 ) -> tuple[Path, str]:
-    """Returns active directory and prompt if exists, else, return default directory and prompt."""
+    """
+    Returns active directory and prompt if exists. Else, return
+    default directory and prompt.
+    """
     custom_prompt_path = custom_prompt_dir / filename
     path = Path(custom_prompt_path)
 
@@ -39,9 +37,20 @@ def _prioritise_custom_prompt(
     return _prompt_path_handler(filename, config_file, default_prompt_dir)
 
 
-# === SYSTEM PROMPT =============================================================
+# System prompt directories
 SYS_PROMPT_DIR      = PROMPT_DIR / "system"
 CUS_SYS_PROMPT_DIR  = CUS_PROMPT_DIR / "system"
+
+# Memory prompt directories
+MEM_PROMPT_DIR      = PROMPT_DIR / "memory"
+CUS_MEM_PROMPT_DIR  = CUS_PROMPT_DIR / "memory"
+
+# Compression prompt directories
+COMPRESS_PROMPT_DIR     = PROMPT_DIR / "chat_compression"
+CUS_COMPRESS_PROMPT_DIR = CUS_PROMPT_DIR / "chat_compression"
+
+
+# Base agent system prompt
 
 SYS_PROMPT_PATH, SYS_PROMPT = _prioritise_custom_prompt(
     filename="standard",
@@ -51,9 +60,7 @@ SYS_PROMPT_PATH, SYS_PROMPT = _prioritise_custom_prompt(
 )
 
 
-# === COMPRESSION PROMPT ========================================================
-COMPRESS_PROMPT_DIR     = PROMPT_DIR / "chat_compression"
-CUS_COMPRESS_PROMPT_DIR = CUS_PROMPT_DIR / "chat_compression"
+# Compression agent system prompt
 
 COMPRESS_PROMPT_PATH, COMPRESS_PROMPT = _prioritise_custom_prompt(
     filename="instructions",
@@ -63,9 +70,7 @@ COMPRESS_PROMPT_PATH, COMPRESS_PROMPT = _prioritise_custom_prompt(
 )
 
 
-# === MEMORY PROMPT =============================================================
-MEM_PROMPT_DIR      = PROMPT_DIR / "memory"
-CUS_MEM_PROMPT_DIR  = CUS_PROMPT_DIR / "memory"
+# Memory agent system prompts
 
 # Auto memory extraction
 MEM_PROMPT_PATH, MEM_PROMPT = _prioritise_custom_prompt(
@@ -74,6 +79,7 @@ MEM_PROMPT_PATH, MEM_PROMPT = _prioritise_custom_prompt(
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
     default_prompt_dir=MEM_PROMPT_DIR
 )
+
 # Manual memory extraction
 MEM_MANUAL_PROMPT_PATH, MEM_MANUAL_PROMPT = _prioritise_custom_prompt(
     filename="manual_memory_extraction",
@@ -81,30 +87,11 @@ MEM_MANUAL_PROMPT_PATH, MEM_MANUAL_PROMPT = _prioritise_custom_prompt(
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
     default_prompt_dir=MEM_PROMPT_DIR
 )
+
 # Interpret retrieved memory entries
 MEM_RECALL_INTERPRET_PATH, MEM_RECALL_INTERPRET_PROMPT = _prioritise_custom_prompt(
     filename="memory_recall_interpreter",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
     default_prompt_dir=MEM_PROMPT_DIR
-)
-
-
-# === SEARCH AGENT PROMPT =======================================================
-SEARCH_AGENT_PROMPT_DIR     = PROMPT_DIR / "search_agent"
-CUS_SEARCH_AGENT_PROMPT_DIR = CUS_PROMPT_DIR / "search_agent"
-
-# Search or not
-SEARCH_OR_NOT_PROMPT_PATH, SEARCH_OR_NOT_PROMPT = _prioritise_custom_prompt(
-    filename="search_or_not",
-    config_file=CONFIG_FILE,
-    custom_prompt_dir=CUS_SEARCH_AGENT_PROMPT_DIR,
-    default_prompt_dir=SEARCH_AGENT_PROMPT_DIR
-)
-# Query generation
-QUERY_PROMPT_PATH, QUERY_PROMPT = _prioritise_custom_prompt(
-    filename="query_generator",
-    config_file=CONFIG_FILE,
-    custom_prompt_dir=CUS_SEARCH_AGENT_PROMPT_DIR,
-    default_prompt_dir=SEARCH_AGENT_PROMPT_DIR
 )

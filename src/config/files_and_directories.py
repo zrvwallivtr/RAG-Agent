@@ -4,18 +4,13 @@ import tomllib
 from pathlib import Path
 
 
-# ========================================================
-# STATIC ASSETS
-# ========================================================
-
+# Static assets
 MAIN_DIR        = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(__file__).resolve().parent.parent.parent
 PROMPT_DIR      = MAIN_DIR / "src" / "prompts"
 DEFAULT_CONFIG  = MAIN_DIR / "config.toml"
 
 
-# ========================================================
-# ~/.agent_app
-# ========================================================
+# Application directory
 
 APP_NAME = "agent_app"
 
@@ -25,31 +20,24 @@ UPLOAD_DIR      = APP_DIR / "uploads"
 ENV_PATH        = APP_DIR / ".env"
 APP_DATA_DIR    = APP_DIR / "data"
 CUS_PROMPT_DIR  = APP_DATA_DIR / "prompts"
-# PROJECTS_DIR    = APP_DATA_DIR / "projects"
 TOKENIZERS_DIR  = APP_DIR / "tokenizers"
 
-LOG_DIR             = APP_DIR / "logs"
-APP_LOG_FILE        = LOG_DIR / "app.log"
-PROMPT_LOG_FILE     = LOG_DIR / "prompts.log"
+LOG_DIR         = APP_DIR / "logs"
+APP_LOG_FILE    = LOG_DIR / "app.log"
+PROMPT_LOG_FILE = LOG_DIR / "prompts.log"
 
 
-def _create_user_dir(dir_list: list[Path]):
-    """Create specified user data directories."""
+def _create_app_directories(dir_list: list[Path]):
+    """Create app directories from the list."""
     for folder in dir_list:
         folder.mkdir(parents=True, exist_ok=True)
 
 
-_create_user_dir(
-    [
-        APP_DIR,
-        APP_DATA_DIR,
-        CUS_PROMPT_DIR,
-        # PROJECTS_DIR,
-        TOKENIZERS_DIR,
-        LOG_DIR
-    ]
-)
+# Run on every app start up:
+# - Create app directories.
+# - Copy `config.toml` to app directory if not exist.
 
+_create_app_directories([APP_DIR, APP_DATA_DIR, CUS_PROMPT_DIR, TOKENIZERS_DIR, LOG_DIR])
 
 if not CONFIG_FILE.exists() and DEFAULT_CONFIG.exists():
     shutil.copy(DEFAULT_CONFIG, CONFIG_FILE) # Copy default 'config.toml' to '~/.agent_app/'

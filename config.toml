@@ -1,28 +1,14 @@
 [models]
 
-# Model provider
-ollama_host         = "http://localhost:11434"
+ollama_host = "http://localhost:11434"
 
-# Model selection
-chat                = "ministral-3:3b"
-memory              = "ministral-3:3b"
-web_search          = "ministral-3:3b"
-project_manager     = "gemma3:1b"
-embedding           = "nomic-embed-text"
+model     = "ministral-3:3b"
+embedding = "nomic-embed-text"
 
-# chat_max_tokens       =
-# memory_max_tokens     =
-# pm_max_tokens         =
+# model_max_tokens       =
 # embedding_max_tokens  =
 
-# Tokenizer
 fallback_tokenizer  = "gpt2"
-
-
-[load_system_prompt]
-
-chat            = "system"
-# memory          = "memory"
 
 
 [memory]
@@ -38,14 +24,3 @@ enable_auto_memory_store                    = true
 auto_read_dropbox_enable_at_model_tokens    = 128000
 enable_auto_read_dropbox                    = true
 enable_docling                              = true
-docling_default                             = true
-
-
-[search]
-
-max_results                             = 3
-max_char_per_page                       = 3000
-auto_web_search_enable_at_model_tokens  = 128000
-enable_auto_web_search                  = true
-engine                                  = "http://localhost:8080/"
-crawl4ai_url                            = "http://crawl4ai:11235"

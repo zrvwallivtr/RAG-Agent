@@ -23,7 +23,7 @@ from assests.icons import app_icon_ascii
 from src.app.tui.screens.tui_helpers import date_helpers, tokenizers_helpers, sessions_helpers
 
 
-MODEL_ROLES = ["chat_model", "memory_model", "web_search_model", "embedding_model"]
+MODEL_ROLES = ["chat_model", "embedding_model"]
 
 
 def app_icon() -> str:
@@ -40,9 +40,7 @@ class DashboardScreen(BaseScreen):
         self.ava_models = ollama.ollama_models_list()
         self.selected_models = {
             MODEL_ROLES[0]: models.MODEL,
-            MODEL_ROLES[1]: models.MEM_MODEL,
-            MODEL_ROLES[2]: models.SEAR_MODEL,
-            MODEL_ROLES[3]: models.EMBED_MODEL,
+            MODEL_ROLES[1]: models.EMBED_MODEL,
         }
 
         self.fb_tknizr = models.FALLBACK_TOKENIZER

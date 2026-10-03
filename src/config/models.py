@@ -9,8 +9,7 @@ from src.config.files_and_directories import CONFIG_FILE, _cfg
 
 def _model_not_found(config_file: Path, model_type: str, model_max_tokens: str):
     """
-    Error message for when the model specified in
-    'config.toml' does not match any of models on
+    Error message for when the model specified in 'config.toml' does not match any of models on
     MODEL_MAX list in 'src/agent/tokens_handler.py'.
     """
     error_message = (
@@ -41,10 +40,7 @@ def _normalise_to_integer(value: Any) -> int | str | None:
 
 
 def _set_model_tokens(
-    _cfg: dict[str, Any],
-    config_file: Path,
-    field: str,
-    field_name: str
+    _cfg: dict[str, Any], config_file: Path, field: str, field_name: str
 ) -> tuple[str, Any]:
     """Verify if 'model_name' is on the list or specified in 'config.toml'."""
     model               = _cfg["models"][field]
@@ -59,31 +55,17 @@ def _set_model_tokens(
     return model, model_max_tokens
 
 
-OLLAMA_HOST = _cfg["models"]["ollama_host"]
+OLLAMA_HOST = _cfg["models"]["ollama_host"] # URL for ollama docker service
 
+# LLM
 MODEL, MODEL_MAX_TOKENS = _set_model_tokens(
-    _cfg=_cfg,
-    config_file=CONFIG_FILE,
-    field="chat",
-    field_name="chat_max_tokens"
-)
-MEM_MODEL, MEM_MODEL_MAX_TOKENS = _set_model_tokens(
-    _cfg=_cfg,
-    config_file=CONFIG_FILE,
-    field="memory",
-    field_name="memory_max_tokens"
-)
-SEAR_MODEL, SEAR_MODEL_MAX_TOKENS = _set_model_tokens(
-    _cfg=_cfg,
-    config_file=CONFIG_FILE,
-    field="web_search",
-    field_name="web_search_max_tokens"
-)
-EMBED_MODEL, EMBED_MAX_TOKENS = _set_model_tokens(
-    _cfg=_cfg,
-    config_file=CONFIG_FILE,
-    field="embedding",
-    field_name="embedding_max_tokens"
+    _cfg=_cfg, config_file=CONFIG_FILE, field="model", field_name="model_max_tokens"
 )
 
+# Embedding model
+EMBED_MODEL, EMBED_MAX_TOKENS = _set_model_tokens(
+    _cfg=_cfg, config_file=CONFIG_FILE, field="embedding", field_name="embedding_max_tokens"
+)
+
+# Tokenizer
 FALLBACK_TOKENIZER = _cfg["models"]["fallback_tokenizer"]

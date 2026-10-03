@@ -22,54 +22,42 @@ from src.logger import app_logger, prompt_logger
 app_log     = app_logger(f"{__name__}.app")
 prompt_log  = prompt_logger(f"{__name__}.prompt")
 
-MEM_MODEL                   = models.MEM_MODEL
-EMBED_MODEL                 = models.EMBED_MODEL
-MEM_PROMPT                  = prompts.MEM_PROMPT
-MEM_MANUAL_PROMPT           = prompts.MEM_MANUAL_PROMPT
-RETRIEVE_MEM_ENTRY_LIMIT    = memory.RETRIEVE_MEM_ENTRY_LIMIT
-AUTO_MEMORY_STORE_TOKENS    = memory.AUTO_MEMORY_STORE_TOKENS
+MODEL       = models.MODEL
+EMBED_MODEL = models.EMBED_MODEL
 
-CATEGORY_TYPES = Literal[
-    "preference",
-    "stack",
-    "fact",
-    "project",
-    "instruction",
-    "correction"
-]
+MEM_PROMPT        = prompts.MEM_PROMPT
+MEM_MANUAL_PROMPT = prompts.MEM_MANUAL_PROMPT
+
+QUERY_LIMIT = memory.RETRIEVE_MEM_ENTRY_LIMIT
+AUTO_MEMORY_STORE_TOKENS = memory.AUTO_MEMORY_STORE_TOKENS
+
+CATEGORY_TYPES = Literal["preference", "stack", "fact", "project", "instruction", "correction"]
 CATEGORIES = list(get_args(CATEGORY_TYPES))
-
-ChatLogs = chat_logs.ChatLogs
 
 
 class Memory:
     def __init__(
         self,
         conn,
-        chat_logs: ChatLogs,
+        chat_logs: chat_logs.ChatLogs,
         sess_name: str | None = None,
         project: str | None = None
     ):
-        self.conn               = conn
-        self.cur                = self.conn.cursor()
-        self.sess_name          = sess_name
-        self.project            = project
-        self.model              = MEM_MODEL
-        self.mem_prompt         = MEM_PROMPT
-        self.mem_manual_prompt  = MEM_MANUAL_PROMPT
-        self.qry_limit          = RETRIEVE_MEM_ENTRY_LIMIT
-        self.chat_logs          = chat_logs
+        self.conn              = conn
+        self.cur               = self.conn.cursor()
+
+        self.sess_name         = sess_name
+        self.chat_logs         = chat_logs
+
         self._init_memory_db()
 
 
-    # ============================================================
-    # MEMORY HASH
-    # ============================================================
+    # Functions for verifying if memory content has been stored in the database
+    # already using hash method.
 
     def _hash_memory(self, cont: str) -> str:
         """
-        Return a SHA-256 hash of raw text content,
-        used for dedupe before embedding.
+        Return a SHA-256 hash of raw text content, used for dedupe before embedding.
         """
         app_log.debug("Hashing text from given content")
         return hashlib.sha256(cont.encode("utf-8")).hexdigest()
@@ -77,8 +65,7 @@ class Memory:
 
     def _is_mem_exist(self, new_hash: str) -> bool:
         """
-        Check if the same memory was added before (same
-        hash, accross sessions). Return True
+        Check if the same memory was added before (same hash, accross sessions). Return True
         if a duplicate exist.
         """
         app_log.debug("Verifing if memory entry already exist")
@@ -96,18 +83,12 @@ class Memory:
         return True
 
 
-    # ============================================================
-    # INITIALISE MEMORY DATABASE
-    # ============================================================
+    # Initialise memory database using pgvector extension.
 
     def _init_memory_db(self):
         """Create memory table if missing."""
         app_log.debug("Initialising vector extension for PostgreSQL")
-        self.cur.execute(
-            """
-            CREATE EXTENSION IF NOT EXISTS vector;
-            """
-        )
+        self.cur.execute("""CREATE EXTENSION IF NOT EXISTS vector;""")
 
         app_log.debug(
             "Initialising table 'memory' with vector embedding dimension of %s",
@@ -159,9 +140,7 @@ class Memory:
         self.conn.commit()
 
 
-    # ============================================================
-    # EDIT MEMORY LOGS
-    # ============================================================
+    # Edit memory logs with embeddings
 
     def _add_mem_embeddings(
         self,
@@ -200,10 +179,7 @@ class Memory:
 
 
     def _embed_content_and_add_mem(
-        self,
-        cont: str,
-        ctgry: str,
-        extraction: Literal["manual", "auto"]
+        self, cont: str, ctgry: str, extraction: Literal["manual", "auto"]
     ) -> tuple[str, int] | None:
         """Embeds texts and adds to memory logs."""
         cont_hash = self._hash_memory(cont)
@@ -261,9 +237,7 @@ class Memory:
         return
 
 
-    # ============================================================
-    # QUERY MEMORY EMBEDDINGS
-    # ============================================================
+    # Query memory embeddings
 
     def get_mem_content_from_ids(self, ids: list[str]) -> dict[str, str]:
         """Return memory dictionary from a list of ids."""
@@ -317,7 +291,7 @@ class Memory:
                 str(qry_embdings),
                 min_sim,
                 str(qry_embdings),
-                self.qry_limit
+                QUERY_LIMIT
             )
         )
         rows = self.cur.fetchall()
@@ -335,9 +309,7 @@ class Memory:
         ]
 
 
-    # ============================================================
-    # EXTRACT MEMORY
-    # ============================================================
+    # Extract memory
 
     def _format_extracted_mem(
         self,
@@ -422,9 +394,9 @@ class Memory:
         if extraction == "manual":
             app_log.debug(
                 "Manual memory extraction using model '%s' is triggered",
-                self.model
+                MODEL
             )
-            system_prompt = self.mem_manual_prompt
+            system_prompt = MEM_MANUAL_PROMPT
             if not prompt:
                 app_log.warning("Memory extraction failed: No prompt provided")
                 return
@@ -434,9 +406,9 @@ class Memory:
         else:
             app_log.debug(
                 "Auto memory extraction using model '%s' is triggered",
-                self.model
+                MODEL
             )
-            system_prompt = self.mem_prompt
+            system_prompt = MEM_PROMPT
             new_convs = self.chat_logs.get_latest_conversation_turn()
 
         # === FORMAT CONTENT AND EXTRACT MEMORY ==============================
@@ -447,7 +419,7 @@ class Memory:
             )
 
             response = llm.response_with_new_sys_prompt_and_context(
-                model=self.model, sys_prompt=system_prompt, prompt=fmt_prompt
+                model=MODEL, sys_prompt=system_prompt, prompt=fmt_prompt
             )
             if not response:
                 return
@@ -461,9 +433,7 @@ class Memory:
             return
 
 
-    # ============================================================
-    # AUTO FUNCTIONS
-    # ============================================================
+    # Auto store and retrieve memory entries functions
 
     def toggle_auto_retrive_memory_entries(
         self,
@@ -478,7 +448,6 @@ class Memory:
         return self.query_similar_content(prompt, prompt_embdings)
 
 
-    # //////////////////////////////////////////////////////////////
     # FUNCTION INCOMPLETE
     def toggle_auto_store_memory_entries(
         self,
@@ -499,4 +468,3 @@ class Memory:
         response = self.extract_and_store_mem_from_conv(extraction= "auto")
         if response:
             created_ids, p_tkns, o_tkns, total_tkn_used = response
-    # //////////////////////////////////////////////////////////////

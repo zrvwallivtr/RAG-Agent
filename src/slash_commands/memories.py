@@ -20,8 +20,6 @@ from src.rag import (
     memory,
     knowledge_base,
     document_knowledge_base,
-    search_agent,
-    query_manager
 )
 from src.app.tui.screens.tui_helpers import agent_interface_helper
 
@@ -37,7 +35,6 @@ ChatLogs                = chat_logs.ChatLogs
 Memory                  = memory.Memory
 KnowledgeBase           = knowledge_base.KnowledgeBase
 DocumentKnowledgeBase   = document_knowledge_base.DocumentKnowledgeBase
-SearchAgent             = search_agent.SearchAgent
 
 SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
 
@@ -63,9 +60,6 @@ class SlashMemories:
         )
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
-        self.sear_agt = SearchAgent(
-            conn=self.conn, sess_name=self.sess_name
         )
 
 

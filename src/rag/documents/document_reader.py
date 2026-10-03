@@ -11,7 +11,7 @@ from src.logger import app_logger
 app_log = app_logger(f"{__name__}.app")
 
 UPLOAD_DIR      = files_n_dir.UPLOAD_DIR
-DOCLING_DEFAULT = documents.DOCLING_DEFAULT
+# DOCLING_DEFAULT = documents.DOCLING_DEFAULT
 ENABLE_DOCLING  = documents.ENABLE_DOCLING
 
 
@@ -54,7 +54,7 @@ class DocumentReader:
         ext = safe_path.suffix.lower()
 
         # === PRIMARY: DOCLING -> FALLBACK: BASIC =========================================
-        if DOCLING_DEFAULT:
+        if ENABLE_DOCLING:
             try:
                 app_log.info("Running Docling parser for '%s'", path)
                 parser = self.docling_prsrs.formats.get(ext, self.bs_prsrs.read_txt)
