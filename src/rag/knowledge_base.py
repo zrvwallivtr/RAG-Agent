@@ -119,7 +119,7 @@ class KnowledgeBase:
                 DELETE FROM knowledge_base
                 WHERE session_id = %s AND type = %s
                 """,
-                (self.chat_logs.get_sess_id, typ)
+                (self.chat_logs.get_session_id(), typ)
             )
             del_count = self.cur.rowcount
             self.conn.commit()

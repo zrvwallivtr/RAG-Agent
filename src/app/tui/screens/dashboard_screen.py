@@ -404,7 +404,7 @@ class DashboardScreen(BaseScreen):
         from src.agent.chat_logs import ChatLogs
         chat_logs = ChatLogs(conn=postgres.conn)
 
-        sess_dict = chat_logs.get_all_existing_sess_metadata()
+        sess_dict = chat_logs.get_all_existing_session_metadata()
 
         # Section title
         title = (
@@ -502,7 +502,7 @@ class DashboardScreen(BaseScreen):
         chat_logs = ChatLogs(conn=postgres.conn, sess_name=clean_name)
 
         try:
-            chat_logs.create_sess()
+            chat_logs.create_session()
 
         except UniqueViolation:
             chat_logs.conn.rollback()

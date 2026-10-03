@@ -93,7 +93,7 @@ class SlashMemories:
             )
             return
 
-        msgs = self.chat_logs.get_actv_convs()
+        msgs = self.chat_logs.get_active_conversations()
 
         # Full context
         attchmnt_dict = self.doc_kw_bs.get_attachments_content(
@@ -131,7 +131,7 @@ class SlashMemories:
 
         # Save messages
         # mock_resp = "Information has been extracted and added to database."
-        metadata = self.chat_logs.add_conv_turn(
+        metadata = self.chat_logs.add_conversation_turn(
             prompt=prompt,
             response=SLASH_CMD_DICT["memorise"].get("mock_response") or "",
             state="external",

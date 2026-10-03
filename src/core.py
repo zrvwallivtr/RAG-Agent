@@ -89,7 +89,7 @@ class Agent:
         to free up token space.
         """
         app_log.debug("Estimating token usage for session '%s'", self.sess_name)
-        curr_hist_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_actv_convs())
+        curr_hist_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
         if not curr_hist_tkns:
             return
 
@@ -101,7 +101,7 @@ class Agent:
 
         if self.tknizr.model_max_tkns - est_next - reserve < 0:
             app_log.info("Current tokens exceeds threshold")
-            self.chat_logs.auto_compresss_active_conv()
+            self.chat_logs.auto_compress_active_conversations()
             return
 
 
@@ -237,7 +237,7 @@ class Agent:
         """
         self._manage_token_budget(prompt=prompt, reserve=1000)
 
-        msgs = self.chat_logs.get_actv_convs()
+        msgs = self.chat_logs.get_active_conversations()
 
         # Slash commands
         cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
@@ -278,7 +278,7 @@ class Agent:
         total_o_tkns = o_tkns
 
         # Save messages to database
-        metadata = self.chat_logs.add_conv_turn(
+        metadata = self.chat_logs.add_conversation_turn(
             prompt=prompt,
             response=ans,
             state="external",

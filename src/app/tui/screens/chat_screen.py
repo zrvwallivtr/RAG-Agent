@@ -378,7 +378,7 @@ class ChatScreen(BaseScreen):
             return
 
         # Used tokens throughout the entire session chat history
-        used_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_actv_convs())
+        used_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
         if not used_tkns:
             return
 
@@ -393,7 +393,10 @@ class ChatScreen(BaseScreen):
         - After sending a message.
         - Model finished responding.
         """
-        self._cached_sess_tkns = self.chat_logs.get_session_used_tokens() or 0
+        result = self.chat_logs.get_session_data()
+        if not result:
+            return
+        _, _, self._cached_sess_tkns = result
 
 
     @work(exclusive=True, thread=True, group="token_count")

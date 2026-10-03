@@ -86,7 +86,7 @@ class SlashRecall:
         if is_attchmnt and paths:
             app_log.warning(SLASH_CMD_DICT["recall"].get("attachments_warn"))
 
-        msgs = self.chat_logs.get_actv_convs()
+        msgs = self.chat_logs.get_active_conversations()
 
         # Retrieve memory from database
         embed_response = embed.embedding_content(prompt)
@@ -105,7 +105,7 @@ class SlashRecall:
         )
 
         # Save messages
-        metadata = self.chat_logs.add_conv_turn(
+        metadata = self.chat_logs.add_conversation_turn(
             prompt=prompt,
             response=ans,
             state="external",

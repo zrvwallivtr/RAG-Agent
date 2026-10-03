@@ -22,13 +22,13 @@ def del_sess(sess_name: str | None = None) -> None:
     chat_logs   = ChatLogs(conn=conn, sess_name=sess_name)
     kw_bs       = KnowledgeBase(conn=conn, chat_logs=chat_logs, sess_name=sess_name)
 
-    sess_id = chat_logs.get_sess_id()
+    sess_id = chat_logs.get_session_id()
     if not sess_id:
         app_log.warning("Failed to delete session: Session '%s' does not exist", sess_name)
         return
 
     # Clear session chat logs
-    has_del_chat = chat_logs.clear_sess_chat_logs()
+    has_del_chat = chat_logs.clear_session_chat_logs()
 
     # Clear session knowledge base
     response = kw_bs.clear_sess_kw_bs("document")

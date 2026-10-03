@@ -158,10 +158,6 @@ class Tknizr:
             self.model_max_tkns = None
 
 
-    # =========================================================
-    # LOAD INSTALLED TOKENIZER
-    # =========================================================
-
     def _load_tokenizer(self) -> Tokenizer | None:
         """Load local installed tokenizer."""
         file = TOKENIZERS_DIR / f"{self.model}.json"

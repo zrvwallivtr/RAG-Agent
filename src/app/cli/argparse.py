@@ -78,7 +78,7 @@ def build_parser() -> None:
     # === SESSIONS ====================================================
     if args.new_session:
         chat_logs = ChatLogs(conn=postgres.conn, sess_name=args.new_session)
-        chat_logs.create_sess()
+        chat_logs.create_session()
         if not args.prompt:
             return
         agent = Agent(sess_name=args.session)
@@ -93,7 +93,7 @@ def build_parser() -> None:
 
     if args.list_session:
         chat_logs = ChatLogs(conn=postgres.conn)
-        sess_dict = chat_logs.get_all_existing_sess_metadata()
+        sess_dict = chat_logs.get_all_existing_session_metadata()
         interface.sessions_table(sess_dict)
         return
 
@@ -130,9 +130,9 @@ def build_parser() -> None:
     if args.dashboard:
         model_dict = ollama.ollama_clt.list()
         chat_logs = ChatLogs(conn=postgres.conn)
-        sess_dict = chat_logs.get_all_existing_sess_metadata()
+        sess_dict = chat_logs.get_all_existing_session_metadata()
         tknizr_dict = tokenizers.fetch_all_installed_tokenizers()
-        latest = chat_logs.latest_modified_chat_session()
+        latest = chat_logs.get_latest_modified_chat_session()
         if latest:
             latest_sess, latest_sess_dt = latest
         else:

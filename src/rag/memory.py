@@ -437,11 +437,11 @@ class Memory:
                 self.model
             )
             system_prompt = self.mem_prompt
-            new_convs = self.chat_logs.get_latest_conv_turn()
+            new_convs = self.chat_logs.get_latest_conversation_turn()
 
         # === FORMAT CONTENT AND EXTRACT MEMORY ==============================
         try:
-            old_convs = self.chat_logs.get_old_convs()
+            old_convs = self.chat_logs.get_old_conversations()
             fmt_prompt = format_context.old_and_new_convs(
                 old_convs=old_convs, new_convs=new_convs
             )

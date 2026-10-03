@@ -13,7 +13,7 @@ def get_session_list() -> list | None:
     from src.agent.chat_logs import ChatLogs
     chat_logs = ChatLogs(conn=postgres.conn)
 
-    sess_dict = chat_logs.get_all_existing_sess_metadata()
+    sess_dict = chat_logs.get_all_existing_session_metadata()
     if not sess_dict:
         return
 
@@ -31,7 +31,7 @@ def _show_session_list(sess_list: OptionList) -> None:
     from src.agent.chat_logs import ChatLogs
     chat_logs = ChatLogs(conn=postgres.conn)
 
-    sess_dict = chat_logs.get_all_existing_sess_metadata()
+    sess_dict = chat_logs.get_all_existing_session_metadata()
     if not sess_dict:
         return
 
@@ -64,7 +64,7 @@ def _fuzzy_search_behaviour(
     from src.agent.chat_logs import ChatLogs
     chat_logs = ChatLogs(conn=postgres.conn)
 
-    sess_dict = chat_logs.get_all_existing_sess_metadata()
+    sess_dict = chat_logs.get_all_existing_session_metadata()
     if not sess_dict:
         return
 
@@ -99,7 +99,7 @@ def _fuzzy_search_behaviour(
                 name_list.append(name)
 
         for name in name_list:
-            sess_id = chat_logs.get_sess_id_from_name(sess_name=name)
+            sess_id = chat_logs.get_session_id_from_name(sess_name=name)
             if not sess_id:
                 continue
 

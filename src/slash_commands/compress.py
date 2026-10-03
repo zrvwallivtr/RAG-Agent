@@ -79,7 +79,7 @@ class SlashCompress:
                     chat_container=chat_container
                 )
 
-            result = self.chat_logs.auto_compresss_active_conv()
+            result = self.chat_logs.auto_compress_active_conversations()
             return result if result else None
 
 
@@ -108,7 +108,7 @@ class SlashCompress:
                 screen=screen, md_widget=md_widget, info=info_str
             )
 
-        result = self.chat_logs.compress_active_conv(prompt=cmbind_prompt)
+        result = self.chat_logs.compress_active_conversations(prompt=cmbind_prompt)
         if not result:
             return
 

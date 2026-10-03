@@ -9,6 +9,7 @@ from src.config import models
 from src.config import prompts
 from src.config import postgres
 
+from src.agent.tokenizers import Tknizr
 from src import format_context
 from src.agent.models import llm
 from src import logger
@@ -26,13 +27,17 @@ class ChatLogs:
         self.conn   = conn
         self.cur    = self.conn.cursor()
 
+
         self.model      = MODEL
         self.sys_prompt = SYS_PROMPT
         self.cmp_prompt = COMPRESS_PROMPT
 
         self.sess_name = sess_name.strip() if sess_name else "default_session"
 
+        self.tknizr = Tknizr(model=self.model)
+
         self._init_chat_logs_db()
+        self._init_chat_session_used_tokens()
 
 
     def _init_chat_logs_db(self):
@@ -87,10 +92,19 @@ class ChatLogs:
         self.conn.commit()
 
 
-    # The following functions retrieves data from 'chat_sessions' table,
-    # useful for querying basing session data.
+    def _init_chat_session_used_tokens(self):
+        """
+        Update used token count right after session is created to account for system
+        prompt token usage.
+        """
+        sess_used_tkns = self.tknizr.count_string_tokens(text=SYS_PROMPT) or 0
+        self.update_session_used_tokens(sess_used_tkns=sess_used_tkns)
 
-    def get_sess_id(self) -> str | None:
+
+    # Session identification methods, containing functions for session
+    # name or id retrieval from the database.
+
+    def get_session_id(self) -> str | None:
         """Fetch session id from chat_sessions table using current session name."""
         app_log.debug("Fetching session id for session '%s'", self.sess_name)
         self.cur.execute(
@@ -116,7 +130,7 @@ class ChatLogs:
         return sess_id
 
 
-    def get_sess_name(self, sess_id: str) -> str | None:
+    def get_session_name(self, sess_id: str) -> str | None:
         """Fetch session name from with the given session id chat session table."""
         app_log.debug("Fetching session name from session_id '%s'", sess_id)
         self.cur.execute(
@@ -142,7 +156,7 @@ class ChatLogs:
         return sess_name
 
 
-    def get_sess_id_from_name(self, sess_name: str) -> str | None:
+    def get_session_id_from_name(self, sess_name: str) -> str | None:
         """
         Query to chat session table with a specified session name to look for its
         corresponding session id.
@@ -168,6 +182,8 @@ class ChatLogs:
         return sess_id
 
 
+    # Sesssion related data logging and retrieval methods.
+
     def update_session_used_tokens(self, sess_used_tkns: int):
         self.cur.execute(
             """
@@ -180,28 +196,34 @@ class ChatLogs:
         self.conn.commit()
 
 
-    def get_session_used_tokens(self) -> int | None:
+    def get_session_data(self, sess_name: str | None = None) -> tuple[str, str, int] | None:
+        """Retreive all data related to specified session name else get from current session name."""
+        name = sess_name if sess_name else self.sess_name # Specified session name (optional)
+
+        # Retrieve from database
         self.cur.execute(
             """
-            SELECT session_used_tokens
+            SELECT session_id, created_at, session_used_tokens
             FROM chat_sessions
             WHERE session_name = %s;
             """,
-            (self.sess_name,)
+            (name,)
         )
         self.conn.commit()
-        row = self.cur.fetchone()
+        rows = self.cur.fetchone()
 
-        if not row:
-            app_log.warning("Session used tokens for session name '%s' not found", self.sess_name)
+        if not rows:
+            app_log.warning("Session data for session name '%s' not found", name)
             return
 
-        sess_used_tkns = int(row[0])
-        app_log.debug("Retrieved session used tokens from session '%s'", self.sess_name)
-        return sess_used_tkns
+        sess_id = str(rows[0])
+        created_at = str(rows[1])
+        sess_used_tkns = int(rows[2])
+        app_log.debug("Retrieved session data from session '%s'", name)
+        return sess_id, created_at, sess_used_tkns
 
 
-    def get_all_existing_sess_metadata(self) -> dict | None:
+    def get_all_existing_session_metadata(self) -> dict | None:
         """Fetch all session names from database."""
         app_log.debug("Fetching all session name(s) in the database")
         sess_dict = {}
@@ -227,9 +249,10 @@ class ChatLogs:
         return sess_dict
 
 
-    # The following functions retrieves data from 'chat_logs' table.
+    # The following functions retrieves session name / created time filtered by
+    # its creation time.
 
-    def get_session_last_modified_time(self, sess_id: str) -> str | None:
+    def get_session_last_modified_time(self, sess_id: str | None = None) -> str | None:
         """Get the latest created time from session id in the chat logs."""
         self.cur.execute(
             """
@@ -289,14 +312,16 @@ class ChatLogs:
             created_at
         )
 
-        sess_name = self.get_sess_name(sess_id=sess_id)
+        sess_name = self.get_session_name(sess_id=sess_id)
         if not sess_name:
             return
 
         return sess_name, created_at
 
 
-    def create_sess(self) -> str:
+    # Functions for creating sessions
+
+    def create_session(self) -> str:
         """Create session entry on the chat_sessions table and return its session id."""
         app_log.debug("Creating new session '%s'", self.sess_name)
         self.cur.execute(
@@ -320,20 +345,21 @@ class ChatLogs:
         return str(row[0])
 
 
-    def get_or_create_sess_id(self) -> str:
+    def get_or_create_session_id(self) -> str:
         """
-        Fetch session id if session already exists,
-        else create new session entry and return
-        new generated session id.
+        Fetch session id if session already exists, else create new session entry
+        and return new generated session id.
         """
-        sess_id = self.get_sess_id()
+        sess_id = self.get_session_id()
 
         if not sess_id:
-            sess_id = self.create_sess()
+            sess_id = self.create_session()
         return sess_id
 
 
-    def add_conv_turn(
+    # Conversation logs management and retrieval funcitons
+
+    def add_conversation_turn(
         self,
         prompt: str,
         response: str,
@@ -362,45 +388,19 @@ class ChatLogs:
             INSERT INTO chat_logs (session_id, prompt, response, state, total_prompt_tokens, total_output_tokens, metadata)
             VALUES (%s, %s, %s, %s, %s, %s, %s);
             """,
-            (self.get_or_create_sess_id(), prompt, response, state, p_tkns, o_tkns, json.dumps(metadata or {}))
+            (self.get_or_create_session_id(), prompt, response, state, p_tkns, o_tkns, json.dumps(metadata or {}))
         )
         self.conn.commit()
         app_log.debug("New conversation turn added to session '%s' chat logs", self.sess_name)
 
         # Resync messages
-        self.actv_convs = self.get_actv_convs()
+        self.actv_convs = self.get_active_conversations()
         app_log.debug("Resynced session '%s' conversations", self.sess_name)
 
         return metadata
 
 
-    def clear_sess_chat_logs(self) -> bool:
-        """Clear all session related chat logs."""
-        app_log.debug("Clearing chat logs for session '%s'", self.sess_name)
-        self.cur.execute(
-            """
-            DELETE FROM chat_logs
-            WHERE session_id = %s;
-            """,
-            (self.get_sess_id(),)
-        )
-        del_count = self.cur.rowcount
-        self.conn.commit()
-
-        if del_count == 0:
-            app_log.warning(
-                "Failed to clear chat logs: Session '%s' does not exists or has no chat logs",
-                self.sess_name
-            )
-            return False
-
-        app_log.info("Cleared all chat logs for session '%s'", self.sess_name)
-        self.actv_convs = self.get_actv_convs() # resync messages
-        app_log.debug("Resynced session '%s' conversations", self.sess_name)
-        return True
-
-
-    def get_actv_convs(self) -> list[dict]:
+    def get_active_conversations(self) -> list[dict]:
         """
         Get all messages in a session with filter options.
         If session does not exists, return system prompt.
@@ -416,7 +416,7 @@ class ChatLogs:
             WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
             ORDER BY created_at ASC;
             """,
-            (self.get_or_create_sess_id(),)
+            (self.get_or_create_session_id(),)
         )
         self.conn.commit()
         rows = self.cur.fetchall()
@@ -461,7 +461,7 @@ class ChatLogs:
                 WHERE session_id = %s AND state = 'external' AND is_compressed = TRUE
                 ORDER BY created_at ASC;
                 """,
-                (self.get_sess_id(),)
+                (self.get_session_id(),)
             )
         elif filter == "not_compressed":
             self.cur.execute(
@@ -471,7 +471,7 @@ class ChatLogs:
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
                 """,
-                (self.get_sess_id(),)
+                (self.get_session_id(),)
             )
         else:
             self.cur.execute(
@@ -481,7 +481,7 @@ class ChatLogs:
                 WHERE session_id = %s AND state = 'external'
                 ORDER BY created_at ASC;
                 """,
-                (self.get_sess_id(),)
+                (self.get_session_id(),)
             )
 
         self.conn.commit()
@@ -522,7 +522,7 @@ class ChatLogs:
         return convs
 
 
-    def get_latest_conv_turn(self) -> list[dict] | None:
+    def get_latest_conversation_turn(self) -> list[dict] | None:
         """Get the latest external user/assistant conversation turn from the chat log."""
         app_log.debug("Fetching the latest conversation turn from session '%s' chat logs", self.sess_name)
         self.cur.execute(
@@ -533,7 +533,7 @@ class ChatLogs:
             ORDER BY created_at DESC
             LIMIT 1;
             """,
-            (self.get_or_create_sess_id(),)
+            (self.get_or_create_session_id(),)
         )
 
         self.conn.commit()
@@ -552,7 +552,7 @@ class ChatLogs:
         return [{"role": "user", "content": row[0]}, {"role": "assistant", "content": row[1]}]
 
 
-    def get_old_convs(self) -> list[dict] | None:
+    def get_old_conversations(self) -> list[dict] | None:
         """
         Get all previous user/assistant conversation turns
         right before the latest external conversation from
@@ -571,7 +571,7 @@ class ChatLogs:
                 )
             ORDER BY id ASC
             """,
-            (self.get_or_create_sess_id(), self.get_or_create_sess_id())
+            (self.get_or_create_session_id(), self.get_or_create_session_id())
         )
         self.conn.commit()
         rows = self.cur.fetchall()
@@ -595,97 +595,35 @@ class ChatLogs:
         return convs
 
 
-    def _add_attachments_metadata(
-        self,
-        attchmnts: list[Path] | None
-    ) -> dict[str, dict[str, Any]] | None:
-        """
-        Add metadata to every filename in the list of filenames.
+    def clear_session_chat_logs(self) -> bool:
+        """Clear all session related chat logs."""
+        app_log.debug("Clearing chat logs for session '%s'", self.sess_name)
+        self.cur.execute(
+            """
+            DELETE FROM chat_logs
+            WHERE session_id = %s;
+            """,
+            (self.get_session_id(),)
+        )
+        del_count = self.cur.rowcount
+        self.conn.commit()
 
-        {
-            "filename": {
-                "mime_type": "type",
-                "size_bytes": size,
-            }
-        }
-        """
-        if not attchmnts:
-            app_log.debug("No attachment uploaded. Skipping")
-            return
-
-        app_log.debug("Extracting metadata from %d attachment(s)", len(attchmnts))
-        attchmnts_dict = {}
-        count = 0
-        for attchmnt in attchmnts:
-            count += 1
-            app_log.debug(
-                "Extracting metadate from attachment '%s' (%d/%d)",
-                attchmnt.name,
-                count,
-                len(attchmnts)
+        if del_count == 0:
+            app_log.warning(
+                "Failed to clear chat logs: Session '%s' does not exists or has no chat logs",
+                self.sess_name
             )
-            mime_type, _ = mimetypes.guess_type(attchmnt)
-            attchmnts_dict[attchmnt.name] = {
-                "mime_type": mime_type,
-                "size_bytes": attchmnt.stat().st_size if attchmnt.exists else 0
-            }
-            app_log.debug("Extracted metadata from attachment")
-        return attchmnts_dict
+            return False
+
+        app_log.info("Cleared all chat logs for session '%s'", self.sess_name)
+        self.actv_convs = self.get_active_conversations() # resync messages
+        app_log.debug("Resynced session '%s' conversations", self.sess_name)
+        return True
 
 
-    # def _add_web_search_metadata(
-    #     self,
-    #     qry_wth_urls: list[dict[str, list[str]]] | None,
-    # ) -> dict[str, list[str]]:
-    #     """
-    #     Add all URL(s) to every query in the list of queries.
+    # Compression functions
 
-    #     {
-    #         "query_name": [
-    #             "query_url_1",
-    #             "query_url_2",
-    #             "query_url_3"
-    #         ]
-    #     }
-    #     """
-    #     # /////////////////////////////////////////////
-    #     # MIGHT REQUIRE UPDATE FOR METADATA STRUCTURE
-    #     app_log.debug("Updating web search metadata")
-    #     if qry_wth_urls:
-    #         wb_search_dict = {}
-    #         for qry_dict in qry_wth_urls:
-    #             wb_search_dict.update(qry_dict)
-    #         return wb_search_dict
-    #     # /////////////////////////////////////////////
-    #     return {}
-
-
-    def _tool_calls_metadata(
-        self,
-        attchmnts: list[Path] | None = None,
-        qry_wth_urls: list[dict[str, list[str]]] | None = None,
-    ) -> dict[str, dict[str, Any]]:
-        """
-        Return a dictionary of all tool calls.
-
-        {
-            "attachments": ,
-            "web_search": 
-        }
-        """
-        app_log.debug("Updating metadata for tool calls for the new conversation turn")
-        tool_entries = {}
-
-        if attchmnts:
-            tool_entries["attachments"] = self._add_attachments_metadata(attchmnts)
-
-        # if qry_wth_urls:
-        #     tool_entries["web_search"] = self._add_web_search_metadata(qry_wth_urls)
-
-        return tool_entries
-
-
-    def compress_active_conv(
+    def compress_active_conversations(
         self,
         prompt: str,
         contxt: list[dict] | None = None
@@ -713,7 +651,7 @@ class ChatLogs:
             SET is_compressed = TRUE
             WHERE session_id = %s AND is_compressed = FALSE;
             """,
-            (self.get_sess_id(),)
+            (self.get_session_id(),)
         )
         self.conn.commit()
         app_log.debug(
@@ -721,7 +659,7 @@ class ChatLogs:
             self.sess_name
         )
 
-        metadata = self.add_conv_turn(
+        metadata = self.add_conversation_turn(
             prompt=prompt,
             response=smry,
             state="external",
@@ -733,15 +671,15 @@ class ChatLogs:
             self.sess_name
         )
 
-        self.actv_convs = self.get_actv_convs() # resync messages
+        self.actv_convs = self.get_active_conversations() # resync messages
         return smry, p_tkns, o_tkns, metadata
 
 
-    def auto_compresss_active_conv(self) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+    def auto_compress_active_conversations(self) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """Auto compress session."""
         app_log.info("Chat compression was triggered for session '%s'", self.sess_name)
         prompt = "Summarise all previous conversations."
-        result = self.compress_active_conv(prompt)
+        result = self.compress_active_conversations(prompt)
         if not result:
             return
         smry, p_tkns, o_tkns, metadata = result
@@ -749,9 +687,69 @@ class ChatLogs:
         return smry, p_tkns, o_tkns, metadata
 
 
-    def _close_conn(self):
-        """Close connection to database."""
-        app_log.info("Closing connection to the database")
-        self.cur.close()
-        self.conn.close()
-        app_log.info("Database connection has closed")
+    # All functions related to conversation turns metadata
+
+    def _add_attachments_metadata(
+        self,
+        attchmnts: list[Path] | None
+    ) -> dict[str, dict[str, Any]] | None:
+        """
+        Add metadata to every filename in the list of filenames.
+
+        {
+            "filename": {
+                "mime_type": "type",
+                "size_bytes": size,
+            }
+        }
+        """
+        if not attchmnts:
+            app_log.debug("No attachment uploaded. Skipping")
+            return
+
+        app_log.debug("Extracting metadata from %d attachment(s)", len(attchmnts))
+        attchmnts_dict = {}
+        count = 0
+        for attchmnt in attchmnts:
+            count += 1
+            app_log.debug(
+                "Extracting metadate from attachment '%s' (%d/%d)",
+                attchmnt.name, count, len(attchmnts)
+            )
+            mime_type, _ = mimetypes.guess_type(attchmnt)
+            attchmnts_dict[attchmnt.name] = {
+                "mime_type": mime_type,
+                "size_bytes": attchmnt.stat().st_size if attchmnt.exists else 0
+            }
+            app_log.debug("Extracted metadata from attachment")
+        return attchmnts_dict
+
+
+    def _tool_calls_metadata(
+        self,
+        attchmnts: list[Path] | None = None,
+        qry_wth_urls: list[dict[str, list[str]]] | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Return a dictionary of all tool calls.
+
+        {
+            "attachments": ,
+            "web_search": 
+        }
+        """
+        app_log.debug("Updating metadata for tool calls for the new conversation turn")
+        tool_entries = {}
+
+        if attchmnts:
+            tool_entries["attachments"] = self._add_attachments_metadata(attchmnts)
+
+        return tool_entries
+
+
+    # def _close_conn(self):
+    #     """Close connection to database."""
+    #     app_log.info("Closing connection to the database")
+    #     self.cur.close()
+    #     self.conn.close()
+    #     app_log.info("Database connection has closed")

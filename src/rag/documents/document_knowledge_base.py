@@ -183,7 +183,7 @@ class DocumentKnowledgeBase:
                 VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
                 """,
                 (
-                    self.chat_logs.get_sess_id(),
+                    self.chat_logs.get_session_id(),
                     "document",
                     str(embdings),
                     chnk_tkns,
@@ -303,7 +303,7 @@ class DocumentKnowledgeBase:
                 WHERE session_id = %s AND type = %s
                     AND (metadata->>'document_chunk_index')::int = 0
                 """,
-                (self.chat_logs.get_sess_id(), "document")
+                (self.chat_logs.get_session_id(), "document")
             )
             rows = self.cur.fetchall()
 
