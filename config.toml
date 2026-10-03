@@ -1,6 +1,9 @@
 [models]
 
+# Model provider
 ollama_host         = "http://localhost:11434"
+
+# Model selection
 chat                = "ministral-3:3b"
 memory              = "ministral-3:3b"
 web_search          = "ministral-3:3b"
@@ -12,6 +15,7 @@ embedding           = "nomic-embed-text"
 # pm_max_tokens         =
 # embedding_max_tokens  =
 
+# Tokenizer
 fallback_tokenizer  = "gpt2"
 
 

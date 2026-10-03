@@ -52,23 +52,19 @@ class Agent:
         self,
         sess_name: str | None = None,
     ):
-        self.tknizr    = Tknizr(MODEL)
         self.sess_name = sess_name
         self.conn      = conn
 
         # Main classes
-        self.chat_logs = ChatLogs(
-            conn=self.conn, sess_name=self.sess_name
-        )
-        self.mem = Memory(
-            conn=self.conn, chat_logs=self.chat_logs
-        )
+        self.chat_logs = ChatLogs(conn=self.conn, sess_name=self.sess_name)
+        self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
         self.kw_bs = KnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
+        self.tknizr = Tknizr(MODEL)
 
         # Slash command classes
         self.slash_memories = memories.SlashMemories(

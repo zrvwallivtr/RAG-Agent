@@ -17,34 +17,34 @@ MODEL = models.MODEL
 def build_parser() -> None:
     parser = argparse.ArgumentParser(formatter_class=RichHelpFormatter, description="Local RAG agent")
 
-    # === GENERAL ===================================================================
+    # General
     parser.add_argument("prompt", nargs="?", help="Prompt agent")
     parser.add_argument("--delete-default-session", action="store_true", help="Reset default session")
-    parser.add_argument("--dashboard", action="store_true", help="Show the status menu")
+    # parser.add_argument("--dashboard", action="store_true", help="Show the status menu")
 
-    # === SETTINGS ==================================================================
+    # Settings
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress non-essential output")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show debug-level logs")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     parser.add_argument("--width", type=int, default=None, help="Force console width (useful for non-TTY output)")
 
-    # === MODELS ====================================================================
+    # Models
     parser.add_argument("--model", "-m", default=MODEL, metavar=("MODEL_NAME"), help=f"Select model (defualt: {MODEL})")
     parser.add_argument("--list-models", "-lm", action="store_true", help="List all installed ollama models")
     parser.add_argument("--install-model", metavar=("MODEL_NAME"), help=f"Install specified model")
 
-    # === SESSION FLAGS =============================================================
+    # Session flags
     parser.add_argument("--session", "-s", default=None, metavar=("SESSION_NAME"), help="Continue a selected session")
     parser.add_argument("--list-session", "-ls", action="store_true", help="List all existing session")
     parser.add_argument("--new-session", default=None, metavar=("SESSION_NAME"), help="Create a new session and prompt agent (optional)")
     parser.add_argument("--delete-session", default=None, metavar=("SESSION_NAME"), help="Delete a specified session")
 
-    # === ATTACHMENTS ===============================================================
+    # Attachments
     parser.add_argument("--attachments", "-a", nargs="+", type=Path, default=None, metavar=("FILE_PATH"), help=f"Read specified attachments (It must be uploaded to {files_n_dir.UPLOAD_DIR})")
     parser.add_argument("--list-attachments", "-la", action="store_true", help="List all uploaded attachments in the database")
 
-    # === INITIALISE TOKENIZERS =====================================================
-    parser.add_argument("--install-tokenizers", action="store_true", help="Install tokenizers for current installed models")
+    # Initialise tokenizers
+    parser.add_argument("--install-tokenizer", action="store_true", help="Install tokenizers for current installed models")
 
     args = parser.parse_args()
     interface.init_logger(args)
@@ -56,26 +56,23 @@ def build_parser() -> None:
     from src.agent import tokenizers
     from src.app.operations import sessions
 
-    # =================================================================
-    # FUNCTIONS
-    # =================================================================
-
-    # === DELETE ======================================================
+    # Delete default session flag
     if args.delete_default_session:
         sessions.del_sess()
         return
 
-    # === INSTALL MODELS ==============================================
+    # Install model flag
     if args.install_model:
         ollama.ollama_pull_model(args.install_model)
         return
 
+    # List installed model flag
     if args.list_models:
         model_dict = ollama.ollama_clt.list()
         interface.installed_models_table(model_dict)
         return
 
-    # === SESSIONS ====================================================
+    # Create new session flag
     if args.new_session:
         chat_logs = ChatLogs(conn=postgres.conn, sess_name=args.new_session)
         chat_logs.create_session()
@@ -85,19 +82,21 @@ def build_parser() -> None:
         answer = agent.ask(prompt=args.prompt)
         return
 
+    # Delete session flag
     if args.delete_session:
         response = sessions.del_sess(args.delete_session)
         if response:
             print(response)
         return
 
+    # List available sessions flag
     if args.list_session:
         chat_logs = ChatLogs(conn=postgres.conn)
         sess_dict = chat_logs.get_all_existing_session_metadata()
         interface.sessions_table(sess_dict)
         return
 
-    # === ATTACHMENTS =================================================
+    # Attach file(s) flag
     if args.attachments:
         if not args.prompt:
             print("Error: Prompt required")
@@ -107,6 +106,7 @@ def build_parser() -> None:
         answer = agent.ask(prompt=args.prompt, is_attchmnt=True, paths=args.attachments)
         return
 
+    # List all uploaded attachment(s) in session
     if args.list_attachments:
         from src.rag import document_knowledge_base
         chat_logs = ChatLogs(conn=postgres.conn, sess_name=args.session)
@@ -116,43 +116,42 @@ def build_parser() -> None:
         print(doc_kw_bs.list_all_uploaded_documents())
         return
 
-    # === TOKENIZERS ==================================================
-    if args.install_tokenizers:
+    # Install tokenizer flag
+    if args.install_tokenizer:
         from src.agent.tokenizers import install_tokenizers
         install_tokenizers()
 
-    # === WHEN QUESTION IS ASKED ======================================
+    # When prompt is provided
     if args.prompt:
         agent = Agent(sess_name=args.session)
         answer = agent.ask(prompt=args.prompt)
 
-    # === STATUS ======================================================
-    if args.dashboard:
-        model_dict = ollama.ollama_clt.list()
-        chat_logs = ChatLogs(conn=postgres.conn)
-        sess_dict = chat_logs.get_all_existing_session_metadata()
-        tknizr_dict = tokenizers.fetch_all_installed_tokenizers()
-        latest = chat_logs.get_latest_modified_chat_session()
-        if latest:
-            latest_sess, latest_sess_dt = latest
-        else:
-            latest_sess, latest_sess_dt = None, None
+    # if args.dashboard:
+    #     model_dict = ollama.ollama_clt.list()
+    #     chat_logs = ChatLogs(conn=postgres.conn)
+    #     sess_dict = chat_logs.get_all_existing_session_metadata()
+    #     tknizr_dict = tokenizers.fetch_all_installed_tokenizers()
+    #     latest = chat_logs.get_latest_modified_chat_session()
+    #     if latest:
+    #         latest_sess, latest_sess_dt = latest
+    #     else:
+    #         latest_sess, latest_sess_dt = None, None
 
-        interface.dashboard(
-            model_dict=model_dict,
-            chat_model=models.MODEL,
-            mem_model=models.MEM_MODEL,
-            sear_model=models.SEAR_MODEL,
-            embed_model=models.EMBED_MODEL,
-            tknizr_dict=tknizr_dict,
-            fallback_tknizr=models.FALLBACK_TOKENIZER,
-            sess_dict=sess_dict,
-            latest_sess=latest_sess,
-            latest_sess_dt=latest_sess_dt
-        )
-        return
+    #     interface.dashboard(
+    #         model_dict=model_dict,
+    #         chat_model=models.MODEL,
+    #         mem_model=models.MEM_MODEL,
+    #         sear_model=models.SEAR_MODEL,
+    #         embed_model=models.EMBED_MODEL,
+    #         tknizr_dict=tknizr_dict,
+    #         fallback_tknizr=models.FALLBACK_TOKENIZER,
+    #         sess_dict=sess_dict,
+    #         latest_sess=latest_sess,
+    #         latest_sess_dt=latest_sess_dt
+    #     )
+    #     return
 
-    # === NO ARGUMENTS AND QUESTION ===================================
+    # Start TUI (No arguments and question)
     if not args.prompt and not any([args.attachments]):
         from src.app.tui.main_app import MainApp
         MainApp().run()
