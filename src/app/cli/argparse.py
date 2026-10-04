@@ -20,7 +20,6 @@ def build_parser() -> None:
     # General
     parser.add_argument("prompt", nargs="?", help="Prompt agent")
     parser.add_argument("--delete-default-session", action="store_true", help="Reset default session")
-    # parser.add_argument("--dashboard", action="store_true", help="Show the status menu")
 
     # Settings
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress non-essential output")
@@ -125,31 +124,6 @@ def build_parser() -> None:
     if args.prompt:
         agent = Agent(sess_name=args.session)
         answer = agent.ask(prompt=args.prompt)
-
-    # if args.dashboard:
-    #     model_dict = ollama.ollama_clt.list()
-    #     chat_logs = ChatLogs(conn=postgres.conn)
-    #     sess_dict = chat_logs.get_all_existing_session_metadata()
-    #     tknizr_dict = tokenizers.fetch_all_installed_tokenizers()
-    #     latest = chat_logs.get_latest_modified_chat_session()
-    #     if latest:
-    #         latest_sess, latest_sess_dt = latest
-    #     else:
-    #         latest_sess, latest_sess_dt = None, None
-
-    #     interface.dashboard(
-    #         model_dict=model_dict,
-    #         chat_model=models.MODEL,
-    #         mem_model=models.MEM_MODEL,
-    #         sear_model=models.SEAR_MODEL,
-    #         embed_model=models.EMBED_MODEL,
-    #         tknizr_dict=tknizr_dict,
-    #         fallback_tknizr=models.FALLBACK_TOKENIZER,
-    #         sess_dict=sess_dict,
-    #         latest_sess=latest_sess,
-    #         latest_sess_dt=latest_sess_dt
-    #     )
-    #     return
 
     # Start TUI (No arguments and question)
     if not args.prompt and not any([args.attachments]):

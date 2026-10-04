@@ -80,7 +80,7 @@ def install_tokenizers():
         model_name = installed_model.model
         base_name = model_name.split(":")[0]
         app_log.info(
-            "[%d/%d] Installing model '%s' tokenizer", model_name, count, len(installed_models)
+            "[%d/%d] Installing model '%s' tokenizer", count, len(installed_models), model_name
         )
 
         # HUGGINGFACE REPO NOT FOUND

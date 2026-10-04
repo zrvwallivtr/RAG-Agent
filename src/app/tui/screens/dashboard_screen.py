@@ -20,10 +20,11 @@ from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
-from src.app.tui.screens.tui_helpers import date_helpers, tokenizers_helpers, sessions_helpers
+from src.app.tui.screens.tui_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
 
 
 MODEL_ROLES = ["chat_model", "embedding_model"]
+SESSION_INPUT_IDS = {"session-search-input", "new-session-input", "delete-session-input"}
 
 
 def app_icon() -> str:
@@ -152,23 +153,15 @@ class DashboardScreen(BaseScreen):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Fuzzy search for models, tokenizers and sessions."""
-        super().on_input_changed(event)
+        if event.input.id not in SESSION_INPUT_IDS:
+            return
+
         opt_list = self.query_one("#session-list", OptionList)
-
-        if event.input.id == "session-search-input":
-            sessions_helpers._fuzzy_search_behaviour(
-                event=event, opt_list=opt_list
-            )
-
-        if event.input.id == "new-session-input":
-            sessions_helpers._fuzzy_search_behaviour(
-                event=event, opt_list=opt_list
-            )
-
-        if event.input.id == "delete-session-input":
-            sessions_helpers._fuzzy_search_behaviour(
-                event=event, opt_list=opt_list
-            )
+        if getattr(self, "_fuzzy_timer", None):
+            self._fuzzy_timer.stop()
+        self._fuzzy_timer = self.set_timer(
+            0.1, lambda: fuzzy_search_helpers.fuzzy_search_behaviour(event, opt_list)
+        )
 
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -197,7 +190,16 @@ class DashboardScreen(BaseScreen):
 
         # Delete session search bar
         if event.input.id == "delete-session-input":
-            self._confirm_and_delete_session(sess_name=event.value)
+            sess_list = self.query_one("#session-list", OptionList)
+            if sess_list.highlighted is None:
+                self.notify("No matching session to delete.", severity="warning")
+                return
+
+            selected_option = sess_list.get_option_at_index(sess_list.highlighted)
+            if not selected_option.id:
+                return
+
+            self._confirm_and_delete_session(sess_name=selected_option.id)
             return
 
 
@@ -397,25 +399,25 @@ class DashboardScreen(BaseScreen):
           will popup.
         """
         self.in_sess_search = False
+        self.in_new_sess_input = False
+        self.in_del_sess_input = False
         self.curr_to_sess = None
 
-        from src.agent.chat_logs import ChatLogs
-        chat_logs = ChatLogs(conn=postgres.conn)
+        fuzzy_search_helpers.load_sessions()
+        count = len(fuzzy_search_helpers._sessions)
 
-        sess_dict = chat_logs.get_all_existing_session_metadata()
-
-        # Section title
         title = (
-            f"[bold]Sessions[/bold] ({len(sess_dict)} created)"
-            if sess_dict
+            f"[bold]Sessions[/bold] ({count}) created"
+            if count
             else f"[bold]Sessions[/bold] (0 created)\n"
         )
         self.query_one("#session-section-title", Static).update(title)
 
-        # Session selector
-        self._show_session_action_bar()
+        # Session list
         sess_list = self.query_one("#session-list", OptionList)
-        sessions_helpers._show_session_list(sess_list=sess_list)
+        fuzzy_search_helpers.show_session_list(sess_list=sess_list)
+
+        self._show_session_action_bar()
 
         # Hide input bar
         self.query_one("#session-search-input", Input).add_class("hidden")
@@ -469,7 +471,7 @@ class DashboardScreen(BaseScreen):
         """
         self.in_new_sess_input = True # User is entering session name
         sess_list = self.query_one("#session-list", OptionList)
-        sessions_helpers._show_session_list(sess_list=sess_list)
+        fuzzy_search_helpers.show_session_list(sess_list=sess_list)
 
         # Existing session list
         sess_list = self.query_one("#session-list", OptionList)
@@ -508,6 +510,7 @@ class DashboardScreen(BaseScreen):
             return
 
         self.notify(f"New session created: {clean_name}")
+        self._reset_session_list_layout()
         self._go_to_session(clean_name)
 
 

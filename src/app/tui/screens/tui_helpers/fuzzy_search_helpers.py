@@ -5,14 +5,29 @@ from textual.widgets.option_list import Option
 
 from src.config import postgres
 
-from src.app.tui.screens.helpers import sessions_helpers
-from src.app.tui.screens.helpers import date_helpers
+from src.app.tui.screens.tui_helpers import sessions_helpers, date_helpers
 
 
-def _show_session_list(sess_list: OptionList) -> None:
-    """
-    Show list of sessions with created time, modified time and session name.
-    """
+TITLE = "Last modified\t\tCreated at\t\tSession name\n"
+_sessions: list[tuple[str, str]] = []
+
+
+def load_sessions() -> None:
+    """Query the database ONCE. Call when the picker opens and after create/delete."""
+    from src.agent.chat_logs import ChatLogs
+    sess_dict = ChatLogs(conn=postgres.conn).get_all_existing_session_metadata() or {}
+
+    loaded: list[tuple[str, str]] = []
+    for sess_id, data in sess_dict.items():
+        name = data["session_name"]
+        label = date_helpers.get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id)
+        loaded.append((name, label or name)) # fallback to the bare name
+
+    _sessions[:] = loaded
+
+
+def show_session_list(sess_list: OptionList) -> None:
+    """Show list of sessions with created time, modified time and session name."""
     from src.agent.chat_logs import ChatLogs
     chat_logs = ChatLogs(conn=postgres.conn)
 
@@ -36,67 +51,19 @@ def _show_session_list(sess_list: OptionList) -> None:
     sess_list.remove_class("hidden")
 
 
-def _fuzzy_search_behaviour(
-    event: Input.Changed,
-    id: str,
-    opt_list: Option
-) -> None:
-    """
-    Filters the OptionList based on fuzzy matching.
-    Controls:
-    - The behaviour of the model list when the
-      search input is changed.
-    """
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
-
-    sess_dict = chat_logs.get_all_existing_session_metadata()
-    if not sess_dict:
-        return
-
-    sess_list = sessions_helpers.get_session_list()
-    if not sess_list:
-        return
-
+def fuzzy_search_behaviour(event: Input.Changed, opt_list: Option) -> None:
     qry = event.value.strip().lower()
-    opt_list.clear_options()
-
-    list_title = Option("Last modified\t\tCreated at\t\tSession name\n")
-    list_title.disabled = True
-    opt_list.add_option(list_title)
+    names_lower = [n.lower() for n, _ in _sessions]
 
     if not qry:
-        # Show entire list if query is empty
-        _show_session_list(sess_list=sess_list)
-
+        hits = _sessions
     else:
-        # Create an option for every matches
-        exact_matches = [entry for entry in sess_list if qry in entry.lower()]
-        fuzzy_matches = get_close_matches(
-            qry,
-            [entry.lower() for entry in sess_list],
-            n=5,
-            cutoff=0.4
-        )
+        close = set(get_close_matches(qry, names_lower, n=5, cutoff=0.4))
+        hits = [s for s, low in zip(_sessions, names_lower) if qry in low or low in close]
 
-        name_list = []
-        for name in sess_list:
-            if name in exact_matches or name.lower() in fuzzy_matches:
-                name_list.append(name)
-
-        for name in name_list:
-            sess_id = chat_logs.get_session_id_from_name(sess_name=name)
-            if not sess_id:
-                continue
-
-            if not sess_dict:
-                return
-
-            sess_with_dates = date_helpers.get_session_with_dates(
-                sess_dict=sess_dict, sess_id=sess_id
-            )
-            opt_list.add_option(Option(sess_with_dates, id=name))
-
-    # Re-highlight first match after every update
-    if opt_list.option_count > 1:
+    opt_list.clear_options()
+    opt_list.add_options(
+        [Option(TITLE, disabled=True)] + [Option(label, id=name) for name, label in hits]
+    )
+    if hits:
         opt_list.highlighted = 1
