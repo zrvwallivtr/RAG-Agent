@@ -12,7 +12,7 @@ DEFAULT_CONFIG  = MAIN_DIR / "config.toml"
 
 # Application directory
 
-APP_NAME = "agent_app"
+APP_NAME = "agent"
 
 APP_DIR         = Path.home() / f".{APP_NAME}"
 CONFIG_FILE     = APP_DIR / "config.toml"

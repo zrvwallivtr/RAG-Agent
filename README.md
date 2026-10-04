@@ -97,16 +97,15 @@ Behaviour, models and features toggles live in `~/.agent_app/config.toml`. A def
 
 ```toml
 [models]
-chat                = "ministral_3b:latest"
-memory              = "nomic-embed-text"
-project_manager     = "gemma3:1b"
+
+ollama_host = "http://localhost:11434"
+
+model     = "ministral_3b:latest"
+embedding = "nomic-embed-text"
 
 # Optional token limits
-# chat_max_tokens   =
-# pm_max_tokens     =
-
-[load_system_prompt]
-chat            = "system"
+# model_max_tokens =
+# pm_max_tokens    =
 
 [memory]
 retrieve_entry_limit                        = 3

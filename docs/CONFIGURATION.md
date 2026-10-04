@@ -1,50 +1,71 @@
 # Configuration
 
-## Models
+Settings live in `~/.agent_app/config.toml`. If the file is missing, the default is copied from the code base.
 
-Everything in this section is under `[models]`.
+## `[models]`
 
-| Variable | Description |
-| --- | --- |
-| `ollama_host` | Set the URL for the Ollama docker service specified in `~/.agent_app/docker-compose.yaml`, default URL is `http://localhost:11434`. |
-| `chat` | Set LLM for base agent model. |
-| `memory` | Set LLM for all memory extraction and interpertation work flows. |
-| `embedding` | Set embedding model for all embedding operations. |
-| `fallback_tokenizer` | Set a fallback tokenizer in case any models does not have a tokenizer. |
+| Option | Default | Description |
+| --- | --- | --- |
+| `ollama_host` | `http://localhost:11434` | URL for the Ollama docker service from `~/.agent_app/docker-compose.yaml`, default URL is `http://localhost:11434`. |
+| `model` | `ministral-3:3b` | Ollama model used for conversation. |
+| `embedding` | `nomic-embed-text` | Ollama model used for all embeddings (memory, documents). |
+| `fallback_tokenizer` | `gpt2` | Hugging Face tokenizer for `model` model. |
 
 
-### Specifying token limits for models that are not in the base code (Optional):
+**Optional configs:**
 
-| Variable | Description |
-| --- | --- |
-| `chat_max_tokens` | Specified token limit for `chat` model. |
-| `memory_max_tokens` | Specified token limit for `memory` model. |
-| `embedding_max_tokens` | Specified token limit for `embedding` model. |
+| Option | Default | Description |
+| --- | --- | --- |
+| `model_max_tokens` |  | Specified token limit for `model` model. |
+| `embedding_max_tokens` |  | Specified token limit for `embedding` model. |
 
-## Load system prompt
+If the agent does not know the model's token limit (either form built in or specified in the configs), the token counter and auto compression feature are disabled.
 
-Everything in this section is under `[load_system_prompt]`.
+## `[memory]`
 
-| Variable | Description |
-| --- | --- |
-| `chat` |  |
+| Option | Default | Description |
+| --- | --- | --- |
+| `retrieve_entry_limit` | `3` | Maximum number of memories retrieved per recall. |
+| `auto_memorhy_store_enable_at_model_tokens` | `true` | Automatically retrieve relevant memories for every prompt. |
+| `enable_auto_memory_retrieve` | `true` | Automatically extract memories at the end of a conversation. |
+| `enable_auto_memory_store` | `128000` | Minimum model token limit required for automatic extraction. A safeguard that stops small models from saving irrelevant information. |
 
-## Memory
+## [`file_reader`]
 
-Everything in this section is under `[memory]`.
+| Option | Default | Description |
+| --- | --- | --- |
+| `enable_auto_read_dropbox` | `true` | Parse attachments with Docling. When `false`, the basic parsers are used instead. |
+| `enable_docling` | `true` | Automatically read files from the dropbox (`~/.agent/uploads`) directory. |
+| `auto_read_dropbox_enable_at_model_tokens` | `128000` | Minimum model token limit required for automatic reading. |
 
-| Variable | Description |
-| --- | --- |
-| `retrieve_entry_limit` | Set the maximun memory entry the agent can retrieve with memory recalls. |
-| `auto_memorhy_store_enable_at_model_tokens` | Set the minimum model max token count before enabling auto memory extraction at the end of every conversation, a simply saveguard to prevent smaller models from extracting irrelevant information into memory database. |
-| `enable_auto_memory_retrieve` | Toggle on/off for auto memory recall from the database. |
-| `enable_auto_memory_store` | Toggle on/off for auto memory extraction to the database. |
+## Full default file
 
-## File reader
+```toml
+[models]
 
-Everything in this section is under `[file_reader]`.
+ollama_host = "http://localhost:11434"
 
-| Variable | Description |
-| --- | --- |
-| `enable_auto_read_dropbox` | Toggle on/off for auto read embedding |
-| `enable_docling` | Toggle on/off the enable docling for parsing attachments. When toggled off, none docling basic parsers will be used instead. |
+model     = "ministral_3b:latest"
+embedding = "nomic-embed-text"
+
+# Optional token limits
+# model_max_tokens =
+# pm_max_tokens    =
+
+[memory]
+retrieve_entry_limit                        = 3
+auto_memory_store_enable_at_model_tokens    = 128000
+enable_auto_memory_retrieve                 = true
+enable_auto_memory_store                    = true
+
+[file_reader]
+auto_read_dropbox_enable_at_model_tokens    = 128000
+enable_auto_read_dropbox                    = true
+
+[search]
+engine                                  = "http://localhost:8080/search"
+max_results                             = 3
+max_char_per_page                       = 3000
+auto_web_search_enable_at_model_tokens  = 128000
+enable_auto_web_search                  = true
+```

@@ -1,4 +1,44 @@
+# Docker Services
 
+Backing services run with Docker Compose. The compose file is at `~/.agent/docker-compose.yaml`.
+
+```sh
+cd ~/.agent
+docker compose up -d    # Start
+docker compose ps       # Check status
+docker compose down     # Stop (Data is kept in volumes)
+```
+
+## Services
+
+| Service | Image | Port | Purpose |
+| --- | --- | --- | --- |
+| `ollama` | `ollama/ollama` | `11434` | Runs the chat and embedding models. |
+| `postgres` | `pgvector/pgvector:pg17` | `5432` | Sessions, chat logs, memories and embeddings. |
+| `pgadmin` | `dpage/pgadmin4` | `5050` | Optional web UI for the database. |
+
+All ports should be bound to `127.0.0.1` so nothing is exposed to the network.
+
+## Environment variables
+
+Create `~/.agent_app/.env`:
+
+```sh
+# PostgreSQL
+PGDB_DBNAME      = "pgdb"
+PGDB_USER        = "pguser"
+PGDB_PASSWORD    = "postgres"
+
+# pgAdmin (optional)
+# PGADMIN_EMAIL       = "admin@email.com"
+# PGADMIN_PASSWORD    = "admin"
+```
+
+## pgAdmin
+
+Open <http://127.0.0.1:5050> in a browser of choice and login with `PGADMIN_EMAIL` and `PGADMIN_PASSWORD`. When registering the server, use host `postgres` and prot `5432` (pgAdmin reaches it over teh internal Docker network).
+
+## Default compose file
 
 ```yaml
 services:
@@ -34,21 +74,21 @@ services:
       timeout: 5s
       retries: 5
 
-  # Pgadmin
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    restart: unless-stopped
-    # profiles: ["admin"] # Opt-in via 'docker compose --profile admin up'
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-    ports:
-      - "127.0.0.1:5050:80" # Localhost only
-    networks:
-      - internal
-    depends_on:
-      - postgres
+  # Pgadmin (optional)
+  # pgadmin:
+  #   image: dpage/pgadmin4
+  #   container_name: pgadmin
+  #   restart: unless-stopped
+  #   # profiles: ["admin"] # Opt-in via 'docker compose --profile admin up'
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+  #     PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+  #   ports:
+  #     - "127.0.0.1:5050:80" # Localhost only
+  #   networks:
+  #     - internal
+  #   depends_on:
+  #     - postgres
 
 networks:
   internal:
