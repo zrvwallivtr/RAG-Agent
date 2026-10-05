@@ -11,11 +11,11 @@ from src.config import models, postgres, files_and_directories
 
 from src.core import Agent 
 from src.agent.chat_logs import ChatLogs
-from src.agent.tokenizers import Tknizr
+from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
 from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
 
-from src.app.tui.screens.tui_helpers import size_bytes_helpers, agent_response_helpers
+from src.app.tui.screens.tui_screen_helpers import size_bytes_helpers, agent_response_helpers
 
 
 UPLOAD_DIR = Path(files_and_directories.UPLOAD_DIR).expanduser()
@@ -29,7 +29,7 @@ class ChatScreen(BaseScreen):
         super().__init__()
 
         self.agent = Agent(sess_name=sess_name)
-        self.tknizr = Tknizr(model=models.MODEL)
+        self.local_tknizr = LocalTokenizer(model=models.MODEL)
         self.chat_logs = ChatLogs(conn=postgres.conn, sess_name=sess_name)
 
         self.sess_name = sess_name or "Default session"
@@ -374,15 +374,15 @@ class ChatScreen(BaseScreen):
         Returns the string displaying the number of tokens used throughout
         the session against the max tokens limit of the active chat model.
         """
-        if not self.tknizr.model_max_tkns:
+        if not self.local_tknizr.model_max_tkns:
             return
 
         # Used tokens throughout the entire session chat history
-        used_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
+        used_tkns = self.local_tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
         if not used_tkns:
             return
 
-        return f"{used_tkns}/{self.tknizr.model_max_tkns} tokens" # Widget string
+        return f"{used_tkns}/{self.local_tknizr.model_max_tkns} tokens" # Widget string
 
     
     def _refresh_session_token_cache(self) -> None:
@@ -405,15 +405,15 @@ class ChatScreen(BaseScreen):
         Update of the session used tokens widget:
         - Session used tokens + current tokens count in prompt input.
         """
-        if self._awaiting_response or not self.tknizr.model_max_tkns:
+        if self._awaiting_response or not self.local_tknizr.model_max_tkns:
             return
 
-        pending_tkns = self.tknizr.count_string_tokens(text=prompt) or 0
+        pending_tkns = self.local_tknizr.count_string_tokens(text=prompt) or 0
         curr_tkns = self._cached_sess_tkns + pending_tkns
 
         self.app.call_from_thread(
             self.query_one("#tokens-counter", Static).update,
-            f"{curr_tkns}/{self.tknizr.model_max_tkns} tokens"
+            f"{curr_tkns}/{self.local_tknizr.model_max_tkns} tokens"
         )
 
 
@@ -444,7 +444,7 @@ class ChatScreen(BaseScreen):
 
         # Update widget using cached value
         self.query_one("#tokens-counter", Static).update(
-            f"{self._cached_sess_tkns}/{self.tknizr.model_max_tkns} tokens"
+            f"{self._cached_sess_tkns}/{self.local_tknizr.model_max_tkns} tokens"
         )
 
 

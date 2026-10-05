@@ -9,7 +9,7 @@ from src.config import models
 from src.config import prompts
 from src.config import postgres
 
-from src.agent.tokenizers import Tknizr
+from src.agent.tokenizers import LocalTokenizer
 from src import format_context
 from src.agent.models import llm
 from src import logger
@@ -21,12 +21,13 @@ MODEL           = models.MODEL
 SYS_PROMPT      = prompts.SYS_PROMPT
 COMPRESS_PROMPT = prompts.COMPRESS_PROMPT
 
+_sys_prompt_tkns: int | None = None
+
 
 class ChatLogs:
     def __init__(self, conn, sess_name: str | None = None):
         self.conn   = conn
         self.cur    = self.conn.cursor()
-
 
         self.model      = MODEL
         self.sys_prompt = SYS_PROMPT
@@ -34,10 +35,9 @@ class ChatLogs:
 
         self.sess_name = sess_name.strip() if sess_name else "default_session"
 
-        self.tknizr = Tknizr(model=self.model)
+        self.local_tknizr = LocalTokenizer(model=self.model)
 
         self._init_chat_logs_db()
-        self._init_chat_session_used_tokens()
 
 
     def _init_chat_logs_db(self):
@@ -92,20 +92,19 @@ class ChatLogs:
         self.conn.commit()
 
 
-    def _init_chat_session_used_tokens(self):
-        """
-        Update used token count right after session is created to account for system
-        prompt token usage.
-        """
-        sess_used_tkns = self.tknizr.count_string_tokens(text=SYS_PROMPT) or 0
-        self.update_session_used_tokens(sess_used_tkns=sess_used_tkns)
-
-
     # Session identification methods, containing functions for session
     # name or id retrieval from the database.
 
     def get_session_id(self) -> str | None:
-        """Fetch session id from chat_sessions table using current session name."""
+        """
+        Look up this session's id. READ-ONLY: Never creates anything.
+        Returns None if the session row does not exist.
+
+        USE WHEN:
+        - The session is certain to exist already.
+        - Listing, searching or checking existence (None is a valid answer).
+        - Deleting or clearing (Must NOT make up session that was not there).
+        """
         app_log.debug("Fetching session id for session '%s'", self.sess_name)
         self.cur.execute(
             """
@@ -327,10 +326,10 @@ class ChatLogs:
         self.cur.execute(
             """
             INSERT INTO chat_sessions
-            (session_name) VALUES (%s)
+            (session_name, session_used_tokens) VALUES (%s, %s)
             RETURNING session_id;
             """,
-            (self.sess_name,)
+            (self.sess_name, self._system_prompt_tokens())
         )
         self.conn.commit()
         row = self.cur.fetchone()
@@ -347,8 +346,15 @@ class ChatLogs:
 
     def get_or_create_session_id(self) -> str:
         """
-        Fetch session id if session already exists, else create new session entry
-        and return new generated session id.
+        Return this session's id, CREATING the session row if it is missing. Never returns None,
+        and writes to the database on a miss.
+
+        USE WHEN:
+        - Saving data that needs a session_id foreign key (add_conversation_turn).
+        - The session may not exist yet.
+        
+        NEVER USE IN:
+        - Read-only paths, listing or delete.
         """
         sess_id = self.get_session_id()
 
@@ -685,6 +691,15 @@ class ChatLogs:
         smry, p_tkns, o_tkns, metadata = result
         app_log.info("Auto compression complete. Continuing session")
         return smry, p_tkns, o_tkns, metadata
+
+
+    # System prompt token count
+
+    def _system_prompt_tokens(self) -> int:
+        global _sys_prompt_tkns
+        if _sys_prompt_tkns is None:
+            _sys_prompt_tkns = self.local_tknizr.count_string_tokens(text=SYS_PROMPT) or 0
+        return _sys_prompt_tkns
 
 
     # All functions related to conversation turns metadata

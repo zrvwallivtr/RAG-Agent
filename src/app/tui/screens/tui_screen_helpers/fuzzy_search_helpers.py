@@ -5,7 +5,7 @@ from textual.widgets.option_list import Option
 
 from src.config import postgres
 
-from src.app.tui.screens.tui_helpers import sessions_helpers, date_helpers
+from src.app.tui.screens.tui_screen_helpers import sessions_helpers, date_helpers
 
 
 TITLE = "Last modified\t\tCreated at\t\tSession name\n"
@@ -23,7 +23,7 @@ def load_sessions() -> None:
         label = date_helpers.get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id)
         loaded.append((name, label or name)) # fallback to the bare name
 
-    _sessions[:] = loaded
+    _sessions[:] = loaded # Store to the existing list
 
 
 def show_session_list(sess_list: OptionList) -> None:

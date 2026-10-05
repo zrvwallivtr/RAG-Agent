@@ -20,7 +20,7 @@ from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
-from src.app.tui.screens.tui_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
+from src.app.tui.screens.tui_screen_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
 
 
 MODEL_ROLES = ["chat_model", "embedding_model"]

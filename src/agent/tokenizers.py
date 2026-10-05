@@ -1,6 +1,7 @@
 from pathlib import Path
 from tokenizers import Tokenizer
 from datetime import datetime
+from functools import lru_cache
 
 from src.config import models
 from src.config import files_and_directories as fls_n_dir
@@ -127,12 +128,11 @@ def fetch_all_installed_tokenizers() -> list[dict]:
     ]
 
 
-class Tknizr:
+class LocalTokenizer:
     def __init__(self, model: str):
         self.model          = model
         self.load_tknizr    = self._load_tokenizer()
 
-        # === SET MODEL MAX TOKENS ====================================
         # User specified max tokens
         if MODEL_MAX_TOKENS:
             self.model_max_tkns = MODEL_MAX_TOKENS
@@ -158,11 +158,12 @@ class Tknizr:
             self.model_max_tkns = None
 
 
+    @lru_cache(maxsize=None)
     def _load_tokenizer(self) -> Tokenizer | None:
         """Load local installed tokenizer."""
         file = TOKENIZERS_DIR / f"{self.model}.json"
 
-        # === LOAD PRE-INSTALLED TOKENIZER ===================================
+        # Load pre-installed tokenizer
         app_log.debug("Loading model '%s' tokenizer from file '%s'", self.model, file)
         try:
             tknizr = Tokenizer.from_file(str(file))
@@ -171,7 +172,7 @@ class Tknizr:
 
         except Exception as e:
 
-            # === LOAD PRE-INSTALLED FALLBACK TOKENIZER ======================
+            # Load pre-installed fallback tokenizer
             try:
                 tknizr = Tokenizer.from_file(str(TOKENIZERS_DIR / f"{FALLBACK_TOKENIZER}.json"))
                 app_log.warning(
@@ -182,7 +183,7 @@ class Tknizr:
                 )
                 return tknizr
 
-            # === DISABLE TOKENIZER FEATURE ==================================
+            # Disable tokenizer feature
             except Exception as fallback_err:
                 app_log.warning(
                     "Failed to load model '%s' fallback tokenizer: %s. Tokenizer feature disabled",
@@ -202,7 +203,7 @@ class Tknizr:
 
 
     def count_history_tokens(self, msgs: list[dict]) -> int | None:
-        """Calculates total token weight."""
+        """Calculates total token count in the message list."""
         if not self.load_tknizr:
             app_log.warning("Unable to count tokens: Tokenizer feature has been disabled")
             return

@@ -16,7 +16,6 @@ from src.slash_commands import (
     compress
 )
 from src.agent import (
-    ollama,
     llm,
     embed,
     chat_logs,
@@ -34,17 +33,16 @@ from src import logger
 app_log = logger.app_logger(f"{__name__}.app")
 
 MODEL            = models.MODEL
-MODEL_MAX_TOKENS = models.MODEL_MAX_TOKENS
-EMBED_MODEL      = models.EMBED_MODEL
-EMBED_MAX_TOKENS = models.EMBED_MAX_TOKENS
 
-Tknizr                = tokenizers.Tknizr
 ChatLogs              = chat_logs.ChatLogs
 Memory                = memory.Memory
 KnowledgeBase         = knowledge_base.KnowledgeBase
 DocumentKnowledgeBase = document_knowledge_base.DocumentKnowledgeBase
+LocalTokenizer        = tokenizers.LocalTokenizer
 
 SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
+
+TOKEN_RESERVE = 1000
 
 
 class Agent:
@@ -64,7 +62,7 @@ class Agent:
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
-        self.tknizr = Tknizr(MODEL)
+        self.local_tknizr = LocalTokenizer(MODEL)
 
         # Slash command classes
         self.slash_memories = memories.SlashMemories(
@@ -78,27 +76,33 @@ class Agent:
         )
 
 
-    def _manage_token_budget(self, prompt: str, reserve: int) -> None:
+    def _is_over_budget(self, msgs: list[dict], prompt: str, reserve: int) -> bool:
         """
-        Reserves extra tokens for model response. If exceeds
-        maximum tokens, the model summarise previous messages
-        to free up token space.
+        True if the history plus the new prompt plus the reply reserve would
+        exceed the model's token limit.
         """
-        app_log.debug("Estimating token usage for session '%s'", self.sess_name)
-        curr_hist_tkns = self.tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
-        if not curr_hist_tkns:
-            return
-
-        est_next = curr_hist_tkns + (len(prompt) // 4)
-
-        if not self.tknizr.model_max_tkns:
+        max_tkns = self.local_tknizr.model_max_tkns
+        if not max_tkns:
             app_log.warning("Failed to load 'manage token budget feature': Model maximum token limit not set")
-            return
+            return False
 
-        if self.tknizr.model_max_tkns - est_next - reserve < 0:
+        hist_tkns = self.local_tknizr.count_history_tokens(msgs)
+        if not hist_tkns:
+            return False
+
+        # Actual result
+        est_next = len(prompt) // 4
+        return hist_tkns + est_next + reserve > max_tkns
+
+
+    def _compress_if_over_budget(self, prompt: str) -> list[dict]:
+        """Compress the session if history + prompt + reserve exceeds the limit. Returns the history."""
+        msgs = self.chat_logs.get_active_conversations()
+        if self._is_over_budget(msgs=msgs, prompt=prompt, reserve=TOKEN_RESERVE):
             app_log.info("Current tokens exceeds threshold")
             self.chat_logs.auto_compress_active_conversations()
-            return
+            msgs = self.chat_logs.get_active_conversations()
+        return msgs
 
 
     def _route_to_slash_command(
@@ -114,9 +118,9 @@ class Agent:
         screen: Any | None = None,
         md_widget: Markdown | None = None
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+        """Route to slash command for '/memorise', '/recall' and '/compress'."""
         if cmd == SLASH_CMD_DICT["memorise"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
-            msgs.append(llm.user_message(user_prompt))
             result = self.slash_memories.cmd_memorise(
                 prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
             )
@@ -124,7 +128,6 @@ class Agent:
 
         if cmd == SLASH_CMD_DICT["recall"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
-            msgs.append(llm.user_message(user_prompt))
             result = self.slash_recall.cmd_recall(
                 prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
             )
@@ -132,7 +135,6 @@ class Agent:
 
         if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
-            msgs.append(llm.user_message(user_prompt))
             result = self.slash_compress.cmd_compress(
                 prompt=user_prompt,
                 is_attchmnt=is_attchmnt,
@@ -146,7 +148,7 @@ class Agent:
 
     def _embedding_content_retrieval_controller(
         self, prompt: str, is_auto_mem_rtve: bool, is_auto_doc_rtve: bool
-    ):
+    ) -> tuple[str, int, list[float], bool, bool]:
         """
         Return embeddings for user prompt for memory and document content retrieval
         features, if no embedding failed turn off related featurs.
@@ -163,17 +165,13 @@ class Agent:
             )
             prompt_embdings = [0.0]
             prompt_tkns = 0
+            is_auto_mem_rtve = False # Turn off auto memory retrieve
+            is_auto_doc_rtve = False # Turn off auto document chunk retrieve
 
-            # Turn off auto memory retrieve
-            is_auto_mem_rtve = False
-
-            # Turn off auto document chunk retrieve
-            is_auto_doc_rtve = False
-
-        return prompt_tkns, is_auto_mem_rtve, prompt_embdings, is_auto_doc_rtve
+        return prompt, prompt_tkns, prompt_embdings, is_auto_mem_rtve, is_auto_doc_rtve
 
 
-    def _combind_context(
+    def _combine_context(
         self,
         prompt: str,
         prompt_embdings: list[float],
@@ -231,13 +229,16 @@ class Agent:
         - Only the user question and LLM response will be
           stored into chat history.
         """
-        self._manage_token_budget(prompt=prompt, reserve=1000)
-
         msgs = self.chat_logs.get_active_conversations()
 
         # Slash commands
         cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
         if cmd:
+            # Run budget check and auto compress only when slash command is
+            # not '/compress' as it is already a session compression tool call.
+            if cmd != SLASH_CMD_DICT["compress"].get("cmd"):
+                msgs = self._compress_if_over_budget(user_prompt)
+
             return self._route_to_slash_command(
                 msgs=msgs,
                 cmd=cmd,
@@ -249,12 +250,17 @@ class Agent:
                 md_widget=md_widget
             )
 
-        prompt_tkns, is_auto_mem_rtve, prompt_embdings, is_auto_doc_rtve = self._embedding_content_retrieval_controller(
-            prompt=prompt, is_auto_mem_rtve=is_auto_mem_rtve, is_auto_doc_rtve=is_auto_doc_rtve
+        prompt_tkns, prompt_tkns, prompt_embdings,is_auto_mem_rtve, is_auto_doc_rtve = (
+            self._embedding_content_retrieval_controller(
+                prompt=prompt,
+                is_auto_mem_rtve=is_auto_mem_rtve,
+                is_auto_doc_rtve=is_auto_doc_rtve
+            )
         )
 
-        # Combind all context for sending to the model
-        cmbind_prompt, attchmnt_dict = self._combind_context(
+        # Combine all context, check token count and bundle them
+        # into messages for model to answer.
+        combine_prompt, attchmnt_dict = self._combine_context(
             prompt=prompt,
             prompt_embdings=prompt_embdings,
             is_auto_mem_rtve=is_auto_mem_rtve,
@@ -262,8 +268,10 @@ class Agent:
             is_attchmnt=is_attchmnt,
             paths=paths
         )
-        msgs.append(llm.user_message(cmbind_prompt))
+        msgs = self._compress_if_over_budget(combine_prompt)
+        msgs.append(llm.user_message(combine_prompt))
 
+        # Model answer
         response = llm.model_response(model=MODEL, msgs=msgs, callback=callback)
         if not response:
             return
@@ -283,9 +291,11 @@ class Agent:
             o_tkns=total_o_tkns
         )
 
-        chat_database_helpers.update_session_used_tokens_on_prompt_submitted(
-            chat_logs=self.chat_logs, tknizr=self.tknizr, cur=conn.cursor()
-        )
+        # Update chat session table in database
+        with self.conn.cursor() as cur:
+            chat_database_helpers.update_session_used_tokens_on_prompt_submitted(
+                chat_logs=self.chat_logs, local_tknizr=self.local_tknizr, cur=cur
+            )
 
         # Store memory
         # self.memory.toggle_auto_store_memory_entries(

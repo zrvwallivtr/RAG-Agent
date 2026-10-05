@@ -1,10 +1,10 @@
 from src.config import postgres
 from src.agent.chat_logs import ChatLogs
-from src.agent.tokenizers import Tknizr
+from src.agent.tokenizers import LocalTokenizer
 
 
 def update_session_used_tokens_on_prompt_submitted(
-    chat_logs: ChatLogs, tknizr: Tknizr, cur
+    chat_logs: ChatLogs, local_tknizr: LocalTokenizer, cur
 ):
     """
     Only call at the end of every model response where the latest conversation
@@ -13,7 +13,7 @@ def update_session_used_tokens_on_prompt_submitted(
     and use the tokenizers to calculate and update the token count to the database.
     """
     msgs = chat_logs.get_active_conversations()
-    chat_hist_tkns = tknizr.count_history_tokens(msgs) or 0
+    chat_hist_tkns = local_tknizr.count_history_tokens(msgs) or 0
 
     # Update database
     cur.execute(
