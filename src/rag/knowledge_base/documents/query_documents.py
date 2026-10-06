@@ -7,17 +7,17 @@ from src.config.documents import RETRIEVE_DOC_ENTRY_LIMIT
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
 
 
 class QueryDocuments:
-    def __init__(self, conn, chat_logs: ChatSessionLogs):
+    def __init__(self, conn, chat_sess_logs: ChatSessionLogs):
         self._conn = conn
 
-        self.chat_logs = chat_logs
+        self.chat_sess_logs = chat_sess_logs
 
     @staticmethod
     def get_document_metadata_from_path(path: Path) -> tuple[str, str, int] | None:
@@ -54,13 +54,13 @@ class QueryDocuments:
                     AND (metadata->>'document_chunk_index')::int = 0
                 """
             ),
-            params=(self.chat_logs.get_session_id(), "document")
+            params=(self.chat_sess_logs.get_session_id(), "document")
         )
 
         if not rows:
             app_log.debug(
                 "Failed to retrieve any documents metadata: Session '%s' knowledge base is empty",
-                self.chat_logs.sess_name
+                self.chat_sess_logs.sess_name
             )
         return rows
 

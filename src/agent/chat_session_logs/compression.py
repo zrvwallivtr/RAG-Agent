@@ -1,11 +1,13 @@
 from typing import Any, TYPE_CHECKING
 
 from src.config import models, prompts
+from src.config.models import MODEL
+from src.config.prompts import COMPRESS_PROMPT
 
 from src import format_context
 from src.agent.models import llm
 from .metadata import ToolCallsMetadata
-from .chat_logs_sql import ChatLogsSQL
+from .write_chat_logs import WriteChatLogs
 from src import logger
 
 
@@ -14,18 +16,15 @@ if TYPE_CHECKING:
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-MODEL           = models.MODEL
-COMPRESS_PROMPT = prompts.COMPRESS_PROMPT
-
 CompressionResult = tuple[str, int, int, dict[str, dict[str, Any]]]
 
 
 class Compression:
     """Summarise a session's active conversation turns with model."""
 
-    def __init__(self, chat_sess_logs: "ChatSessionLogs", chat_logs: ChatLogsSQL):
+    def __init__(self, chat_sess_logs: "ChatSessionLogs", write_chat_logs: WriteChatLogs):
         self._chat_sess_logs = chat_sess_logs
-        self._chat_logs = chat_logs
+        self._write_chat_logs = write_chat_logs
 
     def compress(
         self,
@@ -51,7 +50,7 @@ class Compression:
 
         app_log.debug("Chat compression complete. Updating chat logs metadata")
 
-        self._chat_logs.mark_active_as_compressed()
+        self._write_chat_logs.mark_active_as_compressed()
 
         metadata = self._chat_sess_logs.add_conversation_turn(
             prompt=prompt,

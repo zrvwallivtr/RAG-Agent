@@ -1,19 +1,23 @@
 from typing import Callable
 
+from .write_chat_sessions import WriteChatSessions
+
 from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 
 app_log = logger.app_logger(f"{__name__}.app")
 
 
-class ChatSessionsSQL:
+class LookupChatSessions:
     """All SQL for the 'chat_session' table."""
 
     def __init__(self, conn, sess_name: str, sys_prompt_tkns: Callable[[], int]):
         self._conn = conn
-        self.sess_name = sess_name
 
-        self._sys_prompt_tkns = sys_prompt_tkns  # Call only when a new session is created
+        self.sess_name = sess_name
+        self.write_chat_sess = WriteChatSessions(conn=self._conn, sess_name=self.sess_name, sys_prompt_tkns=sys_prompt_tkns)
+
+        self._sess_id: str | None = None
 
     # Lookup chat sessions
 
@@ -27,6 +31,9 @@ class ChatSessionsSQL:
         - Listing, searching or checking existence (None is a valid answer).
         - Deleting or clearing (Must NOT make up session that was not there).
         """
+        if self._sess_id:
+            return self._sess_id  # Cached, no query
+
         app_log.debug("Fetching session id for session '%s'", self.sess_name)
         row = fetch_one(
             conn=self._conn,
@@ -37,6 +44,8 @@ class ChatSessionsSQL:
         if not row:
             app_log.info("Session id for session '%s' not found", self.sess_name)
             return None
+
+        self._sess_id = str(row[0])  # Cache it
         return str(row[0])
 
     def get_or_create_id(self) -> str:
@@ -51,7 +60,15 @@ class ChatSessionsSQL:
         NEVER USE IN:
         - Read-only paths, listing or delete.
         """
-        return self.get_id() or self.create()
+        sess_id = self.get_id()
+        if not sess_id:
+            sess_id = self.write_chat_sess.create()
+            self._sess_id = sess_id # Cache newly created
+        return sess_id
+
+    def forget_id(self) -> None:
+        """Call after this session is deleted, so a stale id is not reused."""
+        self._sess_id = None
 
     def get_name(self, sess_id: str) -> str | None:
         row = fetch_one(
@@ -69,7 +86,7 @@ class ChatSessionsSQL:
         row = fetch_one(
             conn=self._conn,
             sql="SELECT session_id FROM chat_sessions WHERE session_name = %s;",
-            params=(id,),
+            params=(sess_name,),
         )
 
         if not row:
@@ -115,39 +132,3 @@ class ChatSessionsSQL:
             str(r[0]): {"session_name": str(r[1]), "created_at": str(r[2])}
             for r in rows
         }
-
-    # Write to chat sessions
-
-    def create(self) -> str:
-        """Create session entry on the chat_sessions table and return its session id."""
-        app_log.debug("Creating new session '%s'", self.sess_name)
-        row = fetch_one(
-            conn=self._conn,
-            sql=(
-                """
-                INSERT INTO chat_sessions
-                (session_name, session_used_tokens) VALUES (%s, %s)
-                RETURNING session_id;
-                """
-            ),
-            params=(self.sess_name, self._sys_prompt_tkns()),
-        )
-
-        if row is None:
-            raise RuntimeError("Failed to create session: Database return no ID.")
-
-        app_log.info("New session '%s' created", self.sess_name)
-        return str(row[0])
-
-    def update_used_tokens(self, sess_used_tkns: int) -> None:
-        execute(
-            conn=self._conn,
-            sql=(
-                """
-                UPDATE chat_sessions
-                SET session_used_tokens = %s
-                WHERE LOWER(session_name) = LOWER(%s);
-                """
-            ),
-            params=(sess_used_tkns, self.sess_name),
-        )

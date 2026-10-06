@@ -6,7 +6,7 @@ from src.agent.models import llm
 from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from .metadata import ToolCallsMetadata
-from .chat_sessions_sql import ChatSessionsSQL
+from .lookup_chat_sessions import LookupChatSessions
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -18,12 +18,12 @@ _HISTORY_FILTER_SQL = {
 }
 
 
-class ChatLogsSQL:
+class ReadChatLogs:
     """All SQL for the 'chat_logs' table."""
 
-    def __init__(self, conn, chat_sess: ChatSessionsSQL, sys_prompt: str):
+    def __init__(self, conn, lookup_chat_sess: LookupChatSessions, sys_prompt: str):
         self._conn = conn
-        self._chat_sess = chat_sess
+        self._lookup_chat_sess = lookup_chat_sess
         self._sys_prompt = sys_prompt
 
     # Read chat logs
@@ -43,7 +43,7 @@ class ChatLogsSQL:
                 ORDER BY created_at ASC;
                 """
             ),
-            params=(self._chat_sess.get_or_create_id(),),
+            params=(self._lookup_chat_sess.get_or_create_id(),),
         )
 
         msgs = [{"role": "system", "content": self._sys_prompt}]
@@ -86,7 +86,7 @@ class ChatLogsSQL:
         rows = fetch_all(
             conn=self._conn,
             sql=sql,
-            params=(self._chat_sess.get_id(),),
+            params=(self._lookup_chat_sess.get_id(),),
         )
         if not rows:
             return None
@@ -115,17 +115,17 @@ class ChatLogsSQL:
                 LIMIT 1;
                 """
             ),
-            params=(self._chat_sess.get_or_create_id(),),
+            params=(self._lookup_chat_sess.get_or_create_id(),),
         )
 
         if not row:
-            app_log.warning("No conversation turns found in session '%s'", self._chat_sess.sess_name)
+            app_log.warning("No conversation turns found in session '%s'", self._lookup_chat_sess.sess_name)
             return None
         return [{"role": "user", "content": row[0]}, {"role": "assistant", "content": row[1]}]
 
     def before_latest_conversations(self) -> list[dict] | None:
         """Get all previous user/assistant conversation turns right before the latest external one."""
-        sess_id = self._chat_sess.get_or_create_id()
+        sess_id = self._lookup_chat_sess.get_or_create_id()
         rows = fetch_all(
             conn=self._conn,
             sql=(
@@ -190,68 +190,5 @@ class ChatLogsSQL:
         if not row:
             return None
 
-        sess_name = self._chat_sess.get_name(sess_id=str(row[0]))
+        sess_name = self._lookup_chat_sess.get_name(sess_id=str(row[0]))
         return (sess_name, str(row[1])) if sess_name else None  # Session name, created at
-
-    # Write chat logs
-
-    def add_turn(
-        self,
-        prompt: str,
-        response: str,
-        state: Literal["external", "internal"],
-        attchmnts: list[Path] | None = None,
-        p_tkns: int = 0,
-        o_tkns: int = 0
-    ) -> dict[str, dict[str, Any]]:
-        """
-        Insert new conversation turn including metadata 
-        into the specified session database table. Return
-        the all tool calls metadata.
-        """
-        metadata = ToolCallsMetadata.all_tool_calls(attchmnts)
-
-        execute(
-            conn=self._conn,
-            sql=(
-                """
-                INSERT INTO chat_logs (session_id, prompt, response, state, total_prompt_tokens, total_output_tokens, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
-                """
-            ),
-            params=(
-                self._chat_sess.get_or_create_id(),
-                prompt, response, state, p_tkns, o_tkns,
-                json.dumps(metadata or {}),
-            )
-        )
-        return metadata
-
-    def mark_active_as_compressed(self):
-        execute(
-            conn=self._conn,
-            sql=(
-                """
-                UPDATE chat_logs
-                SET is_compressed = TRUE
-                WHERE session_id = %s AND is_compressed = FALSE;
-                """
-            ),
-            params=(self._chat_sess.get_id(),)
-        )
-
-    def clear_session_logs(self) -> bool:
-        """Delete all turns of this session. False if there was nothing to delete."""
-        deleted = execute(
-            conn=self._conn,
-            sql="DELETE FROM chat_logs WHERE session_id = %s;",
-            params=(self._chat_sess.get_id(),),
-        )
-
-        if deleted == 0:
-            app_log.warning(
-                "Failed to clear chat logs: Session '%s' does not exist or has no chat logs",
-                self._chat_sess.sess_name,
-            )
-            return False
-        return True

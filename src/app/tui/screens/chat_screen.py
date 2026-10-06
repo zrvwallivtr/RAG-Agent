@@ -10,7 +10,7 @@ from textual.events import Key
 from src.config import models, postgres, files_and_directories
 
 from src.core import Agent 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
 from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
@@ -30,7 +30,7 @@ class ChatScreen(BaseScreen):
 
         self.agent = Agent(sess_name=sess_name)
         self.local_tknizr = LocalTokenizer(model=models.MODEL)
-        self.chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=sess_name)
+        self.chat_sess_logs = ChatSessionLogs(conn=postgres.conn, sess_name=sess_name)
 
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None
@@ -245,7 +245,7 @@ class ChatScreen(BaseScreen):
         """Get entire chat history from the database and display it on to the interface."""
         chat_container = self.query_one("#chat-container", VerticalScroll)
 
-        chat_hist = self.agent.chat_logs.get_chat_history(filter="all")
+        chat_hist = self.agent.chat_sess_logs.get_chat_history(filter="all")
         if not chat_hist:
             return
 
@@ -378,7 +378,7 @@ class ChatScreen(BaseScreen):
             return
 
         # Used tokens throughout the entire session chat history
-        used_tkns = self.local_tknizr.count_history_tokens(self.chat_logs.get_active_conversations())
+        used_tkns = self.local_tknizr.count_history_tokens(self.chat_sess_logs.get_active_conversations())
         if not used_tkns:
             return
 
@@ -393,7 +393,7 @@ class ChatScreen(BaseScreen):
         - After sending a message.
         - Model finished responding.
         """
-        result = self.chat_logs.get_session_data()
+        result = self.chat_sess_logs.get_session_data()
         if not result:
             return
         _, _, self._cached_sess_tkns = result

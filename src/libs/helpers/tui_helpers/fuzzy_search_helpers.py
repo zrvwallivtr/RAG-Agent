@@ -14,7 +14,7 @@ _sessions: list[tuple[str, str]] = []
 
 def load_sessions() -> None:
     """Query the database ONCE. Call when the picker opens and after create/delete."""
-    from src.agent.chat_logs import ChatSessionLogs
+    from src.agent.chat_session_logs import ChatSessionLogs
     sess_dict = ChatSessionLogs(conn=postgres.conn).get_all_existing_session_metadata() or {}
 
     loaded: list[tuple[str, str]] = []
@@ -28,10 +28,10 @@ def load_sessions() -> None:
 
 def show_session_list(sess_list: OptionList) -> None:
     """Show list of sessions with created time, modified time and session name."""
-    from src.agent.chat_logs import ChatSessionLogs
-    chat_logs = ChatSessionLogs(conn=postgres.conn)
+    from src.agent.chat_session_logs import ChatSessionLogs
+    chat_sess_logs = ChatSessionLogs(conn=postgres.conn)
 
-    sess_dict = chat_logs.get_all_existing_session_metadata()
+    sess_dict = chat_sess_logs.get_all_existing_session_metadata()
     if not sess_dict:
         return
 

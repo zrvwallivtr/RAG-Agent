@@ -498,14 +498,14 @@ class DashboardScreen(BaseScreen):
             self.notify("Session name cannot be empty.", severity="error")
             return
 
-        from src.agent.chat_logs import ChatSessionLogs
-        chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=clean_name)
+        from src.agent.chat_session_logs import ChatSessionLogs
+        chat_sess_logs = ChatSessionLogs(conn=postgres.conn, sess_name=clean_name)
 
         try:
-            chat_logs.create_session()
+            chat_sess_logs.create_session()
 
         except UniqueViolation:
-            chat_logs.conn.rollback()
+            chat_sess_logs.conn.rollback()
             self.notify(f"Session '{clean_name}' already exists", severity="error")
             return
 

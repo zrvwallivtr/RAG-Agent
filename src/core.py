@@ -8,19 +8,15 @@ from src.config.models import MODEL
 
 from src.libs.helpers import chat_database_helpers, slash_commands_helpers
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base import KnowledgeBase
 from src.agent.tokenizers import LocalTokenizer
 from src.rag.memory import Memory
 from src.slash_commands import SlashMemories, SlashRecall, SlashCompress, SLASH_CMDS_DICT
+from src.agent.models.llm import user_message, model_response
+from src.agent.models.embed import embedding_content
 from src import format_context
 
-from src.agent import (
-    llm,
-    embed,
-    chat_logs,
-    tokenizers
-)
 from src.rag import (
     memory,
     knowledge_base,
@@ -43,21 +39,21 @@ class Agent:
         self.conn      = conn
 
         # Main classes
-        self.chat_logs = ChatSessionLogs(conn=self.conn, sess_name=self.sess_name)
-        self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
-        self.kw_bs = KnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
-        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
+        self.chat_sess_logs = ChatSessionLogs(conn=self.conn, sess_name=self.sess_name)
+        self.mem = Memory(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
         self.local_tknizr = LocalTokenizer(MODEL)
 
         # Slash command classes
         self.slash_memories = SlashMemories(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
         )
         self.slash_recall = SlashRecall(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
         )
         self.slash_compress = SlashCompress(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
         )
 
 
@@ -82,11 +78,11 @@ class Agent:
 
     def _compress_if_over_budget(self, prompt: str) -> list[dict]:
         """Compress the session if history + prompt + reserve exceeds the limit. Returns the history."""
-        msgs = self.chat_logs.get_active_conversations()
+        msgs = self.chat_sess_logs.get_active_conversations()
         if self._is_over_budget(msgs=msgs, prompt=prompt, reserve=TOKEN_RESERVE):
             app_log.info("Current tokens exceeds threshold")
-            self.chat_logs.auto_compress_active_conversations()
-            msgs = self.chat_logs.get_active_conversations()
+            self.chat_sess_logs.auto_compress_active_conversations()
+            msgs = self.chat_sess_logs.get_active_conversations()
         return msgs
 
 
@@ -138,7 +134,7 @@ class Agent:
         Return embeddings for user prompt for memory and document content retrieval
         features, if no embedding failed turn off related featurs.
         """
-        embed_response = embed.embedding_content(prompt)
+        embed_response = embedding_content(prompt)
 
         if embed_response:
             prompt, prompt_embdings, prompt_tkns = embed_response
@@ -214,7 +210,7 @@ class Agent:
         - Only the user question and LLM response will be
           stored into chat history.
         """
-        msgs = self.chat_logs.get_active_conversations()
+        msgs = self.chat_sess_logs.get_active_conversations()
 
         # Slash commands
         cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
@@ -254,10 +250,10 @@ class Agent:
             paths=paths
         )
         msgs = self._compress_if_over_budget(combine_prompt)
-        msgs.append(llm.user_message(combine_prompt))
+        msgs.append(user_message(combine_prompt))
 
         # Model answer
-        response = llm.model_response(model=MODEL, msgs=msgs, callback=callback)
+        response = model_response(model=MODEL, msgs=msgs, callback=callback)
         if not response:
             return
         ans, p_tkns, o_tkns = response
@@ -267,7 +263,7 @@ class Agent:
         total_o_tkns = o_tkns
 
         # Save messages to database
-        metadata = self.chat_logs.add_conversation_turn(
+        metadata = self.chat_sess_logs.add_conversation_turn(
             prompt=prompt,
             response=ans,
             state="external",
@@ -279,7 +275,7 @@ class Agent:
         # Update chat session table in database
         with self.conn.cursor() as cur:
             chat_database_helpers.update_session_used_tokens_on_prompt_submitted(
-                chat_logs=self.chat_logs, local_tknizr=self.local_tknizr, cur=cur
+                chat_sess_logs=self.chat_sess_logs, local_tknizr=self.local_tknizr, cur=cur
             )
 
         # Store memory

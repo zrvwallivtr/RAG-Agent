@@ -1,10 +1,10 @@
 from src.config import postgres
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 
 
 def update_session_used_tokens_on_prompt_submitted(
-    chat_logs: ChatSessionLogs, local_tknizr: LocalTokenizer, cur
+    chat_sess_logs: ChatSessionLogs, local_tknizr: LocalTokenizer, cur
 ):
     """
     Only call at the end of every model response where the latest conversation
@@ -12,7 +12,7 @@ def update_session_used_tokens_on_prompt_submitted(
     This function retrieves then fetches all conversations from current session
     and use the tokenizers to calculate and update the token count to the database.
     """
-    msgs = chat_logs.get_active_conversations()
+    msgs = chat_sess_logs.get_active_conversations()
     chat_hist_tkns = local_tknizr.count_history_tokens(msgs) or 0
 
     # Update database
@@ -22,6 +22,6 @@ def update_session_used_tokens_on_prompt_submitted(
         SET session_used_tokens = %s
         WHERE LOWER(session_name) = LOWER(%s);
         """,
-        (chat_hist_tkns, chat_logs.sess_name)
+        (chat_hist_tkns, chat_sess_logs.sess_name)
     )
-    chat_logs.conn.commit()
+    chat_sess_logs.conn.commit()

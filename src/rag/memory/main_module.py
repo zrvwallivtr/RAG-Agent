@@ -8,7 +8,7 @@ from .query_entries import QueryEntries
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.models_database import EMB_MODEL_DIMENSION
 from src.logger import app_logger
 from src import format_context
@@ -20,13 +20,13 @@ class Memory:
     def __init__(
         self,
         conn,
-        chat_logs: ChatSessionLogs,
+        chat_sess_logs: ChatSessionLogs,
     ):
         self.conn = conn
 
-        self.chat_logs = chat_logs
-        self.query_entries = QueryEntries(conn=self.conn, chat_logs=self.chat_logs)
-        self.store_entries = StoreEntries(conn=self.conn, chat_logs=self.chat_logs)
+        self.chat_sess_logs = chat_sess_logs
+        self.query_entries = QueryEntries(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.store_entries = StoreEntries(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
 
         ensure_schema(self.conn)
 

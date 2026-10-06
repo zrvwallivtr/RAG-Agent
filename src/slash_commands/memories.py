@@ -11,7 +11,7 @@ from .slash_commands_dictionary import SLASH_CMDS_DICT
 
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.memory import Memory
 from src.rag.knowledge_base import KnowledgeBase, DocumentKnowledgeBase
 from src import format_context
@@ -33,11 +33,11 @@ class SlashMemories:
         self.conn       = conn
         self.sess_name  = sess_name.strip() if sess_name else "default_session"
         self.project    = project
-        self.chat_logs  = chat_logs
+        self.chat_sess_logs  = chat_logs
 
-        self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
-        self.kw_bs = KnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
-        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
+        self.mem = Memory(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
 
     def cmd_memorise(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
@@ -63,7 +63,7 @@ class SlashMemories:
             )
             return
 
-        msgs = self.chat_logs.get_active_conversations()
+        msgs = self.chat_sess_logs.get_active_conversations()
 
         # Full context
         attchmnt_dict = self.doc_kw_bs.get_attachments_content(
@@ -101,7 +101,7 @@ class SlashMemories:
 
         # Save messages
         # mock_resp = "Information has been extracted and added to database."
-        metadata = self.chat_logs.add_conversation_turn(
+        metadata = self.chat_sess_logs.add_conversation_turn(
             prompt=prompt,
             response=SLASH_CMDS_DICT["memorise"].get("mock_response") or "",
             state="external",

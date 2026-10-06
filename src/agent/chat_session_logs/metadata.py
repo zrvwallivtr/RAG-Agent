@@ -31,7 +31,7 @@ class ToolCallsMetadata:
             mime_type, _ = mimetypes.guess_type(attchmnt)
             attchmnts_dict[attchmnt.name] = {
                 "mime_type": mime_type,
-                "size_bytes": attchmnt.stat().st_size if attchmnt.exists else 0
+                "size_bytes": attchmnt.stat().st_size if attchmnt.exists() else 0
             }
         return attchmnts_dict
 
@@ -48,6 +48,6 @@ class ToolCallsMetadata:
         tool_entries = {}
 
         if attchmnts:
-            tool_entries["attachments"] = self._add_attachments_metadata(attchmnts)
+            tool_entries["attachments"] = ToolCallsMetadata._add_attachments_metadata(attchmnts)
 
         return tool_entries

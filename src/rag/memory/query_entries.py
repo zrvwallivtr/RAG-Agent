@@ -2,7 +2,7 @@ from typing import Any
 
 from src.config.memory import RETRIEVE_MEM_ENTRY_LIMIT
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.logger import app_logger
 
@@ -10,10 +10,10 @@ app_log     = app_logger(f"{__name__}.app")
 
 class QueryEntries:
 
-    def __init__(self, conn, chat_logs: ChatSessionLogs):
+    def __init__(self, conn, chat_sess_logs: ChatSessionLogs):
         self.conn = conn
 
-        self.chat_logs = chat_logs
+        self.chat_sess_logs = chat_sess_logs
 
     def cosine_similarity_search(
         self,

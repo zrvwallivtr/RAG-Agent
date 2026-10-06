@@ -1,11 +1,13 @@
 import threading
 
 from src.libs.helpers.database_helpers import init_database
+from src.config.models import EMBED_MODEL
+from src.models_database import EMB_MODEL_DIMENSION
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-_scheme_ready = False
+_schema_ready = False
 
 _STATEMENTS = (
     """
@@ -42,11 +44,17 @@ _STATEMENTS = (
 
 
 def ensure_schema(conn) -> None:
-    global _scheme_ready
-    if _scheme_ready:
+    global _schema_ready
+    if _schema_ready:
         return
+    dim = EMB_MODEL_DIMENSION.get(EMBED_MODEL)
+    if dim is None:
+        raise ValueError(
+            f"Unknown embedding dimension for model '{EMBED_MODEL}'. "
+        )
 
     app_log.debug("Initialising memory table")
-    init_database(conn=conn, stmts=_STATEMENTS)
+    stmts = tuple(s.format(dimension=int(dim)) for s in _STATEMENTS)
+    init_database(conn=conn, stmts=stmts)
 
-    _scheme_ready = True
+    _schema_ready = True

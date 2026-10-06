@@ -10,7 +10,7 @@ from .slash_commands_dictionary import SLASH_CMDS_DICT
 
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base import DocumentKnowledgeBase
 from src import format_context
 
@@ -24,11 +24,11 @@ class SlashCompress:
     def __init__(self, conn, chat_logs: ChatSessionLogs, sess_name: str | None = None):
         self.conn       = conn
 
-        self.chat_logs  = chat_logs
+        self.chat_sess_logs  = chat_logs
         self.doc_kw_bs = DocumentKnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs
+            conn=self.conn, chat_sess_logs=self.chat_sess_logs
         )
-        self.sess_name  = self.chat_logs.sess_name
+        self.sess_name  = self.chat_sess_logs.sess_name
 
 
     def _get_full_context(self, prompt: str, is_attchmnt: bool, paths: list[Path] | None):
@@ -72,7 +72,7 @@ class SlashCompress:
                     chat_container=chat_container
                 )
 
-            result = self.chat_logs.auto_compress_active_conversations()
+            result = self.chat_sess_logs.auto_compress_active_conversations()
             return result if result else None
 
 
@@ -101,7 +101,7 @@ class SlashCompress:
                 screen=screen, md_widget=md_widget, info=info_str
             )
 
-        result = self.chat_logs.compress_active_conversations(prompt=cmbind_prompt)
+        result = self.chat_sess_logs.compress_active_conversations(prompt=cmbind_prompt)
         if not result:
             return
 

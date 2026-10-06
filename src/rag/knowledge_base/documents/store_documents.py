@@ -8,7 +8,7 @@ from .query_documents import QueryDocuments
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.helpers.string_helpers import hash_string
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
 from src.logger import app_logger
 
@@ -17,11 +17,11 @@ app_log = app_logger(f"{__name__}.app")
 
 class StoreDocuments:
     def __init__(
-        self, conn, chat_logs: ChatSessionLogs, doc_reader: DocumentReader, query_docs: QueryDocuments
+        self, conn, chat_sess_logs: ChatSessionLogs, doc_reader: DocumentReader, query_docs: QueryDocuments
     ):
         self._conn = conn
 
-        self.chat_logs = chat_logs
+        self.chat_sess_logs = chat_sess_logs
         self.doc_reader = doc_reader
         self.query_docs = query_docs
 
@@ -74,10 +74,11 @@ class StoreDocuments:
                 """
                 INSERT INTO knowledge_base (session_id, type, embeddings, prompt_tokens, content, content_hash, expires_at, metadata)
                 VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
+                RETURNING id
                 """
             ),
             params=(
-                self.chat_logs.get_session_id(), "document", str(embdings),
+                self.chat_sess_logs.get_session_id(), "document", str(embdings),
                 chnk_tkns, cont, cont_hash, exprs_at, json.dumps(metadata),
             )
         )
@@ -85,7 +86,7 @@ class StoreDocuments:
         if row:
             app_log.info(
                 "Added document '%s' to session '%s' knowledge base",
-                doc_name, self.chat_logs.sess_name
+                doc_name, self.chat_sess_logs.sess_name
             )
             return
 
@@ -128,7 +129,7 @@ class StoreDocuments:
                 # Skip embedding if already exists
                 app_log.debug(
                     "Document already exists in session '%s' knowledge base. Skipping re-embed",
-                    self.chat_logs.sess_name
+                    self.chat_sess_logs.sess_name
                 )
                 chnk_cont, embdings, chnk_tkns = doc_chnk
 

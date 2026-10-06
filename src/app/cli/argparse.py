@@ -51,7 +51,7 @@ def build_parser() -> None:
 
     from src.core import Agent
     from src.agent.models import ollama
-    from src.agent.chat_logs import ChatSessionLogs
+    from src.agent.chat_session_logs import ChatSessionLogs
     from src.agent import tokenizers
     from src.libs.helpers import sessions_helpers
 
@@ -107,11 +107,9 @@ def build_parser() -> None:
 
     # List all uploaded attachment(s) in session
     if args.list_attachments:
-        from src.rag import document_knowledge_base
-        chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=args.session)
-        doc_kw_bs = document_knowledge_base.DocumentKnowledgeBase(
-            conn=postgres.conn, chat_logs=chat_logs, sess_name=args.session
-        )
+        from src.rag.knowledge_base.documents import DocumentKnowledgeBase
+        chat_sess_logs = ChatSessionLogs(conn=postgres.conn, sess_name=args.session)
+        doc_kw_bs = DocumentKnowledgeBase(conn=postgres.conn, chat_sess_logs=chat_sess_logs)
         print(doc_kw_bs.list_all_uploaded_documents())
         return
 

@@ -12,7 +12,7 @@ from .slash_commands_dictionary import SLASH_CMDS_DICT
 
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.llm import response_memory_recall_format
 from src.agent.models.embed import embedding_content
 from src.rag.memory import Memory
@@ -37,11 +37,11 @@ class SlashRecall:
         self.conn       = conn
         self.sess_name  = sess_name.strip() if sess_name else "default_session"
         self.project    = project
-        self.chat_logs  = chat_logs
+        self.chat_sess_logs  = chat_logs
 
-        self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
-        self.kw_bs = KnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
-        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
+        self.mem = Memory(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
+        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
 
     def cmd_recall(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
@@ -60,7 +60,7 @@ class SlashRecall:
         if is_attchmnt and paths:
             app_log.warning(SLASH_CMDS_DICT["recall"].get("attachments_warn"))
 
-        msgs = self.chat_logs.get_active_conversations()
+        msgs = self.chat_sess_logs.get_active_conversations()
 
         # Retrieve memory from database
         embed_response = embedding_content(prompt)
@@ -79,7 +79,7 @@ class SlashRecall:
         )
 
         # Save messages
-        metadata = self.chat_logs.add_conversation_turn(
+        metadata = self.chat_sess_logs.add_conversation_turn(
             prompt=prompt,
             response=ans,
             state="external",

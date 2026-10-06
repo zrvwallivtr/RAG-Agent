@@ -10,8 +10,8 @@ from .store_documents import StoreDocuments
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.helpers.string_helpers import hash_string
 
-from src.agent import chat_logs, embed
-from src.agent.chat_logs import ChatSessionLogs
+from src.agent.models import embed
+from src.agent.chat_session_logs import ChatSessionLogs
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
@@ -21,18 +21,18 @@ class DocumentKnowledgeBase:
     def __init__(
         self,
         conn,
-        chat_logs: ChatSessionLogs,
+        chat_sess_logs: ChatSessionLogs,
     ):
         self.conn = conn
 
-        self.chat_logs = chat_logs
+        self.chat_sess_logs = chat_sess_logs
         self.doc_reader = DocumentReader()
-        self.query_docs = QueryDocuments(conn=self.conn, chat_logs=self.chat_logs)
+        self.query_docs = QueryDocuments(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
         self.store_docs = StoreDocuments(
-            conn=self.conn, chat_logs=self.chat_logs,
+            conn=self.conn, chat_sess_logs=self.chat_sess_logs,
             doc_reader=self.doc_reader, query_docs=self.query_docs
         )
-        self.sess_name = self.chat_logs.sess_name
+        self.sess_name = self.chat_sess_logs.sess_name
 
     # File metadata
 
@@ -85,7 +85,7 @@ class DocumentKnowledgeBase:
     def query_similar_knowledge(
         self, qry: str, qry_embdings: list[float], min_sim: float = 0.65
     ):
-        return
+        return self.query_docs.cosine_similarity(qry, qry_embdings, min_sim)
 
     # AUTO FUNCTIONS
 

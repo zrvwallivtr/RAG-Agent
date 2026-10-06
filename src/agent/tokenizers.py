@@ -6,7 +6,7 @@ from functools import lru_cache
 from src.config import models
 from src.config import files_and_directories as fls_n_dir
 
-from src.agent import ollama
+from src.agent.models import ollama
 from src import models_database
 from src.logger import app_logger
 
@@ -128,10 +128,43 @@ def fetch_all_installed_tokenizers() -> list[dict]:
     ]
 
 
+@lru_cache(maxsize=None)
+def _load_tokenizer(model: str) -> Tokenizer | None:
+    """Load local installed tokenizer."""
+    file = TOKENIZERS_DIR / f"{model}.json"
+
+    app_log.debug("Loading model '%s' tokenizer from file '%s'", model, file)
+
+    try:
+        # Load pre-installed tokenizer
+        return Tokenizer.from_file(str(file))
+
+    except Exception as e:
+        # Load pre-installed fallback tokenizer
+        try:
+            tknizr = Tokenizer.from_file(str(TOKENIZERS_DIR / f"{FALLBACK_TOKENIZER}.json"))
+            app_log.warning(
+                "Failed to load model '%s' tokenizer: %s. Falling back to model '%s' tokenizer",
+                model,
+                e,
+                FALLBACK_TOKENIZER
+            )
+            return tknizr
+
+        # Disable tokenizer feature
+        except Exception as fallback_err:
+            app_log.warning(
+                "Failed to load model '%s' fallback tokenizer: %s. Tokenizer feature disabled",
+                FALLBACK_TOKENIZER,
+                fallback_err
+            )
+            return
+
+
 class LocalTokenizer:
     def __init__(self, model: str):
         self.model          = model
-        self.load_tknizr    = self._load_tokenizer()
+        self.load_tknizr    = _load_tokenizer(model)
 
         # User specified max tokens
         if MODEL_MAX_TOKENS:
@@ -158,41 +191,6 @@ class LocalTokenizer:
             self.model_max_tkns = None
 
 
-    @lru_cache(maxsize=None)
-    def _load_tokenizer(self) -> Tokenizer | None:
-        """Load local installed tokenizer."""
-        file = TOKENIZERS_DIR / f"{self.model}.json"
-
-        # Load pre-installed tokenizer
-        app_log.debug("Loading model '%s' tokenizer from file '%s'", self.model, file)
-        try:
-            tknizr = Tokenizer.from_file(str(file))
-            app_log.debug("Model '%s' tokenizer loaded from '%s'", self.model, file)
-            return tknizr
-
-        except Exception as e:
-
-            # Load pre-installed fallback tokenizer
-            try:
-                tknizr = Tokenizer.from_file(str(TOKENIZERS_DIR / f"{FALLBACK_TOKENIZER}.json"))
-                app_log.warning(
-                    "Failed to load model '%s' tokenizer: %s. Falling back to model '%s' tokenizer",
-                    self.model,
-                    e,
-                    FALLBACK_TOKENIZER
-                )
-                return tknizr
-
-            # Disable tokenizer feature
-            except Exception as fallback_err:
-                app_log.warning(
-                    "Failed to load model '%s' fallback tokenizer: %s. Tokenizer feature disabled",
-                    FALLBACK_TOKENIZER,
-                    fallback_err
-                )
-                return
-
-
     def count_string_tokens(self, text: str) -> int | None:
         """Counts tokens in string."""
         if not self.load_tknizr:
@@ -206,26 +204,30 @@ class LocalTokenizer:
         """Calculates total token count in the message list."""
         if not self.load_tknizr:
             app_log.warning("Unable to count tokens: Tokenizer feature has been disabled")
-            return
+            return None
 
-        tol_tkns = 0
+        texts = [msg.get("content") or "" for msg in msgs]
+        encodings = self.load_tknizr.encode_batch(texts)
+        return sum(len(e.ids) for e in encodings) + 4 * len(msgs) + 3
 
-        count = 0
-        for msg in msgs:
-            count += 1
-            app_log.debug("Retrieving message (%d/%d) from the message list", count, len(msgs))
-            # Account for message content text
-            add_tkns = self.count_string_tokens(msg.get("content", ""))
-            if not add_tkns:
-                return
-            tol_tkns += add_tkns
+        # tol_tkns = 0
 
-            # For tags (e.g. 'assistant'/'user')
-            tol_tkns += 4
+        # count = 0
+        # for msg in msgs:
+        #     count += 1
+        #     app_log.debug("Retrieving message (%d/%d) from the message list", count, len(msgs))
+        #     # Account for message content text
+        #     add_tkns = self.count_string_tokens(msg.get("content", ""))
+        #     if not add_tkns:
+        #         return
+        #     tol_tkns += add_tkns
 
-        tol_tkns += 3 # Assistant indicator tokens
-        app_log.debug("All messages has been processed: Total token counts = %d tokens", tol_tkns)
-        return tol_tkns
+        #     # For tags (e.g. 'assistant'/'user')
+        #     tol_tkns += 4
+
+        # tol_tkns += 3 # Assistant indicator tokens
+        # app_log.debug("All messages has been processed: Total token counts = %d tokens", tol_tkns)
+        # return tol_tkns
 
 
     def encode_text(self, txt: str) -> list[int] | None:

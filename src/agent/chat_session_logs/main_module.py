@@ -8,8 +8,10 @@ from src.config import prompts
 
 from .schema import ensure_schema
 from .compression import Compression
-from .chat_sessions_sql import ChatSessionsSQL
-from .chat_logs_sql import ChatLogsSQL
+from .lookup_chat_sessions import LookupChatSessions
+from .write_chat_sessions import WriteChatSessions
+from .read_chat_logs import ReadChatLogs
+from .write_chat_logs import WriteChatLogs
 
 from src.agent.tokenizers import LocalTokenizer
 from src import format_context
@@ -38,9 +40,20 @@ class ChatSessionLogs:
         self.local_tknizr = LocalTokenizer(model=self.model)
 
         ensure_schema(self.conn)
-        self.chat_sess   = ChatSessionsSQL(conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens)
-        self.chat_logs   = ChatLogsSQL(conn=self.conn, chat_sess=self.chat_sess, sys_prompt=self.sys_prompt)
-        self.compression = Compression(self, chat_logs=self.chat_logs)
+
+        self.write_chat_sess = WriteChatSessions(
+            conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
+        )
+        self.lookup_chat_sess = LookupChatSessions(
+            conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
+        )
+
+        self.read_chat_logs = ReadChatLogs(
+            conn=self.conn, lookup_chat_sess=self.lookup_chat_sess, sys_prompt=self.sys_prompt
+        )
+        self.write_chat_logs = WriteChatLogs(conn=self.conn, lookup_chat_sess=self.lookup_chat_sess)
+
+        self.compression = Compression(self, write_chat_logs=self.write_chat_logs)
 
     def _system_prompt_tokens(self) -> int:
         global _sys_prompt_tkns
@@ -51,58 +64,58 @@ class ChatSessionLogs:
     # Lookup chat sessions
 
     def get_session_id(self):
-        return self.chat_sess.get_id()
+        return self.lookup_chat_sess.get_id()
 
     def get_or_create_session_id(self):
-        return self.chat_sess.get_or_create_id()
+        return self.lookup_chat_sess.get_or_create_id()
 
     def get_session_name(self, sess_id: str):
-        return self.chat_sess.get_name(sess_id)
+        return self.lookup_chat_sess.get_name(sess_id)
 
     def get_session_id_from_name(self, sess_name: str):
-        return self.chat_sess.get_id_from_name(sess_name)
+        return self.lookup_chat_sess.get_id_from_name(sess_name)
 
     def get_session_data(self, sess_name: str | None = None):
-        return self.chat_sess.get_data(sess_name)
+        return self.lookup_chat_sess.get_data(sess_name)
 
     def get_all_existing_session_metadata(self):
-        return self.chat_sess.get_all_metadata()
+        return self.lookup_chat_sess.get_all_metadata()
 
     # Write to chat sessions
 
     def create_session(self):
-        return self.chat_sess.create()
+        return self.write_chat_sess.create()
 
     def update_session_used_tokens(self, n: int):
-        return self.chat_sess.update_used_tokens(n)
+        return self.write_chat_sess.update_used_tokens(n)
 
     # Read chat logs
 
     def get_active_conversations(self):
-        return self.chat_logs.active_conversations()
+        return self.read_chat_logs.active_conversations()
 
     def get_chat_history(self, filter: Literal["compressed", "not_compressed", "all"]):
-        return self.chat_logs.conversation_history(filter)
+        return self.read_chat_logs.conversation_history(filter)
 
     def get_latest_conversation_turn(self):
-        return self.chat_logs.latest_conversation_turn()
+        return self.read_chat_logs.latest_conversation_turn()
 
     def get_old_conversations(self):
-        return self.chat_logs.before_latest_conversations()
+        return self.read_chat_logs.before_latest_conversations()
 
     def get_session_last_modified_time(self, sess_id: str | None = None):
-        return self.chat_logs.last_modified_time(sess_id)
+        return self.read_chat_logs.last_modified_time(sess_id)
 
     def get_latest_modified_chat_session(self):
-        return self.chat_logs.latest_modified_session()
+        return self.read_chat_logs.latest_modified_session()
 
     # Write to chat logs
 
     def add_conversation_turn(self, *args, **kwargs,):
-        return self.chat_logs.add_turn(*args, **kwargs,)
+        return self.write_chat_logs.add_turn(*args, **kwargs,)
 
     def clear_session_chat_logs(self):
-        return self.chat_logs.clear_session_logs()
+        return self.write_chat_logs.clear_session_logs()
 
     # Compression section
 
