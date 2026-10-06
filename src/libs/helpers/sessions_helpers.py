@@ -10,7 +10,7 @@ cur = conn.cursor()
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-ChatLogs        = chat_logs.ChatLogs
+ChatSessionLogs = chat_logs.ChatSessionLogs
 KnowledgeBase   = knowledge_base.KnowledgeBase
 
 
@@ -19,7 +19,7 @@ def del_sess(sess_name: str | None = None) -> None:
     Delete session related chat logs and database contents. If 'session'
     is not specified, delete default session related contents.
     """
-    chat_logs   = ChatLogs(conn=conn, sess_name=sess_name)
+    chat_logs   = ChatSessionLogs(conn=conn, sess_name=sess_name)
     kw_bs       = KnowledgeBase(conn=conn, chat_logs=chat_logs, sess_name=sess_name)
 
     sess_id = chat_logs.get_session_id()

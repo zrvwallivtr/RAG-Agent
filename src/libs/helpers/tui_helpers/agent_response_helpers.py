@@ -5,26 +5,23 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Input, Markdown, Button
 
 from src.core import Agent
-from src.slash_commands import slash_commands_helpers, slash_commands_dictionary
+from src.slash_commands import slash_commands_helpers, slash_commands_dictionary, SLASH_CMDS_DICT
 
-from src.app.tui.screens.tui_screen_helpers import size_bytes_helpers, agent_interface_helper
+from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_interface_helper
 
 
 # The following sets the behaviour when slash commands is used
 # in the TUI.
 
-SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
-
-
 def slash_command_if_called_start_behaviour(screen, prompt: str, md_widget: Markdown):
     cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
 
     if cmd:
-        if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
+        if cmd == SLASH_CMDS_DICT["compress"].get("cmd"):
             agent_interface_helper.show_loading_indicator(
                 screen=screen,
                 md_widget=md_widget,
-                info=SLASH_CMD_DICT["compress"].get("a") or ""
+                info=SLASH_CMDS_DICT["compress"].get("a") or ""
             )
 
 

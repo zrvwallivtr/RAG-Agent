@@ -4,7 +4,7 @@ strings from following dictionary to maintain consistency between CLI and
 TUI.
 """
 
-slash_cmds_dict = {
+SLASH_CMDS_DICT = {
     "memorise": {
         "cmd": "/memorise",
         "no_prompt_warn": "Command '/memorise' aborted: No prompt was provided. Please specifiy instructions",

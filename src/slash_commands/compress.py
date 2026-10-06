@@ -4,38 +4,31 @@ from typing import Any
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown
 
-from src.config import models
-from src.config import prompts
+from src.config.models import MODEL
 
+from .slash_commands_dictionary import SLASH_CMDS_DICT
+
+from src.libs.helpers.tui_helpers import agent_interface_helper
+
+from src.agent.chat_logs import ChatSessionLogs
+from src.rag.knowledge_base import DocumentKnowledgeBase
 from src import format_context
-from src.slash_commands import slash_commands_dictionary
-from src.agent import (
-    chat_logs,
-)
-from src.rag import document_knowledge_base
-from src.app.tui.screens.tui_screen_helpers import agent_interface_helper
 
 from src.logger import app_logger
 
 
 app_log = app_logger(f"{__name__}.app")
 
-MODEL                       = models.MODEL
-SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
-
-ChatLogs                = chat_logs.ChatLogs
-DocumentKnowledgeBase   = document_knowledge_base.DocumentKnowledgeBase
-
 
 class SlashCompress:
-    def __init__(self, conn, chat_logs: ChatLogs, sess_name: str | None = None):
+    def __init__(self, conn, chat_logs: ChatSessionLogs, sess_name: str | None = None):
         self.conn       = conn
-        self.sess_name  = sess_name.strip() if sess_name else "default_session"
-        self.chat_logs  = chat_logs
 
+        self.chat_logs  = chat_logs
         self.doc_kw_bs = DocumentKnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
+            conn=self.conn, chat_logs=self.chat_logs
         )
+        self.sess_name  = self.chat_logs.sess_name
 
 
     def _get_full_context(self, prompt: str, is_attchmnt: bool, paths: list[Path] | None):
@@ -63,14 +56,14 @@ class SlashCompress:
         if not prompt:
             # Default compression (no instructions)
             if is_attchmnt and paths:
-                warn_str = SLASH_CMD_DICT["compress"].get("no_prompt_attachments_warn") or ""
+                warn_str = SLASH_CMDS_DICT["compress"].get("no_prompt_attachments_warn") or ""
                 app_log.warning(warn_str)
                 if in_tui:
                     agent_interface_helper.show_info(screen=screen, info=warn_str)
                 return
 
             if in_tui:
-                info_str = SLASH_CMD_DICT["compress"].get("loading_info") or ""
+                info_str = SLASH_CMDS_DICT["compress"].get("loading_info") or ""
                 agent_interface_helper.show_loading_indicator(
                     screen=screen,
                     md_widget=md_widget,
@@ -99,7 +92,7 @@ class SlashCompress:
             prompt=prompt, is_attchmnt=is_attchmnt, paths=paths
         )
 
-        info_str = SLASH_CMD_DICT["compress"].get("loading_info") or ""
+        info_str = SLASH_CMDS_DICT["compress"].get("loading_info") or ""
 
         app_log.info(info_str)
 

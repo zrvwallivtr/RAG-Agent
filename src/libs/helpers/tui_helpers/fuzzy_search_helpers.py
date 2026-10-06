@@ -5,7 +5,7 @@ from textual.widgets.option_list import Option
 
 from src.config import postgres
 
-from src.app.tui.screens.tui_screen_helpers import sessions_helpers, date_helpers
+from src.libs.helpers.tui_helpers import sessions_helpers, date_helpers
 
 
 TITLE = "Last modified\t\tCreated at\t\tSession name\n"
@@ -14,8 +14,8 @@ _sessions: list[tuple[str, str]] = []
 
 def load_sessions() -> None:
     """Query the database ONCE. Call when the picker opens and after create/delete."""
-    from src.agent.chat_logs import ChatLogs
-    sess_dict = ChatLogs(conn=postgres.conn).get_all_existing_session_metadata() or {}
+    from src.agent.chat_logs import ChatSessionLogs
+    sess_dict = ChatSessionLogs(conn=postgres.conn).get_all_existing_session_metadata() or {}
 
     loaded: list[tuple[str, str]] = []
     for sess_id, data in sess_dict.items():
@@ -28,8 +28,8 @@ def load_sessions() -> None:
 
 def show_session_list(sess_list: OptionList) -> None:
     """Show list of sessions with created time, modified time and session name."""
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
+    from src.agent.chat_logs import ChatSessionLogs
+    chat_logs = ChatSessionLogs(conn=postgres.conn)
 
     sess_dict = chat_logs.get_all_existing_session_metadata()
     if not sess_dict:

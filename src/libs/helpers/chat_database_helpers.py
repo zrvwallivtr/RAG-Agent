@@ -1,10 +1,10 @@
 from src.config import postgres
-from src.agent.chat_logs import ChatLogs
+from src.agent.chat_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 
 
 def update_session_used_tokens_on_prompt_submitted(
-    chat_logs: ChatLogs, local_tknizr: LocalTokenizer, cur
+    chat_logs: ChatSessionLogs, local_tknizr: LocalTokenizer, cur
 ):
     """
     Only call at the end of every model response where the latest conversation

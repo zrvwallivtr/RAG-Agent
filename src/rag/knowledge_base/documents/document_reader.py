@@ -1,18 +1,13 @@
 from pathlib import Path
 
-from src.config import files_and_directories as files_n_dir
-from src.config import documents
+from src.config.files_and_directories import UPLOAD_DIR
+from src.config.documents import ENABLE_DOCLING
 
-from src.rag.documents.basic_parsers import BasicParsers
-from src.rag.documents.docling_parsers import DoclingParsers
+from src.libs.parsers.basic_parsers import BasicParsers
+from src.libs.parsers.docling_parsers import DoclingParsers
 from src.logger import app_logger
 
-
 app_log = app_logger(f"{__name__}.app")
-
-UPLOAD_DIR      = files_n_dir.UPLOAD_DIR
-# DOCLING_DEFAULT = documents.DOCLING_DEFAULT
-ENABLE_DOCLING  = documents.ENABLE_DOCLING
 
 
 class PathTraversalError(Exception):
@@ -23,7 +18,6 @@ class DocumentReader:
     def __init__(self):
         self.bs_prsrs       = BasicParsers()
         self.docling_prsrs  = DoclingParsers()
-
 
     def _validate_path(self, path: Path) -> Path:
         """Resolve 'path' to its real, absolute form."""
@@ -39,7 +33,6 @@ class DocumentReader:
             )
 
         return resolved
-
 
     def read_document(self, path: Path) -> tuple[str, str] | None:
         """Return file content as a string using mapped parsers and converted file format."""
@@ -106,3 +99,28 @@ class DocumentReader:
                     "Failed to run Docling parser for '%s': %s. Skipping", path, fallback_err
                 )
                 return
+
+    def read_content(
+        self,
+        is_attchmnt: bool,
+        attch_paths: list[Path] | None
+    ) -> dict[Path, dict[str, str]] | None:
+        """Return content in attachment(s)."""
+        if not is_attchmnt:
+            return
+
+        if not attch_paths:
+            return
+
+        attchmnt_dict = {}
+        for path in attch_paths:
+
+            out = self.read_document(path)
+            if not out:
+                continue
+            cont, format = out
+
+            app_log.info("Content extracted from attachment '%s'", path)
+            attchmnt_dict[path] = {"content": cont, "format": format}
+
+        return attchmnt_dict

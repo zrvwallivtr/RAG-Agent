@@ -1,20 +1,20 @@
+from textual.widgets import Markdown
+
 from pathlib import Path
 from typing import Callable, Any
 
-from textual.widgets import Markdown
-
 from src.config.postgres import conn
-from src.config import models
+from src.config.models import MODEL
 
+from src.libs.helpers import chat_database_helpers, slash_commands_helpers
+
+from src.agent.chat_logs import ChatSessionLogs
+from src.rag.knowledge_base import KnowledgeBase
+from src.agent.tokenizers import LocalTokenizer
+from src.rag.memory import Memory
+from src.slash_commands import SlashMemories, SlashRecall, SlashCompress, SLASH_CMDS_DICT
 from src import format_context
-from src.main_helpers import chat_database_helpers
-from src.slash_commands import (
-    slash_commands_helpers,
-    slash_commands_dictionary,
-    memories,
-    recall,
-    compress
-)
+
 from src.agent import (
     llm,
     embed,
@@ -24,23 +24,12 @@ from src.agent import (
 from src.rag import (
     memory,
     knowledge_base,
-    document_knowledge_base
+    DocumentKnowledgeBase
 )
 
 from src import logger
 
-
 app_log = logger.app_logger(f"{__name__}.app")
-
-MODEL            = models.MODEL
-
-ChatLogs              = chat_logs.ChatLogs
-Memory                = memory.Memory
-KnowledgeBase         = knowledge_base.KnowledgeBase
-DocumentKnowledgeBase = document_knowledge_base.DocumentKnowledgeBase
-LocalTokenizer        = tokenizers.LocalTokenizer
-
-SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
 
 TOKEN_RESERVE = 1000
 
@@ -54,24 +43,20 @@ class Agent:
         self.conn      = conn
 
         # Main classes
-        self.chat_logs = ChatLogs(conn=self.conn, sess_name=self.sess_name)
+        self.chat_logs = ChatSessionLogs(conn=self.conn, sess_name=self.sess_name)
         self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
-        self.kw_bs = KnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
-        self.doc_kw_bs = DocumentKnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
+        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
         self.local_tknizr = LocalTokenizer(MODEL)
 
         # Slash command classes
-        self.slash_memories = memories.SlashMemories(
+        self.slash_memories = SlashMemories(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
-        self.slash_recall = recall.SlashRecall(
+        self.slash_recall = SlashRecall(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
-        self.slash_compress = compress.SlashCompress(
+        self.slash_compress = SlashCompress(
             conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
         )
 
@@ -119,21 +104,21 @@ class Agent:
         md_widget: Markdown | None = None
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """Route to slash command for '/memorise', '/recall' and '/compress'."""
-        if cmd == SLASH_CMD_DICT["memorise"].get("cmd"):
+        if cmd == SLASH_CMDS_DICT["memorise"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
             result = self.slash_memories.cmd_memorise(
                 prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
             )
             return result if result else None
 
-        if cmd == SLASH_CMD_DICT["recall"].get("cmd"):
+        if cmd == SLASH_CMDS_DICT["recall"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
             result = self.slash_recall.cmd_recall(
                 prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
             )
             return result if result else None
 
-        if cmd == SLASH_CMD_DICT["compress"].get("cmd"):
+        if cmd == SLASH_CMDS_DICT["compress"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
             result = self.slash_compress.cmd_compress(
                 prompt=user_prompt,
@@ -236,7 +221,7 @@ class Agent:
         if cmd:
             # Run budget check and auto compress only when slash command is
             # not '/compress' as it is already a session compression tool call.
-            if cmd != SLASH_CMD_DICT["compress"].get("cmd"):
+            if cmd != SLASH_CMDS_DICT["compress"].get("cmd"):
                 msgs = self._compress_if_over_budget(user_prompt)
 
             return self._route_to_slash_command(

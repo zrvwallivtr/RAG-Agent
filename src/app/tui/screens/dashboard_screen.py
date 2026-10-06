@@ -20,7 +20,7 @@ from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
-from src.app.tui.screens.tui_screen_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
+from src.libs.helpers.tui_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
 
 
 MODEL_ROLES = ["chat_model", "embedding_model"]
@@ -498,8 +498,8 @@ class DashboardScreen(BaseScreen):
             self.notify("Session name cannot be empty.", severity="error")
             return
 
-        from src.agent.chat_logs import ChatLogs
-        chat_logs = ChatLogs(conn=postgres.conn, sess_name=clean_name)
+        from src.agent.chat_logs import ChatSessionLogs
+        chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=clean_name)
 
         try:
             chat_logs.create_session()
@@ -541,8 +541,8 @@ class DashboardScreen(BaseScreen):
 
     def _delete_session(self, sess_name: str) -> None:
         """Delete session."""
-        from src.app.operations import sessions
-        result = sessions.del_sess(sess_name=sess_name)
+        from src.libs.helpers import sessions_helpers
+        result = sessions_helpers.del_sess(sess_name=sess_name)
 
         if result and "fail" in result.lower():
             self.notify(result, severity="error")

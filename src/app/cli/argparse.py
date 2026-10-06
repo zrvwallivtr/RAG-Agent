@@ -51,13 +51,13 @@ def build_parser() -> None:
 
     from src.core import Agent
     from src.agent.models import ollama
-    from src.agent.chat_logs import ChatLogs
+    from src.agent.chat_logs import ChatSessionLogs
     from src.agent import tokenizers
-    from src.app.operations import sessions
+    from src.libs.helpers import sessions_helpers
 
     # Delete default session flag
     if args.delete_default_session:
-        sessions.del_sess()
+        sessions_helpers.del_sess()
         return
 
     # Install model flag
@@ -73,7 +73,7 @@ def build_parser() -> None:
 
     # Create new session flag
     if args.new_session:
-        chat_logs = ChatLogs(conn=postgres.conn, sess_name=args.new_session)
+        chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=args.new_session)
         chat_logs.create_session()
         if not args.prompt:
             return
@@ -83,14 +83,14 @@ def build_parser() -> None:
 
     # Delete session flag
     if args.delete_session:
-        response = sessions.del_sess(args.delete_session)
+        response = sessions_helpers.del_sess(args.delete_session)
         if response:
             print(response)
         return
 
     # List available sessions flag
     if args.list_session:
-        chat_logs = ChatLogs(conn=postgres.conn)
+        chat_logs = ChatSessionLogs(conn=postgres.conn)
         sess_dict = chat_logs.get_all_existing_session_metadata()
         interface.sessions_table(sess_dict)
         return
@@ -108,7 +108,7 @@ def build_parser() -> None:
     # List all uploaded attachment(s) in session
     if args.list_attachments:
         from src.rag import document_knowledge_base
-        chat_logs = ChatLogs(conn=postgres.conn, sess_name=args.session)
+        chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=args.session)
         doc_kw_bs = document_knowledge_base.DocumentKnowledgeBase(
             conn=postgres.conn, chat_logs=chat_logs, sess_name=args.session
         )

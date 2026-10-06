@@ -164,7 +164,7 @@ def build_prompt(
 # FORMATTED CONVERSATIONS FOR MEMORY EXTRACTION
 # ====================================================
 
-def old_and_new_convs(old_convs: list[dict] | None, new_convs: list[dict] | None) -> str:
+def separates_old_new_conversations(old_convs: list[dict] | None, new_convs: list[dict] | None) -> str:
     """Separates and wrap the old and new conversations into a tagged, trust-labeled block."""
     if not old_convs:
         return ""

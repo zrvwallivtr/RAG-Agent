@@ -5,45 +5,28 @@ from typing import Any
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown
 
-from src.config import models
-from src.config import prompts
+from src.config.models import MODEL
 
+from .slash_commands_dictionary import SLASH_CMDS_DICT
+
+from src.libs.helpers.tui_helpers import agent_interface_helper
+
+from src.agent.chat_logs import ChatSessionLogs
+from src.rag.memory import Memory
+from src.rag.knowledge_base import KnowledgeBase, DocumentKnowledgeBase
 from src import format_context
-from src.slash_commands import slash_commands_dictionary
-from src.agent import (
-    ollama,
-    llm,
-    embed,
-    chat_logs,
-)
-from src.rag import (
-    memory,
-    knowledge_base,
-    document_knowledge_base,
-)
-from src.app.tui.screens.tui_screen_helpers import agent_interface_helper
 
 from src.logger import app_logger
 
-
 app_log = app_logger(f"{__name__}.app")
-
-MODEL                       = models.MODEL
-MEM_RECALL_INTERPRET_PROMPT = prompts.MEM_RECALL_INTERPRET_PROMPT
-
-ChatLogs                = chat_logs.ChatLogs
-Memory                  = memory.Memory
-KnowledgeBase           = knowledge_base.KnowledgeBase
-DocumentKnowledgeBase   = document_knowledge_base.DocumentKnowledgeBase
-
-SLASH_CMD_DICT = slash_commands_dictionary.slash_cmds_dict
 
 
 class SlashMemories:
+
     def __init__(
         self,
         conn,
-        chat_logs: ChatLogs,
+        chat_logs: ChatSessionLogs,
         sess_name: str | None = None,
         project: str | None = None
     ):
@@ -52,16 +35,9 @@ class SlashMemories:
         self.project    = project
         self.chat_logs  = chat_logs
 
-        self.mem = Memory(
-            conn=self.conn, chat_logs=self.chat_logs, project=self.project
-        )
-        self.kw_bs = KnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
-        self.doc_kw_bs = DocumentKnowledgeBase(
-            conn=self.conn, chat_logs=self.chat_logs, sess_name=self.sess_name
-        )
-
+        self.mem = Memory(conn=self.conn, chat_logs=self.chat_logs)
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
+        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_logs=self.chat_logs)
 
     def cmd_memorise(
         self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
@@ -83,7 +59,7 @@ class SlashMemories:
         """
         if not prompt:
             app_log.warning(
-                SLASH_CMD_DICT["memorise"].get("no_prompt_warn")
+                SLASH_CMDS_DICT["memorise"].get("no_prompt_warn")
             )
             return
 
@@ -120,14 +96,14 @@ class SlashMemories:
         choice = input("Press [Enter] to continue or type [u] to undo:")
         if choice == "u":
             self.mem.delete_mem(created_ids)
-            app_log.debug(SLASH_CMD_DICT["memorise"].get("removed_info"))
+            app_log.debug(SLASH_CMDS_DICT["memorise"].get("removed_info"))
             return
 
         # Save messages
         # mock_resp = "Information has been extracted and added to database."
         metadata = self.chat_logs.add_conversation_turn(
             prompt=prompt,
-            response=SLASH_CMD_DICT["memorise"].get("mock_response") or "",
+            response=SLASH_CMDS_DICT["memorise"].get("mock_response") or "",
             state="external",
             attchmnts=paths,
             p_tkns=p_tkns,

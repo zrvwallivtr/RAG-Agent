@@ -14,8 +14,8 @@ def trimmed_date(iso_str: str | None) -> str:
 
 def get_session_with_dates(sess_dict: dict, sess_id: str) -> str | None:
     """Return a string containing session last modified at, created at and session name."""
-    from src.agent.chat_logs import ChatLogs
-    chat_logs = ChatLogs(conn=postgres.conn)
+    from src.agent.chat_logs import ChatSessionLogs
+    chat_logs = ChatSessionLogs(conn=postgres.conn)
 
     sess_name = sess_dict[sess_id]["session_name"]
     created_at = trimmed_date(iso_str=sess_dict[sess_id]["created_at"])

@@ -1,14 +1,11 @@
 from pathlib import Path
 from bs4 import BeautifulSoup
 
-from src.config import files_and_directories as files_n_dir
+from src.config.files_and_directories import UPLOAD_DIR
 
 from src.logger import app_logger
 
-
 app_log = app_logger(f"{__name__}.app")
-
-UPLOAD_DIR = files_n_dir.UPLOAD_DIR
 
 
 class PathTraversalError(Exception):
@@ -38,28 +35,28 @@ class BasicParsers:
             # PLAIN TEXT
             ".txt": self.read_txt,
 
-            # LIBREOFFICE
+            # Libreoffice
             # ".odt": self._read_odt,
             # ".ods": self._read_ods,
             # ".odp": self._read_odp,
 
-            # MICROSOFT OFFICE
+            # Microsoft office
             ".docx": self._read_docx,
             ".xlsx": self._read_xlsx,
             # ".pptx": self._read_pptx,
 
-            # DATA & CONFIGURATION FORMATS
+            # Data & configuration formats
             ".csv": self._read_csv,
             ".yaml": self._read_yaml,
             ".yml": self._read_yml,
             ".toml": self._read_toml,
             ".xml": self._read_xml,
             
-            # TEXT DOCUMENTS
+            # Text documents
             ".pdf": self._read_pdf,
             ".epub": self._read_epub,
             
-            # PROGRAMMING
+            # Programming
             ".py": self._read_code,
             ".js": self._read_code,
             ".ts": self._read_code,
@@ -73,14 +70,9 @@ class BasicParsers:
             ".go": self._read_code,
         }
 
+    # Libreoffice
 
-    # =======================================================
-    # LIBREOFFICE
-    # =======================================================
-
-    # =======================================================
-    # MICROSOFT OFFICE
-    # =======================================================
+    # Microsoft office
 
     def _read_docx(self, path: Path) -> str | None:
         """Extracts structural text elements line by line from document."""
@@ -108,7 +100,6 @@ class BasicParsers:
                 e
             )
             return
-
 
     def _read_xlsx(self, path: Path) -> str | None:
         """Extracts text content from spreadsheet row by row."""
@@ -142,35 +133,25 @@ class BasicParsers:
             )
             return
 
-
-    # =======================================================
-    # DATA & CONFIGURATION FORMATS
-    # =======================================================
+    # Data & configuration formats
 
     def _read_csv(self, path: Path) -> str | None:
         """Reads csv as plain text files."""
         return self.read_txt(path, "csv")
 
-
     def _read_yaml(self, path: Path) -> str | None:
         return self.read_txt(path, "yaml")
-
 
     def _read_yml(self, path: Path) -> str | None:
         return self.read_txt(path, "yml")
 
-
     def _read_toml(self, path: Path) -> str | None:
         return self.read_txt(path, "toml")
-
 
     def _read_xml(self, path: Path) -> str | None:
         return self.read_txt(path, "xml")
 
-
-    # =======================================================
     # Text documents
-    # =======================================================
 
     def _read_pdf(self, path: Path) -> str | None:
         """Extracts pdf text content layout page by page."""
@@ -193,7 +174,6 @@ class BasicParsers:
                 e
             )
             return
-
 
     def _read_epub(self, path: Path) -> str | None:
         """Extracts plain text blocks from internal EPUB XHTML document payloads."""
@@ -231,10 +211,7 @@ class BasicParsers:
             )
             return
 
-
-    # =======================================================
-    # PROGRAMMING
-    # =======================================================
+    # Programming
 
     def _read_code(self, path: Path) -> str | None:
         """Reads code files and wraps them in markdown code fences."""
@@ -246,10 +223,7 @@ class BasicParsers:
         md_code_block = f"```{lang}\n{content}\n```"
         return md_code_block
 
-
-    # =======================================================
     # Plain text
-    # =======================================================
 
     def read_txt(self, path: Path, file_type: str = "txt") -> str | None:
         """Reads plain text files using UTF-8 validation."""
@@ -267,10 +241,7 @@ class BasicParsers:
             )
             return
 
-
-    # =======================================================
     # READ
-    # =======================================================
 
     def read_document(self, path: Path) -> str | None:
         """Return file content as a string using mapped parsers."""

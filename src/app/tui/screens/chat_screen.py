@@ -10,12 +10,12 @@ from textual.events import Key
 from src.config import models, postgres, files_and_directories
 
 from src.core import Agent 
-from src.agent.chat_logs import ChatLogs
+from src.agent.chat_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
 from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
 
-from src.app.tui.screens.tui_screen_helpers import size_bytes_helpers, agent_response_helpers
+from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_response_helpers
 
 
 UPLOAD_DIR = Path(files_and_directories.UPLOAD_DIR).expanduser()
@@ -30,7 +30,7 @@ class ChatScreen(BaseScreen):
 
         self.agent = Agent(sess_name=sess_name)
         self.local_tknizr = LocalTokenizer(model=models.MODEL)
-        self.chat_logs = ChatLogs(conn=postgres.conn, sess_name=sess_name)
+        self.chat_logs = ChatSessionLogs(conn=postgres.conn, sess_name=sess_name)
 
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None
@@ -94,7 +94,7 @@ class ChatScreen(BaseScreen):
         self._awaiting_response = True
         if getattr(self, "_token_timer", None):
             self._token_timer.stop()
-        self.query_one("#tokens-counter", Static).update(f"Loading...")
+        self.query_one("#tokens-counter", Static).update(f"Token count loading...")
 
         # Create new user message box with new prompt
         user_msg_box = self._create_user_message_box(Static(prompt))
