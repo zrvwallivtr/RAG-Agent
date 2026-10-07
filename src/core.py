@@ -86,6 +86,7 @@ class Agent:
         cmd: str,
         is_attchmnt: bool,
         paths: list[Path] | None = None,
+        callback: Callable[[str], None] | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -114,7 +115,8 @@ class Agent:
 
             result = self.slash_compress.cmd_compress(
                 prompt=user_prompt, unfmt_prompt=prompt, is_attchmnt=is_attchmnt,
-                paths=paths, in_tui=in_tui, screen=screen, md_widget=md_widget
+                paths=paths, in_tui=in_tui, screen=screen, md_widget=md_widget,
+                callback=callback
             )
             return result if result else None
 
@@ -212,7 +214,7 @@ class Agent:
             return self._route_to_slash_command(
                 prompt=prompt, msgs=msgs, cmd=cmd, user_prompt=user_prompt,
                 is_attchmnt=is_attchmnt, paths=paths, in_tui=in_tui, screen=screen,
-                md_widget=md_widget
+                md_widget=md_widget, callback=callback
             )
 
         prompt_tkns, prompt_tkns, prompt_embdings,is_auto_mem_rtve, is_auto_doc_rtve = (
@@ -243,12 +245,8 @@ class Agent:
 
         # Save messages to database
         metadata = self.chat_sess_logs.add_conversation_turn(
-            prompt=prompt,
-            response=ans,
-            state="external",
-            attchmnts=paths,
-            p_tkns=total_p_tkns,
-            o_tkns=total_o_tkns
+            prompt=prompt, response=ans, state="external", attchmnts=paths,
+            p_tkns=total_p_tkns, o_tkns=total_o_tkns
         )
 
         self.chat_sess_logs.update_session_used_tokens()

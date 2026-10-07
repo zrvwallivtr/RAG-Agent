@@ -1,7 +1,7 @@
 import mimetypes
 import json
 from pathlib import Path
-from typing import Literal, Any
+from typing import Literal, Any, Callable
 
 from src.config.models import MODEL
 from src.config.prompts import SYS_PROMPT, COMPRESS_PROMPT
@@ -124,8 +124,14 @@ class ChatSessionLogs:
         unfmt_prompt: str,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         cmp_method: Literal["default", "instruct"] | None = None,
+        callback: Callable[[str], None] | None = None,
     ):
-        return self.compression.compress(prompt, unfmt_prompt, attchmnt_dict, cmp_method)
+        return self.compression.compress(
+            prompt=prompt, unfmt_prompt=unfmt_prompt, attchmnt_dict=attchmnt_dict,
+            cmp_method=cmp_method, callback=callback
+        )
 
-    def auto_compress_active_conversations(self, unfmt_prompt: str):
-        return self.compression.auto(unfmt_prompt)
+    def auto_compress_active_conversations(
+        self, unfmt_prompt: str, callback: Callable[[str], None] | None = None,
+    ):
+        return self.compression.auto(unfmt_prompt=unfmt_prompt, callback=callback)

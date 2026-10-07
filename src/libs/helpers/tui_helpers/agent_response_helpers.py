@@ -112,12 +112,23 @@ def fetch_agent_response(
     # reveal widget after agent finished responding.
     if result:
         # Format from agent.ask() result
-        _, p_tkns, o_tkns, metadata = result
+        ans, p_tkns, o_tkns, metadata = result
+
+        if not first_tkn_received and isinstance(ans, str):
+            agent_interface_helper.end_loading_and_show_content(
+                screen=screen, md_widget=md_widget, full_txt=ans, chat_container=chat_container
+            )
+
         msg_tol_tkns = p_tkns + o_tkns
         attchmnt_metadata = metadata.get("attachments") if metadata else None
 
         _update_user_message_box(screen=screen, attchmnt_metadata=attchmnt_metadata, user_msg_box=user_msg_box)
         _update_assistant_message_box(screen=screen, tkn_wid=tkn_wid, msg_tol_tkns=msg_tol_tkns)
+    else:
+        # Agent returned nothing, show 'No response' text
+        agent_interface_helper.end_loading_and_show_content(
+            screen=screen, md_widget=md_widget, full_txt="No response", chat_container=chat_container
+        )
 
     # Reset pending attachment status
     screen.app.call_from_thread(screen._reset_pending_attachment_widget)

@@ -86,7 +86,8 @@ def response_with_new_sys_prompt_and_context(
     model: str,
     sys_prompt: str,
     prompt: str | None,
-    contxt: list[dict] | None = None
+    contxt: list[dict] | None = None,
+    callback: Callable[[str], None] | None = None
 ) -> tuple[str, int, int] | None:
     """Combines a system prompt, context and question with model response."""
     if prompt:
@@ -100,15 +101,32 @@ def response_with_new_sys_prompt_and_context(
     else:
         msgs = [system_prompt(sys_prompt)] + usr_prompt
     
-    prompt_log.info(system_prompt)
+    prompt_log.info(sys_prompt)
     prompt_log.info(msgs[-1].get("content", ""))
 
-    response = ollama_clt.chat(model=model, messages=msgs)
-    cont = response.message.content
-    p_tkns = getattr(response, "prompt_eval_count", 0) or 0
-    o_tkns = getattr(response, "eval_count", 0) or 0
+    cont = ""
+    p_tkns = 0
+    o_tkns = 0
+    try:
+        for chunk in ollama_clt.chat(model=model, messages=msgs, stream=True):
+            piece = chunk.message.content or ""
+            if piece:
+                cont += piece
+                if callback:
+                    callback(piece)
 
-    if not response:
+            # The last chunk carries the token counts
+            if getattr(chunk, "done", False):
+                p_tkns = getattr(chunk, "prompt_eval_count", 0) or 0
+                o_tkns = getattr(chunk, "eval_count", 0) or 0
+
+    except Exception as e:
+        app_log.warning(
+            "Model failed to generate response from the provided messages: %s", e, exc_info=True
+        )
+        return
+
+    if not cont:
         app_log.warning("Model failed to generate response from the provided messages")
         return
 

@@ -1,4 +1,4 @@
-from typing import Any, TYPE_CHECKING, Literal
+from typing import Any, TYPE_CHECKING, Literal, Callable
 from pathlib import Path
 
 from src.config.models import MODEL
@@ -36,6 +36,7 @@ class Compression:
         unfmt_prompt: str,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         cmp_method: Literal["default", "instruct"] | None = None,
+        callback: Callable[[str], None] | None = None,
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
         Call model to summarise all conversations where 
@@ -49,7 +50,8 @@ class Compression:
         )
 
         response = llm.response_with_new_sys_prompt_and_context(
-            model=MODEL, sys_prompt=COMPRESS_PROMPT, prompt=cmbind_prompt
+            model=MODEL, sys_prompt=COMPRESS_PROMPT, prompt=cmbind_prompt,
+            callback=callback
         )
 
         if not response:
@@ -74,11 +76,11 @@ class Compression:
 
         return smry, p_tkns, o_tkns, metadata
 
-    def auto(self, unfmt_prompt: str) -> CompressionResult | None:
+    def auto(self, unfmt_prompt: str, callback: Callable[[str], None] | None = None) -> CompressionResult | None:
         """Auto compress session."""
         app_log.info("Chat compression was triggered for session '%s'", self._chat_sess_logs.sess_name)
         prompt = SLASH_CMDS_DICT["compress"].get("default_prompt") or ""
-        result = self.compress(prompt=prompt, unfmt_prompt=unfmt_prompt, cmp_method="default")
+        result = self.compress(prompt=prompt, unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback)
         if not result:
             return
         app_log.info("Auto compression complete. Continuing session")

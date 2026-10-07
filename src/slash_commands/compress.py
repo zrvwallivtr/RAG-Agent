@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown
@@ -65,6 +65,7 @@ class SlashCompress:
         is_attchmnt: bool,
         paths: list[Path] | None,
         unfmt_prompt: str,
+        callback: Callable[[str], None] | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -81,7 +82,7 @@ class SlashCompress:
             in_tui=in_tui, screen=screen, md_widget=md_widget, chat_container=chat_container
         )
 
-        result = self.chat_sess_logs.auto_compress_active_conversations(unfmt_prompt)
+        result = self.chat_sess_logs.auto_compress_active_conversations(unfmt_prompt, callback=callback)
 
         return result if result else None
 
@@ -91,6 +92,7 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
+        callback: Callable[[str], None] | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -108,7 +110,7 @@ class SlashCompress:
 
         result = self.chat_sess_logs.compress_active_conversations(
             prompt=prompt, unfmt_prompt=unfmt_prompt,
-            attchmnt_dict=attchmnt_dict, cmp_method="instruct"
+            attchmnt_dict=attchmnt_dict, cmp_method="instruct", callback=callback
         )
 
         if not result:
@@ -127,6 +129,7 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
+        callback: Callable[[str], None] | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -148,7 +151,7 @@ class SlashCompress:
         if not prompt:
             result = self._run_default_compression(
                 is_attchmnt=is_attchmnt, paths=paths, unfmt_prompt=unfmt_prompt, in_tui=in_tui,
-                screen=screen, md_widget=md_widget, chat_container=chat_container
+                screen=screen, md_widget=md_widget, chat_container=chat_container, callback=callback
             )
             if not result:
                 return
@@ -156,7 +159,8 @@ class SlashCompress:
         else:
             result = self._run_instructed_compression(
                 prompt=prompt, unfmt_prompt=unfmt_prompt, is_attchmnt=is_attchmnt, paths=paths,
-                in_tui=in_tui, screen=screen, md_widget=md_widget, chat_container=chat_container
+                in_tui=in_tui, screen=screen, md_widget=md_widget, chat_container=chat_container,
+                callback=callback
             )
             if not result:
                 return
