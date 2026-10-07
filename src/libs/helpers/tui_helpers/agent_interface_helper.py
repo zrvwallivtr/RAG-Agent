@@ -16,8 +16,8 @@ def show_loading_indicator(
     screen.app.call_from_thread(md_widget.update, info)
 
     # Go to bottom (optional)
-    if is_scroll_end and chat_container:
-        chat_container.scroll_end(animate=False)
+    if is_scroll_end and chat_container is not None:
+        screen.app.call_from_thread(chat_container.scroll_end, animate=False)
 
 
 def end_loading_and_show_content(
@@ -27,8 +27,12 @@ def end_loading_and_show_content(
     Update the assistant message box to show model response. Only call after
     model start streaming tokens.
     """
-    screen.app.call_from_thread(md_widget.update, full_txt)
-    screen.app.call_from_thread(chat_container.scroll_end, animate=False)
+    def _update():
+        md_widget.update(full_txt)
+        if chat_container is not None:
+            chat_container.scroll_end(animate=False)
+
+    screen.app.call_from_thread(_update)
 
 
 def show_info(screen, info: str):

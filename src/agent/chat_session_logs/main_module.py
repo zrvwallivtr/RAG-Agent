@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 from typing import Literal, Any
 
-from src.config import models
-from src.config import prompts
+from src.config.models import MODEL
+from src.config.prompts import SYS_PROMPT, COMPRESS_PROMPT
 
 from .schema import ensure_schema
 from .compression import Compression
@@ -20,27 +20,23 @@ from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-MODEL           = models.MODEL
-SYS_PROMPT      = prompts.SYS_PROMPT
-COMPRESS_PROMPT = prompts.COMPRESS_PROMPT
-
 _sys_prompt_tkns: int | None = None
 
 
 class ChatSessionLogs:
     def __init__(self, conn, sess_name: str | None = None):
         self.conn = conn
-        self.cur  = self.conn.cursor()  # some model still uses this
 
         self.model      = MODEL
         self.sys_prompt = SYS_PROMPT
         self.cmp_prompt = COMPRESS_PROMPT
-        self.sess_name = sess_name.strip() if sess_name else "default_session"
+        self.sess_name  = sess_name.strip() if sess_name else "default_session"
 
         self.local_tknizr = LocalTokenizer(model=self.model)
 
         ensure_schema(self.conn)
 
+        # Chat session classes
         self.write_chat_sess = WriteChatSessions(
             conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
         )
@@ -48,6 +44,7 @@ class ChatSessionLogs:
             conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
         )
 
+        # Chat log classes
         self.read_chat_logs = ReadChatLogs(
             conn=self.conn, lookup_chat_sess=self.lookup_chat_sess, sys_prompt=self.sys_prompt
         )
@@ -86,8 +83,10 @@ class ChatSessionLogs:
     def create_session(self):
         return self.write_chat_sess.create()
 
-    def update_session_used_tokens(self, n: int):
-        return self.write_chat_sess.update_used_tokens(n)
+    def update_session_used_tokens(self):
+        msgs = self.get_active_conversations()
+        sess_used_tkns = self.local_tknizr.count_history_tokens(msgs)
+        return self.write_chat_sess.update_used_tokens(sess_used_tkns or 0)
 
     # Read chat logs
 
@@ -119,8 +118,14 @@ class ChatSessionLogs:
 
     # Compression section
 
-    def compress_active_conversations(self, prompt: str, context: list[dict] | None = None):
-        return self.compression.compress(prompt, context)
+    def compress_active_conversations(
+        self,
+        prompt: str,
+        unfmt_prompt: str,
+        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
+        cmp_method: Literal["default", "instruct"] | None = None,
+    ):
+        return self.compression.compress(prompt, unfmt_prompt, attchmnt_dict, cmp_method)
 
-    def auto_compress_active_conversations(self):
-        return self.compression.auto()
+    def auto_compress_active_conversations(self, unfmt_prompt: str):
+        return self.compression.auto(unfmt_prompt)

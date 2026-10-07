@@ -49,13 +49,17 @@ class Memory:
             return
         return self.query_similar_content(prompt, prompt_embdings)
 
+    # This should ONLY read the current conversation turn as context
+    # (Auto store memory runs automatically for every conversation turns.)
     def toggle_auto_store_memory_entries(
         self,
         enable_auto_memory_store: bool,
         model_max_tokens: int,
         contxt: list[dict],
     ):
-        """Auto store memory no prompts needed. Only calls at end of every conversations."""
+        """
+        Auto store memory no prompts needed. Only calls at end of every conversations.
+        """
         if enable_auto_memory_store == False:
             return
 

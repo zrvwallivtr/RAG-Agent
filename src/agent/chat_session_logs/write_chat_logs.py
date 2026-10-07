@@ -30,7 +30,15 @@ class WriteChatLogs:
         prompt: str,
         response: str,
         state: Literal["external", "internal"],
+
+        # Tool calls
         attchmnts: list[Path] | None = None,
+        unfmt_mem_prompt: str | None = None,
+        unfmt_recall_prompt: str | None = None,
+        unfmt_cmp_prompt: str | None = None,
+        cmp_method: Literal["default", "instruct"] | None = None,
+
+        # Token counts
         p_tkns: int = 0,
         o_tkns: int = 0
     ) -> dict[str, dict[str, Any]]:
@@ -39,7 +47,11 @@ class WriteChatLogs:
         into the specified session database table. Return
         the all tool calls metadata.
         """
-        metadata = ToolCallsMetadata.all_tool_calls(attchmnts)
+        metadata = ToolCallsMetadata.all_tool_calls(
+            attchmnts=attchmnts, unfmt_mem_prompt=unfmt_mem_prompt,
+            unfmt_recall_prompt=unfmt_recall_prompt,
+            unfmt_cmp_prompt=unfmt_cmp_prompt, cmp_method=cmp_method
+        )
 
         execute(
             conn=self._conn,

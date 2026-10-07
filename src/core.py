@@ -7,12 +7,13 @@ from src.config.postgres import conn
 from src.config.models import MODEL
 
 from src.libs.helpers import chat_database_helpers, slash_commands_helpers
+from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base import KnowledgeBase
 from src.agent.tokenizers import LocalTokenizer
 from src.rag.memory import Memory
-from src.slash_commands import SlashMemories, SlashRecall, SlashCompress, SLASH_CMDS_DICT
+from src.slash_commands import SlashMemories, SlashRecall, SlashCompress
 from src.agent.models.llm import user_message, model_response
 from src.agent.models.embed import embedding_content
 from src import format_context
@@ -46,16 +47,9 @@ class Agent:
         self.local_tknizr = LocalTokenizer(MODEL)
 
         # Slash command classes
-        self.slash_memories = SlashMemories(
-            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
-        )
-        self.slash_recall = SlashRecall(
-            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
-        )
-        self.slash_compress = SlashCompress(
-            conn=self.conn, chat_logs=self.chat_sess_logs, sess_name=self.sess_name
-        )
-
+        self.slash_memories = SlashMemories(conn=self.conn, chat_logs=self.chat_sess_logs)
+        self.slash_recall = SlashRecall(conn=self.conn, chat_logs=self.chat_sess_logs)
+        self.slash_compress = SlashCompress(conn=self.conn, chat_logs=self.chat_sess_logs)
 
     def _is_over_budget(self, msgs: list[dict], prompt: str, reserve: int) -> bool:
         """
@@ -75,7 +69,6 @@ class Agent:
         est_next = len(prompt) // 4
         return hist_tkns + est_next + reserve > max_tkns
 
-
     def _compress_if_over_budget(self, prompt: str) -> list[dict]:
         """Compress the session if history + prompt + reserve exceeds the limit. Returns the history."""
         msgs = self.chat_sess_logs.get_active_conversations()
@@ -85,12 +78,12 @@ class Agent:
             msgs = self.chat_sess_logs.get_active_conversations()
         return msgs
 
-
     def _route_to_slash_command(
         self,
+        prompt: str,
+        user_prompt: str,  # Without slash command
         msgs: list[dict],
         cmd: str,
-        user_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None = None,
 
@@ -102,30 +95,28 @@ class Agent:
         """Route to slash command for '/memorise', '/recall' and '/compress'."""
         if cmd == SLASH_CMDS_DICT["memorise"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
+
             result = self.slash_memories.cmd_memorise(
-                prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+                prompt=user_prompt, unfmt_prompt=prompt, is_attchmnt=is_attchmnt, paths=paths
             )
             return result if result else None
 
         if cmd == SLASH_CMDS_DICT["recall"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
+
             result = self.slash_recall.cmd_recall(
-                prompt=user_prompt, is_attchmnt=is_attchmnt, paths=paths
+                prompt=user_prompt, unfmt_prompt=prompt, is_attchmnt=is_attchmnt, paths=paths
             )
             return result if result else None
 
         if cmd == SLASH_CMDS_DICT["compress"].get("cmd"):
             app_log.debug("'%s' command triggered", cmd)
+
             result = self.slash_compress.cmd_compress(
-                prompt=user_prompt,
-                is_attchmnt=is_attchmnt,
-                paths=paths,
-                in_tui=in_tui,
-                screen=screen,
-                md_widget=md_widget
+                prompt=user_prompt, unfmt_prompt=prompt, is_attchmnt=is_attchmnt,
+                paths=paths, in_tui=in_tui, screen=screen, md_widget=md_widget
             )
             return result if result else None
-
 
     def _embedding_content_retrieval_controller(
         self, prompt: str, is_auto_mem_rtve: bool, is_auto_doc_rtve: bool
@@ -150,7 +141,6 @@ class Agent:
             is_auto_doc_rtve = False # Turn off auto document chunk retrieve
 
         return prompt, prompt_tkns, prompt_embdings, is_auto_mem_rtve, is_auto_doc_rtve
-
 
     def _combine_context(
         self,
@@ -184,7 +174,6 @@ class Agent:
         if attchmnt_dict:
             return cmbind_prompt, attchmnt_dict
         return cmbind_prompt, None
-
 
     def ask(
         self,
@@ -221,20 +210,14 @@ class Agent:
                 msgs = self._compress_if_over_budget(user_prompt)
 
             return self._route_to_slash_command(
-                msgs=msgs,
-                cmd=cmd,
-                user_prompt=user_prompt,
-                is_attchmnt=is_attchmnt,
-                paths=paths,
-                in_tui=in_tui,
-                screen=screen,
+                prompt=prompt, msgs=msgs, cmd=cmd, user_prompt=user_prompt,
+                is_attchmnt=is_attchmnt, paths=paths, in_tui=in_tui, screen=screen,
                 md_widget=md_widget
             )
 
         prompt_tkns, prompt_tkns, prompt_embdings,is_auto_mem_rtve, is_auto_doc_rtve = (
             self._embedding_content_retrieval_controller(
-                prompt=prompt,
-                is_auto_mem_rtve=is_auto_mem_rtve,
+                prompt=prompt, is_auto_mem_rtve=is_auto_mem_rtve,
                 is_auto_doc_rtve=is_auto_doc_rtve
             )
         )
@@ -242,12 +225,8 @@ class Agent:
         # Combine all context, check token count and bundle them
         # into messages for model to answer.
         combine_prompt, attchmnt_dict = self._combine_context(
-            prompt=prompt,
-            prompt_embdings=prompt_embdings,
-            is_auto_mem_rtve=is_auto_mem_rtve,
-            is_auto_doc_rtve=is_auto_doc_rtve,
-            is_attchmnt=is_attchmnt,
-            paths=paths
+            prompt=prompt, prompt_embdings=prompt_embdings, is_auto_mem_rtve=is_auto_mem_rtve,
+            is_auto_doc_rtve=is_auto_doc_rtve, is_attchmnt=is_attchmnt, paths=paths
         )
         msgs = self._compress_if_over_budget(combine_prompt)
         msgs.append(user_message(combine_prompt))
@@ -272,11 +251,7 @@ class Agent:
             o_tkns=total_o_tkns
         )
 
-        # Update chat session table in database
-        with self.conn.cursor() as cur:
-            chat_database_helpers.update_session_used_tokens_on_prompt_submitted(
-                chat_sess_logs=self.chat_sess_logs, local_tknizr=self.local_tknizr, cur=cur
-            )
+        self.chat_sess_logs.update_session_used_tokens()
 
         # Store memory
         # self.memory.toggle_auto_store_memory_entries(

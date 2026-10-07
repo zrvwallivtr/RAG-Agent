@@ -4,8 +4,10 @@ from textual import work
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Input, Markdown, Button
 
+from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
+
 from src.core import Agent
-from src.slash_commands import slash_commands_helpers, slash_commands_dictionary, SLASH_CMDS_DICT
+from src.slash_commands import slash_commands_helpers
 
 from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_interface_helper
 

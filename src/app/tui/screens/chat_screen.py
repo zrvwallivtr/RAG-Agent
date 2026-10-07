@@ -9,21 +9,23 @@ from textual.events import Key
 
 from src.config import models, postgres, files_and_directories
 
+from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_response_helpers
+from src.libs.slash_commands_dictionary import AVA_SLASH_CMDS
+
 from src.core import Agent 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
 from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
+from src import logger
 
-from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_response_helpers
-
+app_log = logger.app_logger(f"{__name__}.app")
 
 UPLOAD_DIR = Path(files_and_directories.UPLOAD_DIR).expanduser()
 
 
 class ChatScreen(BaseScreen):
     CSS_PATH = "tcss/chat.tcss"
-
 
     def __init__(self, sess_name: str | None):
         super().__init__()
@@ -70,6 +72,7 @@ class ChatScreen(BaseScreen):
         """Load entire history into the chat container on start up."""
         self._load_chat_history()
         self._refresh_session_token_cache()
+        self._static_update_session_used_tokens_widget()
 
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -208,19 +211,24 @@ class ChatScreen(BaseScreen):
     def _create_user_message_box(
         self,
         cont_widget: Static | Markdown,
-        attchmnt_metadata: dict | None = None
+        attchmnt_metadata: dict | None = None,
+        slash_cmd_metadata: dict | None = None,
     ) -> Vertical:
         """
-        Contains the content sent from the user, show widget
-        if attachments was attached in that conversation turn.
+        Contains the content sent from the user, show widget if attachments was
+        attached in that conversation turn.
         """
         widgets = [cont_widget]
 
         if attchmnt_metadata:
-            for filename, metadata in attchmnt_metadata.items():
-                size = metadata.get("size_bytes")
+            for filename, a_metadata in attchmnt_metadata.items():
+                size = a_metadata.get("size_bytes")
                 fmt_size = size_bytes_helpers.format_size_bytes(size)
                 widgets.append(Static(f"{filename} ({fmt_size})", classes="user-attachments"))
+
+        if slash_cmd_metadata:
+            unfmt_prompt = slash_cmd_metadata.get("unformatted_prompt")
+            widgets[0] = Static(unfmt_prompt)  # Replace the prompt with unformatted prompt
 
         return Vertical(*widgets, classes=f"msg-box user-box")
 
@@ -258,10 +266,12 @@ class ChatScreen(BaseScreen):
             tol_tkns = p_tkns + o_tkns
 
             attchmnt_metadata = msg.get("attachments", {}) or None
+            slash_cmd_metadata = next((msg[k] for k in AVA_SLASH_CMDS if k in msg), {}) or None
 
             if role == "user":
                 msg_box = self._create_user_message_box(
-                    cont_widget=Static(cont), attchmnt_metadata=attchmnt_metadata
+                    cont_widget=Static(cont), attchmnt_metadata=attchmnt_metadata,
+                    slash_cmd_metadata=slash_cmd_metadata
                 )
                 chat_container.mount(msg_box)
 
@@ -437,6 +447,7 @@ class ChatScreen(BaseScreen):
         tokens counter widget in the user section.
 
         ONLY call this when:
+        - On mount.
         - Model done responding.
         """
         self._awaiting_response = False

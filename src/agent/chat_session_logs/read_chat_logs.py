@@ -2,11 +2,14 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
+from src.libs.slash_commands_dictionary import AVA_SLASH_CMDS
+
+from .metadata import ToolCallsMetadata
+from .lookup_chat_sessions import LookupChatSessions
+
 from src.agent.models import llm
 from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
-from .metadata import ToolCallsMetadata
-from .lookup_chat_sessions import LookupChatSessions
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -92,9 +95,20 @@ class ReadChatLogs:
             return None
 
         convs = []
-        for prompt, response, p_tkns, o_tkns, data in rows:
-            attchmnts = data.get("attachments") if data else {}
-            convs.append({"role": "user", "content": prompt, "attachments": attchmnts})
+        for prompt, response, p_tkns, o_tkns, metadata in rows:
+            metadata = metadata or {}
+            user_msg = ({
+                "role": "user",
+                "content": prompt,
+                "attachments": metadata.get("attachments")
+            })
+
+            for key in AVA_SLASH_CMDS:
+                if key in metadata:
+                    user_msg[key] = metadata[key]
+                    break
+
+            convs.append(user_msg)
             convs.append({
                 "role": "assistant",
                 "content":response,

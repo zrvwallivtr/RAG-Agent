@@ -8,8 +8,7 @@ from textual.widgets import Markdown
 from src.config.models import MODEL
 from src.config.prompts import MEM_RECALL_INTERPRET_PROMPT
 
-from .slash_commands_dictionary import SLASH_CMDS_DICT
-
+from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
 from src.agent.chat_session_logs import ChatSessionLogs
@@ -31,20 +30,15 @@ class SlashRecall:
         self,
         conn,
         chat_logs: ChatSessionLogs,
-        sess_name: str | None = None,
         project: str | None = None
     ):
         self.conn       = conn
-        self.sess_name  = sess_name.strip() if sess_name else "default_session"
-        self.project    = project
-        self.chat_sess_logs  = chat_logs
+        self.chat_sess_logs = chat_logs
 
         self.mem = Memory(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
-        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
-        self.doc_kw_bs = DocumentKnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
 
     def cmd_recall(
-        self, prompt: str, is_attchmnt: bool, paths: list[Path] | None
+        self, prompt: str, unfmt_prompt: str, is_attchmnt: bool, paths: list[Path] | None
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
         Retrieve and print relevant entries according to user prompt.
@@ -83,6 +77,7 @@ class SlashRecall:
             prompt=prompt,
             response=ans,
             state="external",
+            unfmt_recall_prompt=unfmt_prompt,
             p_tkns=p_tkns,
             o_tkns=o_tkns
             # /// Add embed tokens log ///
