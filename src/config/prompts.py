@@ -38,12 +38,12 @@ def _prioritise_custom_prompt(
 
 
 # System prompt directories
-SYS_PROMPT_DIR      = PROMPT_DIR / "system"
-CUS_SYS_PROMPT_DIR  = CUS_PROMPT_DIR / "system"
+SYS_PROMPT_DIR     = PROMPT_DIR / "system"
+CUS_SYS_PROMPT_DIR = CUS_PROMPT_DIR / "system"
 
 # Memory prompt directories
-MEM_PROMPT_DIR      = PROMPT_DIR / "memory"
-CUS_MEM_PROMPT_DIR  = CUS_PROMPT_DIR / "memory"
+MEM_PROMPT_DIR     = PROMPT_DIR / "memory"
+CUS_MEM_PROMPT_DIR = CUS_PROMPT_DIR / "memory"
 
 # Compression prompt directories
 COMPRESS_PROMPT_DIR     = PROMPT_DIR / "chat_compression"

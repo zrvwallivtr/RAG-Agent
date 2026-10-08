@@ -14,7 +14,7 @@ from src.rag.knowledge_base import KnowledgeBase
 from src.agent.tokenizers import LocalTokenizer
 from src.rag.memory import Memory
 from src.slash_commands import SlashMemories, SlashRecall, SlashCompress
-from src.agent.models.llm import user_message, model_response
+from src.agent.models.llm import user_message, model_response, TokenCallback
 from src.agent.models.embed import embedding_content
 from src import format_context
 
@@ -74,7 +74,7 @@ class Agent:
         msgs = self.chat_sess_logs.get_active_conversations()
         if self._is_over_budget(msgs=msgs, prompt=prompt, reserve=TOKEN_RESERVE):
             app_log.info("Current tokens exceeds threshold")
-            self.chat_sess_logs.auto_compress_active_conversations()
+            self.chat_sess_logs.auto_compress_active_conversations(unfmt_prompt="")
             msgs = self.chat_sess_logs.get_active_conversations()
         return msgs
 
@@ -86,7 +86,7 @@ class Agent:
         cmd: str,
         is_attchmnt: bool,
         paths: list[Path] | None = None,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -185,7 +185,7 @@ class Agent:
         is_auto_doc_rtve: bool = True,
         is_auto_web_sear: bool = False,
         is_attchmnt: bool = False,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
         paths: list[Path] | None = None,
 
         # TUI related
@@ -237,7 +237,10 @@ class Agent:
         response = model_response(model=MODEL, msgs=msgs, callback=callback)
         if not response:
             return
-        ans, p_tkns, o_tkns = response
+        ans, p_tkns, o_tkns, is_stopped = response
+
+        if is_stopped is True:
+            return None
 
         # Calculate total tokens
         total_p_tkns = prompt_tkns + p_tkns

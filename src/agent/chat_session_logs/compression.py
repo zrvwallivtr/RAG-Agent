@@ -11,8 +11,8 @@ from src import format_context
 from src.agent.tokenizers import LocalTokenizer
 from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 from src.agent.models import llm
+from src.agent.models.llm import TokenCallback
 from src import logger
-
 
 if TYPE_CHECKING:
     from .main_module import ChatSessionLogs
@@ -36,7 +36,7 @@ class Compression:
         unfmt_prompt: str,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         cmp_method: Literal["default", "instruct"] | None = None,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
         Call model to summarise all conversations where 
@@ -49,14 +49,17 @@ class Compression:
             cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed")
         )
 
-        response = llm.response_with_new_sys_prompt_and_context(
+        response = llm.model_response_with_new_system_prompt_and_context(
             model=MODEL, sys_prompt=COMPRESS_PROMPT, prompt=cmbind_prompt,
             callback=callback
         )
 
         if not response:
             return
-        smry, p_tkns, o_tkns = response
+        smry, p_tkns, o_tkns, is_stopped = response
+
+        if is_stopped is True:
+            return None
 
         app_log.debug("Chat compression complete. Updating chat logs metadata")
 
@@ -76,11 +79,18 @@ class Compression:
 
         return smry, p_tkns, o_tkns, metadata
 
-    def auto(self, unfmt_prompt: str, callback: Callable[[str], None] | None = None) -> CompressionResult | None:
+    def auto(
+        self, unfmt_prompt: str, callback: TokenCallback | None = None
+    ) -> CompressionResult | None:
         """Auto compress session."""
-        app_log.info("Chat compression was triggered for session '%s'", self._chat_sess_logs.sess_name)
+        app_log.info(
+            "Chat compression was triggered for session '%s'",
+            self._chat_sess_logs.sess_name
+        )
         prompt = SLASH_CMDS_DICT["compress"].get("default_prompt") or ""
-        result = self.compress(prompt=prompt, unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback)
+        result = self.compress(
+            prompt=prompt, unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback
+        )
         if not result:
             return
         app_log.info("Auto compression complete. Continuing session")

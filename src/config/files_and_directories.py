@@ -3,17 +3,14 @@ import shutil
 import tomllib
 from pathlib import Path
 
+APP_NAME = "agent"
 
 # Static assets
 MAIN_DIR        = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(__file__).resolve().parent.parent.parent
 PROMPT_DIR      = MAIN_DIR / "src" / "prompts"
 DEFAULT_CONFIG  = MAIN_DIR / "config.toml"
 
-
 # Application directory
-
-APP_NAME = "agent"
-
 APP_DIR         = Path.home() / f".{APP_NAME}"
 CONFIG_FILE     = APP_DIR / "config.toml"
 UPLOAD_DIR      = APP_DIR / "uploads"
@@ -21,7 +18,6 @@ ENV_PATH        = APP_DIR / ".env"
 APP_DATA_DIR    = APP_DIR / "data"
 CUS_PROMPT_DIR  = APP_DATA_DIR / "prompts"
 TOKENIZERS_DIR  = APP_DIR / "tokenizers"
-
 LOG_DIR         = APP_DIR / "logs"
 APP_LOG_FILE    = LOG_DIR / "app.log"
 PROMPT_LOG_FILE = LOG_DIR / "prompts.log"

@@ -17,7 +17,11 @@ app_log = app_logger(f"{__name__}.app")
 
 class StoreDocuments:
     def __init__(
-        self, conn, chat_sess_logs: ChatSessionLogs, doc_reader: DocumentReader, query_docs: QueryDocuments
+        self,
+        conn,
+        chat_sess_logs: ChatSessionLogs,
+        doc_reader: DocumentReader,
+        query_docs: QueryDocuments
     ):
         self._conn = conn
 

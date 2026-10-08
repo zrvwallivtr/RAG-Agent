@@ -34,7 +34,7 @@ If the agent does not know the model's token limit (either form built in or spec
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `enable_auto_read_dropbox` | `true` | Parse attachments with Docling. When `false`, the basic parsers are used instead. |
+| `retrieve_entry_limit` | `3` | Maximum number of entries in the knowledge base retrieved per auto retrieve. |
 | `enable_docling` | `true` | Automatically read files from the dropbox (`~/.agent/uploads`) directory. |
 | `auto_read_dropbox_enable_at_model_tokens` | `128000` | Minimum model token limit required for automatic reading. |
 
@@ -45,27 +45,27 @@ If the agent does not know the model's token limit (either form built in or spec
 
 ollama_host = "http://localhost:11434"
 
-model     = "ministral_3b:latest"
+model     = "ministral-3:3b"
 embedding = "nomic-embed-text"
 
 # Optional token limits
-# model_max_tokens =
-# pm_max_tokens    =
+# model_max_tokens      =
+# embedding_max_tokens  =
+
+fallback_tokenizer  = "gpt2"
+
 
 [memory]
+
 retrieve_entry_limit                        = 3
 auto_memory_store_enable_at_model_tokens    = 128000
 enable_auto_memory_retrieve                 = true
 enable_auto_memory_store                    = true
 
-[file_reader]
-auto_read_dropbox_enable_at_model_tokens    = 128000
-enable_auto_read_dropbox                    = true
 
-[search]
-engine                                  = "http://localhost:8080/search"
-max_results                             = 3
-max_char_per_page                       = 3000
-auto_web_search_enable_at_model_tokens  = 128000
-enable_auto_web_search                  = true
+[file_reader]
+
+retrieve_entry_limit                        = 3
+enable_auto_read_dropbox                    = true
+enable_docling                              = true
 ```

@@ -1,4 +1,5 @@
 import shlex
+import threading
 from pathlib import Path
 
 from textual import work
@@ -37,6 +38,8 @@ class ChatScreen(BaseScreen):
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None
         self.pending_attchmnt: list[Path] = []
+        self.stop_event = threading.Event()
+
         self._cached_sess_tkns: int = 0
         self._awaiting_response = False
 
@@ -62,6 +65,9 @@ class ChatScreen(BaseScreen):
                         self._create_session_used_tokens_widget(), id="tokens-counter", classes="user-item"
                     )
 
+                    # Button for stop model response
+                    yield Button("Stop", id="stop-button", classes="hidden")
+
                 # Prompt input bar
                 yield Input(placeholder="Write a message...", id="prompt-input", select_on_focus=False)
 
@@ -69,14 +75,16 @@ class ChatScreen(BaseScreen):
 
 
     def on_mount(self) -> None:
-        """Load entire history into the chat container on start up."""
         self._load_chat_history()
         self._refresh_session_token_cache()
         self._static_update_session_used_tokens_widget()
+        self.query_one("#stop-button", Button).add_class("hidden")
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "stop-button":
+            self._request_stop()
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Contains actions only for content change in prompt input bar."""
         if event.input.id != "prompt-input" or self._awaiting_response:
             return
 
@@ -85,7 +93,6 @@ class ChatScreen(BaseScreen):
 
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Contains actions only for prompt submitted by user."""
         if event.input.id != "prompt-input":
             return
 
@@ -98,6 +105,12 @@ class ChatScreen(BaseScreen):
         if getattr(self, "_token_timer", None):
             self._token_timer.stop()
         self.query_one("#tokens-counter", Static).update(f"Token count loading...")
+
+        # Update widget to show stop button widget
+        self.stop_event.clear()
+        stop_btn = self.query_one("#stop-button", Button)
+        stop_btn.disabled = False
+        stop_btn.remove_class("hidden")
 
         # Create new user message box with new prompt
         user_msg_box = self._create_user_message_box(Static(prompt))
@@ -191,6 +204,9 @@ class ChatScreen(BaseScreen):
             if self.pending_key == None:
                 prompt_input.focus()
                 self.pending_key = None
+
+        # if event.key == "escape" and self._awaiting_response:
+        #     self._request_stop()
 
         else:
             self.pending_key = None
@@ -458,6 +474,15 @@ class ChatScreen(BaseScreen):
             f"{self._cached_sess_tkns}/{self.local_tknizr.model_max_tkns} tokens"
         )
 
+    # Stop model request button
+
+    def _request_stop(self) -> None:
+        if not self._awaiting_response:
+            return
+        self.stop_event.set()
+        self.query_one("#stop-button", Button).disabled = True  # No double clicks
+        self.notify("Stopping...")
+
 
     # The following controls the behaviour of the assistant message box
     # when the model is responding.
@@ -485,3 +510,4 @@ class ChatScreen(BaseScreen):
 
         finally: # After model done responding
             self.app.call_from_thread(self._static_update_session_used_tokens_widget)
+            self.query_one("#stop-button", Button).add_class("hidden")

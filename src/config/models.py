@@ -55,7 +55,7 @@ def _set_model_tokens(
     return model, model_max_tokens
 
 
-OLLAMA_HOST = _cfg["models"]["ollama_host"] # URL for ollama docker service
+OLLAMA_HOST = _cfg["models"]["ollama_host"]  # URL for ollama docker service
 
 # LLM
 MODEL, MODEL_MAX_TOKENS = _set_model_tokens(

@@ -5,7 +5,8 @@ ollama_host = "http://localhost:11434"
 model     = "ministral-3:3b"
 embedding = "nomic-embed-text"
 
-# model_max_tokens       =
+# Optional token limits
+# model_max_tokens      =
 # embedding_max_tokens  =
 
 fallback_tokenizer  = "gpt2"
@@ -22,6 +23,5 @@ enable_auto_memory_store                    = true
 [file_reader]
 
 retrieve_entry_limit                        = 3
-auto_read_dropbox_enable_at_model_tokens    = 128000
 enable_auto_read_dropbox                    = true
 enable_docling                              = true

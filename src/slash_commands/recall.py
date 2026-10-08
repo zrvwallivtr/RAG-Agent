@@ -12,7 +12,7 @@ from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.agent.models.llm import response_memory_recall_format
+from src.agent.models.llm import model_response_memory_recall_format
 from src.agent.models.embed import embedding_content
 from src.rag.memory import Memory
 from src.rag.knowledge_base import KnowledgeBase, DocumentKnowledgeBase
@@ -65,12 +65,16 @@ class SlashRecall:
         mem_list = self.mem.query_similar_content(qry=prompt, qry_embdings=prompt_embdings)
 
         # Interpret recalled memories
-        ans, p_tkns, o_tkns = response_memory_recall_format(
-            model=MODEL,
-            sys_prompt=MEM_RECALL_INTERPRET_PROMPT,
-            prompt=prompt,
-            context=msgs
+        response = model_response_memory_recall_format(
+            model=MODEL, sys_prompt=MEM_RECALL_INTERPRET_PROMPT,
+            prompt=prompt, context=msgs
         )
+        if not response:
+            return
+        ans, p_tkns, o_tkns, is_stopped = response
+
+        if is_stopped is True:
+            return None
 
         # Save messages
         metadata = self.chat_sess_logs.add_conversation_turn(

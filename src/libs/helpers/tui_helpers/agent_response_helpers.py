@@ -82,9 +82,12 @@ def fetch_agent_response(
     full_txt = ""
     first_tkn_received = False # Checker for when to swap spinner to message box
 
-    def on_token(tkn: str) -> None:
+    def on_token(tkn: str) -> bool | None:
         """Remove loading indicator when first token is received, then start token streaming."""
         nonlocal full_txt, first_tkn_received
+
+        if screen.stop_event.is_set():
+            return False  # Stop streaming
 
         # If checker is still false
         if not first_tkn_received:
@@ -108,13 +111,21 @@ def fetch_agent_response(
         md_widget=md_widget
     )
 
+    is_stopped = screen.stop_event.is_set()
+
     # Update number of tokens used from current response,
     # reveal widget after agent finished responding.
     if result:
         # Format from agent.ask() result
         ans, p_tkns, o_tkns, metadata = result
 
-        if not first_tkn_received and isinstance(ans, str):
+        if is_stopped and first_tkn_received:
+            agent_interface_helper.end_loading_and_show_content(
+                screen=screen, md_widget=md_widget, full_txt=f"{full_txt}\n\n*(stopped)*",
+                chat_container=chat_container
+            )
+
+        elif not first_tkn_received and isinstance(ans, str):
             agent_interface_helper.end_loading_and_show_content(
                 screen=screen, md_widget=md_widget, full_txt=ans, chat_container=chat_container
             )
@@ -124,10 +135,13 @@ def fetch_agent_response(
 
         _update_user_message_box(screen=screen, attchmnt_metadata=attchmnt_metadata, user_msg_box=user_msg_box)
         _update_assistant_message_box(screen=screen, tkn_wid=tkn_wid, msg_tol_tkns=msg_tol_tkns)
+
     else:
         # Agent returned nothing, show 'No response' text
         agent_interface_helper.end_loading_and_show_content(
-            screen=screen, md_widget=md_widget, full_txt="No response", chat_container=chat_container
+            screen=screen, md_widget=md_widget, 
+            full_txt="No response" if is_stopped else "No response",
+            chat_container=chat_container
         )
 
     # Reset pending attachment status

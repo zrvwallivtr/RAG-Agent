@@ -11,7 +11,7 @@ from src.libs.helpers.database_helpers import fetch_one, execute
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
 from src.logger import app_logger, prompt_logger
-from src.agent.models.llm import user_message, response_with_new_sys_prompt_and_context
+from src.agent.models.llm import user_message, model_response_with_new_system_prompt_and_context
 from src.format_context import separates_old_new_conversations
 
 app_log = app_logger(f"{__name__}.app")
@@ -148,7 +148,7 @@ class StoreEntries:
             )
 
             # Model extracts key information from formatted prompt
-            response = response_with_new_sys_prompt_and_context(
+            response = model_response_with_new_system_prompt_and_context(
                 model=MODEL, sys_prompt=system_prompt, prompt=fmt_prompt
             )
 

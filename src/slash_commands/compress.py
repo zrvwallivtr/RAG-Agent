@@ -9,6 +9,7 @@ from src.config.models import MODEL
 from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 from src.libs.helpers.tui_helpers import agent_interface_helper
 
+from src.agent.models.llm import TokenCallback
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.chat_session_logs.compression import CompressionResult
 from src.rag.knowledge_base import DocumentKnowledgeBase
@@ -65,7 +66,7 @@ class SlashCompress:
         is_attchmnt: bool,
         paths: list[Path] | None,
         unfmt_prompt: str,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
 
         # TUI related
         in_tui: bool | None = None,
@@ -92,7 +93,7 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
 
         # TUI related
         in_tui: bool | None = None,

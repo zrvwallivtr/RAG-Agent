@@ -4,14 +4,16 @@ from typing import Callable
 from src.agent.models.ollama import ollama_clt
 from src.logger import app_logger, prompt_logger
 
-
 app_log     = app_logger(f"{__name__}.app")
 prompt_log  = prompt_logger(f"{__name__}.prompt")
 
+# Type hints
+ModelResult = tuple[str, int, int, bool]
+TokenCallback = Callable[[str], bool | None]
 
-# =====================================================================
-# Roles
-# =====================================================================
+
+# Roles:
+# - Structure string appropriate for said role
 
 def system_prompt(content: str) -> dict:
     system_entry = {"role": "system", "content": content}
@@ -28,137 +30,130 @@ def user_message(content: str) -> dict:
     return user_entry
 
 
-# =====================================================================
-# General model response (streamed onto the terminal)
-# =====================================================================
+def _build_messages(
+    sys_prompt: str,
+    msgs: list[dict] | None,
+    prompt: str | None
+) -> list[dict]:
+    """System prompt (old system prompts removed) + msgs + new user prompt."""
+    new_msgs = [system_prompt(sys_prompt)]
+
+    if msgs:
+        # Add existing message entries (OTHER THAN "system" role)
+        # into the new list
+        new_msgs += [msg for msg in msgs if msg["role"] != "system"]
+
+    if prompt:
+        new_msgs.append(user_message(prompt))
+
+    return new_msgs
+
+
+def _stream_tokens(
+    model: str,
+    msgs: list[dict],
+    callback: TokenCallback | None = None
+) -> tuple[str, int, int, bool]:
+    """
+    Sends messages to the model and calls callback with each piece of text
+    as it arrives.
+    Returns full text, prompt tokens, output tokens, stop
+    """
+    text = ""
+    p_tkns = 0
+    o_tkns = 0
+    is_stopped = False
+
+    stream = ollama_clt.chat(model=model, messages=msgs, stream=True)
+    try:
+        for chnk in stream:
+            piece = chnk.message.content or ""
+            if piece:
+                if callback:
+                    # Caller request to stop
+                    if callback(piece) is False:
+                        is_stopped = True
+                        break
+                text += piece
+
+            # The last chunk carries the token counts
+            if chnk.done:
+                p_tkns = chnk.prompt_eval_count or 0
+                o_tkns = chnk.eval_count or 0
+
+    finally:
+        close = getattr(stream, "close", None)  # Drops connection to Ollama
+        if close:
+            close()
+
+    return text, p_tkns, o_tkns, is_stopped
+
+
+def _print_token(tkn: str) -> None:
+    print(tkn, end="", flush=True)
+
+
+def _ignore_token(tkn: str) -> None:
+    pass
+
+
+# Response methods
 
 def model_response(
     model: str,
     msgs: list[dict],
-    callback: Callable[[str], None] | None = None
-) -> tuple[str, int, int] | None:
+    callback: TokenCallback | None = None
+) -> ModelResult | None:
     """Response using specified model, streams output."""
-    response = ""
-    p_tkns   = 0
-    o_tkns   = 0
-
     if msgs:
         prompt_log.info(msgs[-1].get("content", ""))
 
-    app_log.debug("Sending messages to model '%s'", model)
-
-    stream = ollama_clt.chat(model=model, messages=msgs, stream=True)
-
-    for chnk in stream:
-        tkn = chnk.message.content
-        response += tkn
-
-        if callback:
-            callback(tkn)
-        else:
-            print(tkn, end="", flush=True)
-
-        if chnk.done:
-            p_tkns = chnk.prompt_eval_count or 0
-            o_tkns = chnk.eval_count or 0
-
-    if not callback:
+    if callback:
+        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, callback)
+    else:
+        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, _print_token)
         print()
 
-    if not response:
+    if not text:
         app_log.warning("Model failed to generate response from the provided messages")
-        return
-
-    app_log.debug(
-        "%d prompt tokens and %d output tokens for generating the response: Total token used = %d tokens",
-        p_tkns,
-        o_tkns,
-        p_tkns + o_tkns
-    )
-    return response, p_tkns, o_tkns
+        return None
+    return text, p_tkns, o_tkns, is_stopped
 
 
-# =====================================================================
-# Modified model response for customised system prompt and context
-# =====================================================================
-
-def response_with_new_sys_prompt_and_context(
+def model_response_with_new_system_prompt_and_context(
     model: str,
     sys_prompt: str,
     prompt: str | None,
-    contxt: list[dict] | None = None,
-    callback: Callable[[str], None] | None = None
-) -> tuple[str, int, int] | None:
+    context: list[dict] | None = None,
+    callback: TokenCallback | None = None
+) -> ModelResult | None:
     """Combines a system prompt, context and question with model response."""
-    if prompt:
-        usr_prompt = [user_message(prompt)]
-    else:
-        usr_prompt = []
+    msgs = _build_messages(sys_prompt, context, prompt)
 
-    if contxt:
-        context_without_system_prompt = [msg for msg in contxt if msg["role"] != "system"]
-        msgs = [system_prompt(sys_prompt)] + context_without_system_prompt + usr_prompt
-    else:
-        msgs = [system_prompt(sys_prompt)] + usr_prompt
-    
     prompt_log.info(sys_prompt)
     prompt_log.info(msgs[-1].get("content", ""))
 
-    cont = ""
-    p_tkns = 0
-    o_tkns = 0
     try:
-        for chunk in ollama_clt.chat(model=model, messages=msgs, stream=True):
-            piece = chunk.message.content or ""
-            if piece:
-                cont += piece
-                if callback:
-                    callback(piece)
-
-            # The last chunk carries the token counts
-            if getattr(chunk, "done", False):
-                p_tkns = getattr(chunk, "prompt_eval_count", 0) or 0
-                o_tkns = getattr(chunk, "eval_count", 0) or 0
-
+        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, callback or _ignore_token)
     except Exception as e:
         app_log.warning(
-            "Model failed to generate response from the provided messages: %s", e, exc_info=True
+            "Model failed to generate response from the provided messages: %s",
+            e, exc_info=True
         )
-        return
+        return None
 
-    if not cont:
-        app_log.warning("Model failed to generate response from the provided messages")
-        return
-
-    app_log.debug(
-        "%d prompt tokens and %d output tokens for generating the response: Total token used = %d tokens",
-        p_tkns,
-        o_tkns,
-        p_tkns + o_tkns
-    )
-    return cont, p_tkns, o_tkns
+    return text, p_tkns, o_tkns, is_stopped
 
 
-# =====================================================================
-# MEMORY RESPONSE FORMATS
-# =====================================================================
-
-def response_memory_recall_format(
+def model_response_memory_recall_format(
     model: str,
     sys_prompt: str,
     prompt: str,
-    context: list[dict] | None = None
-) -> ollama.ChatResponse:
+    context: list[dict] | None = None,
+    callback: Callable[[str], None] | None = None
+) -> ModelResult | None:
     """Model reponse with memory recall system prompt and format."""
-    if context:
-        context_without_system_prompt = [msg for msg in context if msg["role"] != "system"]
-        msgs = (
-            [system_prompt(sys_prompt)]
-            + context_without_system_prompt
-            + [user_message(prompt)]
-        )
-    else:
-        msgs = [system_prompt(sys_prompt)] + [user_message(prompt)]
+    msgs = _build_messages(sys_prompt, context, prompt)
 
     prompt_log.info(sys_prompt)
-    return model_response(model, msgs)
+    return model_response(model, msgs, callback)

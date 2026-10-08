@@ -117,4 +117,3 @@ class QueryDocuments:
                 "Session knowledge base is empty or no content reached minimum similarity score"
             )
             return
-
