@@ -2,9 +2,10 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
+from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
+
 from src.agent.models import llm
 from src import logger
-from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from .metadata import ToolCallsMetadata
 from .lookup_chat_sessions import LookupChatSessions
 
@@ -30,15 +31,13 @@ class WriteChatLogs:
         prompt: str,
         response: str,
         state: Literal["external", "internal"],
-
-        # Tool calls
+        # --- Tool calls ---
         attchmnts: list[Path] | None = None,
         unfmt_mem_prompt: str | None = None,
         unfmt_recall_prompt: str | None = None,
         unfmt_cmp_prompt: str | None = None,
-        cmp_method: Literal["default", "instruct"] | None = None,
-
-        # Token counts
+        cmp_method: Literal["default", "instruct", "auto"] | None = None,
+        # --- Token counts ---
         p_tkns: int = 0,
         o_tkns: int = 0
     ) -> dict[str, dict[str, Any]]:
@@ -48,9 +47,11 @@ class WriteChatLogs:
         the all tool calls metadata.
         """
         metadata = ToolCallsMetadata.all_tool_calls(
-            attchmnts=attchmnts, unfmt_mem_prompt=unfmt_mem_prompt,
+            attchmnts=attchmnts,
+            unfmt_mem_prompt=unfmt_mem_prompt,
             unfmt_recall_prompt=unfmt_recall_prompt,
-            unfmt_cmp_prompt=unfmt_cmp_prompt, cmp_method=cmp_method
+            unfmt_cmp_prompt=unfmt_cmp_prompt,
+            cmp_method=cmp_method
         )
 
         execute(
@@ -63,7 +64,11 @@ class WriteChatLogs:
             ),
             params=(
                 self._lookup_chat_sess.get_or_create_id(),
-                prompt, response, state, p_tkns, o_tkns,
+                prompt,
+                response,
+                state,
+                p_tkns,
+                o_tkns,
                 json.dumps(metadata or {}),
             )
         )

@@ -3,7 +3,7 @@ import os
 from typing import Any
 from pathlib import Path
 
-from src import models_database
+from src.libs.models_database import MODEL_MAX
 from src.config.files_and_directories import CONFIG_FILE, _cfg
 
 
@@ -47,7 +47,7 @@ def _set_model_tokens(
     max_tokens          = _cfg["models"].get(field_name, None)
     model_max_tokens    = _normalise_to_integer(max_tokens)
 
-    if model not in models_database.MODEL_MAX:
+    if model not in MODEL_MAX:
         if model_max_tokens is None:
             _model_not_found(config_file, field, field_name)
         _check_if_value_is_valid(config_file, field_name, model_max_tokens)

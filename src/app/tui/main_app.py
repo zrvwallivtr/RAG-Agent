@@ -15,16 +15,13 @@ class MainApp(App):
         ("escape", "escape_handler"),
     ]
 
-
     def compose(self):
         """Returns nothing."""
         return []
 
-
     def on_mount(self) -> None:
         """Show menu screen on startup."""
         self.push_screen(DashboardScreen())
-
 
     def action_escape_handler(self) -> None:
         """All scenarios for when the escape button is pressed."""

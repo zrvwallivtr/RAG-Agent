@@ -7,11 +7,12 @@ from src.config.prompts import COMPRESS_PROMPT
 from .metadata import ToolCallsMetadata
 from .write_chat_logs import WriteChatLogs
 
-from src import format_context
-from src.agent.tokenizers import LocalTokenizer
 from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
+from src.libs.helpers.format_context_helper import build_prompt
+
+from src.agent.tokenizers import LocalTokenizer
 from src.agent.models import llm
-from src.agent.models.llm import TokenCallback
+from src.agent.models.llm import ModelResult, TokenCallback
 from src import logger
 
 if TYPE_CHECKING:
@@ -21,77 +22,124 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 CompressionResult = tuple[str, int, int, dict[str, dict[str, Any]]]
 
+def _default_compression_prompt() -> str | None:
+    prompt = SLASH_CMDS_DICT["compress"].get("default_prompt")
+    if not prompt:
+        app_log.warning(
+            "Pre-written compression instruction prompt not found "
+            "in code base"
+        )
+    return prompt
 
 class Compression:
     """Summarise a session's active conversation turns with model."""
 
-    def __init__(self, chat_sess_logs: "ChatSessionLogs", write_chat_logs: WriteChatLogs):
+    def __init__(
+        self,
+        chat_sess_logs: "ChatSessionLogs",
+        write_chat_logs: WriteChatLogs
+    ):
         self._chat_sess_logs = chat_sess_logs
         self._write_chat_logs = write_chat_logs
         self.local_tknizr = LocalTokenizer(MODEL)
 
-    def compress(
+    def _model_compress_with_given_context(
         self,
         prompt: str,
-        unfmt_prompt: str,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
-        cmp_method: Literal["default", "instruct"] | None = None,
+        callback: TokenCallback | None = None
+    ) -> ModelResult | None:
+        """
+        Model reads chats from current session and generate a response with
+        the compression system prompt.
+        """
+        cmbind_prompt = build_prompt(
+            prompt=prompt,
+            attchmnt_dict=attchmnt_dict,
+            cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed")
+        )
+        response = llm.model_response_with_new_system_prompt_and_context(
+            model=MODEL,
+            sys_prompt=COMPRESS_PROMPT,
+            prompt=cmbind_prompt,
+            callback=callback
+        )
+        return response
+
+    def compress(
+        self,
+        clean_prompt: str,
+        unfmt_prompt: str,
+        cmp_method: Literal["default", "instruct", "auto"],
+        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         callback: TokenCallback | None = None,
     ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
         """
-        Call model to summarise all conversations where 
-        'is_compressed' = FALSE in the database.
+        The main compression function. The model generates summary, update
+        previous conversation metadata and add the new response to the
+        database.
         """
-        app_log.info("Compressing session '%s' chat logs", self._chat_sess_logs.sess_name)
-
-        cmbind_prompt = format_context.build_prompt(
-            prompt=prompt, attchmnt_dict=attchmnt_dict,
-            cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed")
+        app_log.info(
+            "Compressing session '%s' chat logs",
+            self._chat_sess_logs.sess_name
         )
-
-        response = llm.model_response_with_new_system_prompt_and_context(
-            model=MODEL, sys_prompt=COMPRESS_PROMPT, prompt=cmbind_prompt,
-            callback=callback
+        response = self._model_compress_with_given_context(
+            clean_prompt, attchmnt_dict, callback
         )
-
         if not response:
             return
         smry, p_tkns, o_tkns, is_stopped = response
 
+        # Stop model response if requested
         if is_stopped is True:
             return None
 
-        app_log.debug("Chat compression complete. Updating chat logs metadata")
-
+        # Update database
         self._write_chat_logs.mark_active_as_compressed()
-
         metadata = self._chat_sess_logs.add_conversation_turn(
-            prompt=prompt, response=smry, state="external", unfmt_cmp_prompt=unfmt_prompt,
-            cmp_method=cmp_method, p_tkns=p_tkns, o_tkns=o_tkns
+            prompt=clean_prompt,
+            unfmt_cmp_prompt=unfmt_prompt,
+            response=smry,
+            state="external",
+            cmp_method=cmp_method,
+            p_tkns=p_tkns,
+            o_tkns=o_tkns
         )
-        app_log.info(
-            "Chat compression and chat logs metadata has been updated for session '%s'",
-            self._chat_sess_logs.sess_name
-        )
-
-        # Update session
         self._chat_sess_logs.update_session_used_tokens()
 
         return smry, p_tkns, o_tkns, metadata
 
-    def auto(
-        self, unfmt_prompt: str, callback: TokenCallback | None = None
+    def compress_with_pre_written(
+        self,
+        unfmt_prompt: str,
+        cmp_method: Literal["default", "auto"],
+        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
+        callback: TokenCallback | None = None
     ) -> CompressionResult | None:
-        """Auto compress session."""
+        """Compress session using the pre-written prompt."""
+        return self.compress(
+            clean_prompt=_default_compression_prompt() or "",
+            unfmt_prompt=unfmt_prompt,
+            cmp_method=cmp_method,
+            attchmnt_dict=attchmnt_dict,
+            callback=callback
+        )
+
+    def auto_compress(
+        self,
+        unfmt_prompt: str,
+    ) -> CompressionResult | None:
+        """Auto compress session, triggered when session token count reached pre-set limit."""
         app_log.info(
-            "Chat compression was triggered for session '%s'",
+            "Auto chat compression was triggered for session '%s'",
             self._chat_sess_logs.sess_name
         )
-        prompt = SLASH_CMDS_DICT["compress"].get("default_prompt") or ""
         result = self.compress(
-            prompt=prompt, unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback
+            clean_prompt=_default_compression_prompt() or "",
+            unfmt_prompt=unfmt_prompt,
+            cmp_method="auto",
         )
         if not result:
             return
-        app_log.info("Auto compression complete. Continuing session")
+        app_log.info("Compression completed. Continuing session")
         return result

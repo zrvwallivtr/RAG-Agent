@@ -12,7 +12,6 @@ from .schema import ensure_schema
 from src.libs.helpers.database_helpers import fetch_one, execute
 
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.models_database import EMB_MODEL_DIMENSION
 from src.rag.knowledge_base.documents.main_module import DocumentKnowledgeBase
 from src.logger import app_logger
 

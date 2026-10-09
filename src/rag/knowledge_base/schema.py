@@ -2,7 +2,7 @@ import threading
 
 from src.libs.helpers.database_helpers import init_database
 from src.config.models import EMBED_MODEL
-from src.models_database import EMB_MODEL_DIMENSION
+from src.libs.models_database import EMB_MODEL_DIMENSION
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")

@@ -13,8 +13,8 @@ from .write_chat_sessions import WriteChatSessions
 from .read_chat_logs import ReadChatLogs
 from .write_chat_logs import WriteChatLogs
 
+from src.agent.models.llm import TokenCallback
 from src.agent.tokenizers import LocalTokenizer
-from src import format_context
 from src.agent.models import llm
 from src import logger
 
@@ -58,7 +58,7 @@ class ChatSessionLogs:
             _sys_prompt_tkns = self.local_tknizr.count_string_tokens(text=SYS_PROMPT) or 0
         return _sys_prompt_tkns
 
-    # Lookup chat sessions
+    # --- Lookup chat sessions -------------------------------------
 
     def get_session_id(self):
         return self.lookup_chat_sess.get_id()
@@ -78,7 +78,7 @@ class ChatSessionLogs:
     def get_all_existing_session_metadata(self):
         return self.lookup_chat_sess.get_all_metadata()
 
-    # Write to chat sessions
+    # --- Write to chat sessions -----------------------------------
 
     def create_session(self):
         return self.write_chat_sess.create()
@@ -88,7 +88,7 @@ class ChatSessionLogs:
         sess_used_tkns = self.local_tknizr.count_history_tokens(msgs)
         return self.write_chat_sess.update_used_tokens(sess_used_tkns or 0)
 
-    # Read chat logs
+    # --- Read chat logs -------------------------------------------
 
     def get_active_conversations(self):
         return self.read_chat_logs.active_conversations()
@@ -108,7 +108,7 @@ class ChatSessionLogs:
     def get_latest_modified_chat_session(self):
         return self.read_chat_logs.latest_modified_session()
 
-    # Write to chat logs
+    # --- Write to chat logs ---------------------------------------
 
     def add_conversation_turn(self, *args, **kwargs,):
         return self.write_chat_logs.add_turn(*args, **kwargs,)
@@ -116,22 +116,35 @@ class ChatSessionLogs:
     def clear_session_chat_logs(self):
         return self.write_chat_logs.clear_session_logs()
 
-    # Compression section
+    # --- Compression ----------------------------------------------
 
-    def compress_active_conversations(
+    def default_compress_active_conversations(
         self,
-        prompt: str,
         unfmt_prompt: str,
+        cmp_method: Literal["default", "instruct"],
+        callback: TokenCallback | None = None,
+    ):
+        return self.compression.compress_with_pre_written(
+            unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback
+        )
+
+    def instruct_compress_active_conversations(
+        self,
+        clean_prompt: str,
+        unfmt_prompt: str,
+        cmp_method: Literal["default", "instruct"],
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
-        cmp_method: Literal["default", "instruct"] | None = None,
-        callback: Callable[[str], None] | None = None,
+        callback: TokenCallback | None = None,
     ):
         return self.compression.compress(
-            prompt=prompt, unfmt_prompt=unfmt_prompt, attchmnt_dict=attchmnt_dict,
-            cmp_method=cmp_method, callback=callback
+            clean_prompt=clean_prompt,
+            unfmt_prompt=unfmt_prompt,
+            attchmnt_dict=attchmnt_dict,
+            cmp_method=cmp_method,
+            callback=callback
         )
 
     def auto_compress_active_conversations(
-        self, unfmt_prompt: str, callback: Callable[[str], None] | None = None,
+        self, unfmt_prompt: str
     ):
-        return self.compression.auto(unfmt_prompt=unfmt_prompt, callback=callback)
+        return self.compression.auto_compress(unfmt_prompt=unfmt_prompt)

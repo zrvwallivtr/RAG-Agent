@@ -2,8 +2,9 @@ from typing import Callable
 
 from .write_chat_sessions import WriteChatSessions
 
-from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
+
+from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 

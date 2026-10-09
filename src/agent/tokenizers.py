@@ -3,11 +3,11 @@ from tokenizers import Tokenizer
 from datetime import datetime
 from functools import lru_cache
 
-from src.config import models
-from src.config import files_and_directories as fls_n_dir
+from src.config.models import FALLBACK_TOKENIZER, MODEL_MAX_TOKENS
+from src.config.files_and_directories import TOKENIZERS_DIR
 
 from src.agent.models import ollama
-from src import models_database
+from src.libs.models_database import MODEL_MAX
 from src.logger import app_logger
 
 
@@ -33,11 +33,6 @@ MODEL_NAME_TO_HF_TOKENIZER = {
 
 
 app_log = app_logger(__name__)
-
-TOKENIZERS_DIR      = fls_n_dir.TOKENIZERS_DIR
-FALLBACK_TOKENIZER  = models.FALLBACK_TOKENIZER
-MODEL_MAX_TOKENS    = models.MODEL_MAX_TOKENS
-MODEL_MAX           = models_database.MODEL_MAX
 
 ollama_clt = ollama.ollama_clt
 
@@ -175,7 +170,7 @@ class LocalTokenizer:
             )
 
         # Fallback to preset list
-        elif self.model in models_database.MODEL_MAX:
+        elif self.model in MODEL_MAX:
             self.model_max_tkns = MODEL_MAX[self.model]
             app_log.debug(
                 "Max token limit not specified by user. Loaded preset limits for model '%s' tokenizer",

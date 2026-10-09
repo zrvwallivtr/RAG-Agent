@@ -5,18 +5,14 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Input, Markdown, Button
 
 from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
-
-from src.core import Agent
-from src.slash_commands import slash_commands_helpers
-
+from src.libs.helpers.slash_commands_helpers import detect_cmd
 from src.libs.helpers.tui_helpers import size_bytes_helpers, agent_interface_helper
 
+from src.core import Agent
 
-# The following sets the behaviour when slash commands is used
-# in the TUI.
 
 def slash_command_if_called_start_behaviour(screen, prompt: str, md_widget: Markdown):
-    cmd, user_prompt = slash_commands_helpers.detect_cmd(prompt)
+    cmd, user_prompt = detect_cmd(prompt)
 
     if cmd:
         if cmd == SLASH_CMDS_DICT["compress"].get("cmd"):

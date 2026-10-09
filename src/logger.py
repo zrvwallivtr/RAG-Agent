@@ -11,9 +11,8 @@ PROMPT_LOG_FILE = files_n_dir.PROMPT_LOG_FILE
 DATE_FORMAT     = "%Y-%m-%d %H:%M:%S"
 
 
-# ======================================================
-# APPLICATION LOGS
-# ======================================================
+# --- Application logs ---------------------------------
+# Logs application base action.
 
 class AppLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -67,9 +66,11 @@ def set_verbose(verbose: bool):
         interface.console_handler.setLevel(logging.DEBUG if verbose else logging.INFO)
 
 
-# ======================================================
-# PROMPTS LOGS
-# ======================================================
+# --- Prompts logs -------------------------------------
+# Logs the true prompt that is sent to the mdoel (What
+# the model actually sees).
+#
+# Only call in the model based modules.
 
 class PromptLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:

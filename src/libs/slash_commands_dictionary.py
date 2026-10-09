@@ -5,19 +5,6 @@ TUI.
 """
 
 SLASH_CMDS_DICT = {
-    "memorise": {
-        "cmd": "/memorise",
-        "no_prompt_warn": "Command '/memorise' aborted: No prompt was provided. Please specifiy instructions",
-        "mock_response": "Information has been extracted and added to database",
-        "removed_info": "Removed saved memory"
-    },
-
-    "recall": {
-        "cmd": "/recall",
-        "no_prompt_warn": "Command '/recall' aborted: No prompt was provided",
-        "attachments_warn": "Command '/recall' does not support attachment uploads. Ignoring uploaded contents"
-    },
-
     "compress": {
         "cmd": "/compress",
         "default_prompt": "Summarise all previous conversations.",

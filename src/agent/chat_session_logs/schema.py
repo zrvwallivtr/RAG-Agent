@@ -1,6 +1,7 @@
 import threading
 
 from src.libs.helpers.database_helpers import init_database
+
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")

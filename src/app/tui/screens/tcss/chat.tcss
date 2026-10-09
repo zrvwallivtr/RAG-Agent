@@ -111,3 +111,14 @@ ChatInterface {
     /*border-left: solid darkcyan;*/
     color: darkcyan;
 }
+
+.auto-summary-label {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.auto-summary-label Static {
+    text-align: center;
+    text-style: bold;
+    color: darkcyan;
+}
