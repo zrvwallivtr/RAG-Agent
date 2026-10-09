@@ -12,14 +12,6 @@ embedding = "nomic-embed-text"
 fallback_tokenizer  = "gpt2"
 
 
-[memory]
-
-retrieve_entry_limit                        = 3
-auto_memory_store_enable_at_model_tokens    = 128000
-enable_auto_memory_retrieve                 = true
-enable_auto_memory_store                    = true
-
-
 [file_reader]
 
 retrieve_entry_limit                        = 3

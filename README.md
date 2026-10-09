@@ -3,7 +3,6 @@
 A local AI assistant featuring long-term memory, file context injection and automatic token management. It runs on [Ollama](https://ollama.com) and PostgreSQL (pgvector), keeping all user's data on host machine.
 
 - **CLI and TUI support:** Interact with the agent in the terminal with `agent "MESSAGE"` or enter full-screen terminal UI with `agent`.
-- **Long-term memory:** Global, cross-session memories retrieved by vector similarity.
 - **File context:** Attach PDFs, documents, spreadsheets, code and more. Parsed content is injected into the prompt and stored to the database for later retrieval by vector similarity.
 - **Sessions:** Named sessions with persistent chat logs and message token counts.
 - **Token management:** Live token counter and auto compression when the context window reaches its limit.
@@ -66,8 +65,6 @@ Activate by adding the command at the start of a prompt.
 
 | Command | Description |
 | --- | --- |
-| `/memorise <prompt>` | Extract key facts from the prompt and save them to long-term memory. |
-| `/recall <prompt>` | Retrieve relevant memories from the database. |
 | `/compress [prompt]` | Summarise the conversation to free up tokens. An optional prompt steers the summary. |
 
 ---
@@ -76,9 +73,6 @@ Activate by adding the command at the start of a prompt.
 
 **Sessions:**
 Every conversation turn (prompt, response, token counts, attachment metadata) is saved to the `chat_logs` table and linked to a row in `chat_sessions`. Allowing the creating, storing and switching between sessions.
-
-**Memory:**
-Memories are global and shared across sessions. Each prompt is embedded, and the most similar memories are injected into the context for that turn. For more details: [Memory](./docs/MEMORY.md).
 
 **Documents:**
 Attached files are converted to plain text or Markdown, injected into the current conversation turn and stored in the knowledge base for similarity retrieval in later turns. Details: [Document Processing](./docs/DOCUMENT_PROCESSING.md).
@@ -110,14 +104,6 @@ embedding = "nomic-embed-text"
 fallback_tokenizer  = "gpt2"
 
 
-[memory]
-
-retrieve_entry_limit                        = 3
-auto_memory_store_enable_at_model_tokens    = 128000
-enable_auto_memory_retrieve                 = true
-enable_auto_memory_store                    = true
-
-
 [file_reader]
 
 retrieve_entry_limit                        = 3
@@ -132,7 +118,6 @@ Every option is described in the [configuration reference](./docs/CONFIGURATION.
 ## Document index
 For in-depth guides and system specifications, refer to the project docs:
 
-* [Memory Architecture](./docs/MEMORY.md)
 * [Document Processing](./docs/DOCUMENT_PROCESSING.md)
 * [Web Search Features](./docs/WEB_SEARCH.md)
 * [Full Configuration References](./docs/CONFIGURATION.md)
