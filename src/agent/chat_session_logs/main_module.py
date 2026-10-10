@@ -13,7 +13,8 @@ from .write_chat_sessions import WriteChatSessions
 from .read_chat_logs import ReadChatLogs
 from .write_chat_logs import WriteChatLogs
 
-from src.agent.models.llm import TokenCallback
+from src.libs.custom_dataclasses import AgentHooks
+
 from src.agent.tokenizers import LocalTokenizer
 from src.agent.models import llm
 from src import logger
@@ -38,24 +39,37 @@ class ChatSessionLogs:
 
         # Chat session classes
         self.write_chat_sess = WriteChatSessions(
-            conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
+            conn=self.conn,
+            sess_name=self.sess_name,
+            sys_prompt_tkns=self._system_prompt_tokens
         )
         self.lookup_chat_sess = LookupChatSessions(
-            conn=self.conn, sess_name=self.sess_name, sys_prompt_tkns=self._system_prompt_tokens
+            conn=self.conn,
+            sess_name=self.sess_name,
+            sys_prompt_tkns=self._system_prompt_tokens
         )
 
         # Chat log classes
         self.read_chat_logs = ReadChatLogs(
-            conn=self.conn, lookup_chat_sess=self.lookup_chat_sess, sys_prompt=self.sys_prompt
+            conn=self.conn,
+            lookup_chat_sess=self.lookup_chat_sess,
+            sys_prompt=self.sys_prompt
         )
-        self.write_chat_logs = WriteChatLogs(conn=self.conn, lookup_chat_sess=self.lookup_chat_sess)
+        self.write_chat_logs = WriteChatLogs(
+            conn=self.conn,
+            lookup_chat_sess=self.lookup_chat_sess
+        )
 
-        self.compression = Compression(self, write_chat_logs=self.write_chat_logs)
+        self.compression = Compression(
+            self, write_chat_logs=self.write_chat_logs
+        )
 
     def _system_prompt_tokens(self) -> int:
         global _sys_prompt_tkns
         if _sys_prompt_tkns is None:
-            _sys_prompt_tkns = self.local_tknizr.count_string_tokens(text=SYS_PROMPT) or 0
+            _sys_prompt_tkns = (
+                self.local_tknizr.count_string_tokens(text=SYS_PROMPT) or 0
+            )
         return _sys_prompt_tkns
 
     # --- Lookup chat sessions -------------------------------------
@@ -122,10 +136,10 @@ class ChatSessionLogs:
         self,
         unfmt_prompt: str,
         cmp_method: Literal["default", "instruct"],
-        callback: TokenCallback | None = None,
+        hooks: AgentHooks | None = None,
     ):
         return self.compression.compress_with_pre_written(
-            unfmt_prompt=unfmt_prompt, cmp_method="default", callback=callback
+            unfmt_prompt=unfmt_prompt, cmp_method="default", hooks=hooks
         )
 
     def instruct_compress_active_conversations(
@@ -134,17 +148,19 @@ class ChatSessionLogs:
         unfmt_prompt: str,
         cmp_method: Literal["default", "instruct"],
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
-        callback: TokenCallback | None = None,
+        hooks: AgentHooks | None = None,
     ):
         return self.compression.compress(
             clean_prompt=clean_prompt,
             unfmt_prompt=unfmt_prompt,
             attchmnt_dict=attchmnt_dict,
             cmp_method=cmp_method,
-            callback=callback
+            hooks=hooks,
         )
 
     def auto_compress_active_conversations(
-        self, unfmt_prompt: str
+        self, unfmt_prompt: str, hooks: AgentHooks | None = None
     ):
-        return self.compression.auto_compress(unfmt_prompt=unfmt_prompt)
+        return self.compression.auto_compress(
+            unfmt_prompt=unfmt_prompt, hooks=hooks
+        )

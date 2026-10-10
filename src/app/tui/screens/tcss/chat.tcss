@@ -122,3 +122,10 @@ ChatInterface {
     text-style: bold;
     color: darkcyan;
 }
+
+.assistant-box.auto-summary {
+    border: solid darkcyan;
+    border-title-align: center;
+    border-title-color: darkcyan;
+    border-title-style: bold;
+}

@@ -2,14 +2,13 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from src.libs.slash_commands_dictionary import AVA_SLASH_CMDS
-
 from .metadata import ToolCallsMetadata
 from .lookup_chat_sessions import LookupChatSessions
 
 from src.agent.models import llm
 from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
+from src.libs.constants import COMPRESS_DB_ENTRY
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -103,10 +102,8 @@ class ReadChatLogs:
                 "attachments": metadata.get("attachments")
             })
 
-            for key in AVA_SLASH_CMDS:
-                if key in metadata:
-                    user_msg[key] = metadata[key]
-                    break
+            if COMPRESS_DB_ENTRY in metadata:
+                user_msg[COMPRESS_DB_ENTRY] = metadata[COMPRESS_DB_ENTRY]
 
             convs.append(user_msg)
             convs.append({
@@ -133,12 +130,21 @@ class ReadChatLogs:
         )
 
         if not row:
-            app_log.warning("No conversation turns found in session '%s'", self._lookup_chat_sess.sess_name)
+            app_log.warning(
+                "No conversation turns found in session '%s'",
+                self._lookup_chat_sess.sess_name
+            )
             return None
-        return [{"role": "user", "content": row[0]}, {"role": "assistant", "content": row[1]}]
+        return [
+            {"role": "user", "content": row[0]},
+            {"role": "assistant", "content": row[1]}
+        ]
 
     def before_latest_conversations(self) -> list[dict] | None:
-        """Get all previous user/assistant conversation turns right before the latest external one."""
+        """
+        Get all previous user/assistant conversation turns right
+        before the latest external one.
+        """
         sess_id = self._lookup_chat_sess.get_or_create_id()
         rows = fetch_all(
             conn=self._conn,

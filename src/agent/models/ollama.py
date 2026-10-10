@@ -1,14 +1,11 @@
 import ollama
 import subprocess
 
-from src.config import models
+from src.config.models import OLLAMA_HOST
 
 from src.logger import app_logger
 
-
 app_log = app_logger(f"{__name__}.app")
-
-OLLAMA_HOST = models.OLLAMA_HOST
 
 ollama_clt = ollama.Client(host=OLLAMA_HOST)
 

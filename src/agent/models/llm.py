@@ -1,19 +1,15 @@
 import ollama
 from typing import Callable
 
+from src.libs.constants import ModelResult
+from src.libs.custom_dataclasses import AgentHooks
+
 from src.agent.models.ollama import ollama_clt
 from src.logger import app_logger, prompt_logger
 
 app_log     = app_logger(f"{__name__}.app")
 prompt_log  = prompt_logger(f"{__name__}.prompt")
 
-# Type hints
-ModelResult = tuple[str, int, int, bool]
-TokenCallback = Callable[[str], bool | None]
-
-
-# Roles:
-# - Structure string appropriate for said role
 
 def system_prompt(content: str) -> dict:
     system_entry = {"role": "system", "content": content}
@@ -52,7 +48,7 @@ def _build_messages(
 def _stream_tokens(
     model: str,
     msgs: list[dict],
-    callback: TokenCallback | None = None
+    hooks: AgentHooks | None = None,
 ) -> tuple[str, int, int, bool]:
     """
     Sends messages to the model and calls callback with each piece of text
@@ -63,23 +59,36 @@ def _stream_tokens(
     p_tkns = 0
     o_tkns = 0
     is_stopped = False
+    first_tkn_fired = False
 
     stream = ollama_clt.chat(model=model, messages=msgs, stream=True)
     try:
         for chnk in stream:
             piece = chnk.message.content or ""
             if piece:
-                if callback:
-                    # Caller request to stop
-                    if callback(piece) is False:
+                # Trigger on_first_tkn callback on the first non-empty chunk
+                if not first_tkn_fired:
+                    first_tkn_fired = True
+                    if hooks and hooks.on_first_tkn:
+                        hooks.on_first_tkn()
+
+                # Trigger on_tkn callback for incoming piece
+                if hooks and hooks.on_tkn:
+                    if hooks.on_tkn(piece) is False:
                         is_stopped = True
                         break
+                elif not hooks or not hooks.on_tkn:
+                    _print_token(piece)
+
                 text += piece
 
             # The last chunk carries the token counts
             if chnk.done:
                 p_tkns = chnk.prompt_eval_count or 0
                 o_tkns = chnk.eval_count or 0
+
+        if not hooks or not hooks.on_tkn:
+            print()
 
     finally:
         close = getattr(stream, "close", None)  # Drops connection to Ollama
@@ -102,21 +111,26 @@ def _ignore_token(tkn: str) -> None:
 def model_response(
     model: str,
     msgs: list[dict],
-    callback: TokenCallback | None = None
+    hooks: AgentHooks | None = None,
 ) -> ModelResult | None:
-    """Response using specified model, streams output."""
+    """Response using specified model, streams output via AgentHooks."""
     if msgs:
         prompt_log.info(msgs[-1].get("content", ""))
 
-    if callback:
-        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, callback)
-    else:
-        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, _print_token)
-        print()
+    text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, hooks=hooks)
 
     if not text:
-        app_log.warning("Model failed to generate response from the provided messages")
+        warn_str = "Model failed to generate response from the provided messages"
+        app_log.warning(warn_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(warn_str)
+        if hooks and hooks.on_error:
+            hooks.on_error(RuntimeError(warn_str))
         return None
+
+    if hooks and hooks.on_complete:
+        hooks.on_complete({"prompt_tokens": p_tkns, "output_tokens": o_tkns})
+
     return text, p_tkns, o_tkns, is_stopped
 
 
@@ -125,7 +139,7 @@ def model_response_with_new_system_prompt_and_context(
     sys_prompt: str,
     prompt: str | None,
     context: list[dict] | None = None,
-    callback: TokenCallback | None = None
+    hooks: AgentHooks | None = None,
 ) -> ModelResult | None:
     """Combines a system prompt, context and question with model response."""
     msgs = _build_messages(sys_prompt, context, prompt)
@@ -134,13 +148,21 @@ def model_response_with_new_system_prompt_and_context(
     prompt_log.info(msgs[-1].get("content", ""))
 
     try:
-        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, callback or _ignore_token)
+        text, p_tkns, o_tkns, is_stopped = _stream_tokens(model, msgs, hooks=hooks)
     except Exception as e:
         app_log.warning(
             "Model failed to generate response from the provided messages: %s",
             e, exc_info=True
         )
+        warn_str = "Model failed to generate response from the provided messages"
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(warn_str)
+        if hooks and hooks.on_error:
+            hooks.on_error(e)
         return None
+
+    if hooks and hooks.on_complete:
+        hooks.on_complete({"prompt_tokens": p_tkns, "output_tokens": o_tkns})
 
     return text, p_tkns, o_tkns, is_stopped
 
@@ -150,10 +172,9 @@ def model_response_memory_recall_format(
     sys_prompt: str,
     prompt: str,
     context: list[dict] | None = None,
-    callback: Callable[[str], None] | None = None
+    hooks: AgentHooks | None = None,
 ) -> ModelResult | None:
     """Model reponse with memory recall system prompt and format."""
     msgs = _build_messages(sys_prompt, context, prompt)
-
     prompt_log.info(sys_prompt)
-    return model_response(model, msgs, callback)
+    return model_response(model, msgs, hooks=hooks)

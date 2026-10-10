@@ -10,7 +10,6 @@ from src.agent.models import ollama
 from src.libs.models_database import MODEL_MAX
 from src.logger import app_logger
 
-
 MODEL_NAME_TO_HF_TOKENIZER = {
     # Mistral
     "mistral":              "mistralai/Mistral-7B-Instruct-v0.2",
@@ -31,7 +30,6 @@ MODEL_NAME_TO_HF_TOKENIZER = {
     "nomic-embed-text":     "nomic-ai/nomic-embed-text-v1.5",
 }
 
-
 app_log = app_logger(__name__)
 
 ollama_clt = ollama.ollama_clt
@@ -39,7 +37,7 @@ ollama_clt = ollama.ollama_clt
 
 def install_tokenizers():
     """Install tokenizers from model list, internet required."""
-    # === FALLBACK TOKENIZER INSTALL ======================
+    # --- Fallback tokenizer ------------------------------
     fb_tknizr_path = TOKENIZERS_DIR / f"{FALLBACK_TOKENIZER}.json"
 
     if fb_tknizr_path.exists():
@@ -67,7 +65,7 @@ def install_tokenizers():
                 e
             )
 
-    # === TOKENIZER INSTALL FROM LIST =====================
+    # --- Tokenizer install from list ---------------------
     installed_models = ollama_clt.list().models
 
     count = 0
@@ -79,7 +77,7 @@ def install_tokenizers():
             "[%d/%d] Installing model '%s' tokenizer", count, len(installed_models), model_name
         )
 
-        # HUGGINGFACE REPO NOT FOUND
+        # Huggingface repo not found
         hf_repo = MODEL_NAME_TO_HF_TOKENIZER.get(base_name)
         if hf_repo is None:
             app_log.warning(
@@ -89,7 +87,7 @@ def install_tokenizers():
             )
             continue
 
-        # TOKENIZER ALREADY INSTALLED
+        # Tokenizer already installed
         tknizr_path = TOKENIZERS_DIR / f"{model_name}.json"
         if tknizr_path.exists():
             app_log.info(
@@ -173,18 +171,19 @@ class LocalTokenizer:
         elif self.model in MODEL_MAX:
             self.model_max_tkns = MODEL_MAX[self.model]
             app_log.debug(
-                "Max token limit not specified by user. Loaded preset limits for model '%s' tokenizer",
+                "Max token limit not specified by user. "
+                "Loaded preset limits for model '%s' tokenizer",
                 self.model
             )
 
         # Neither option is available
         else:
             app_log.warning(
-                "Model '%s' not in 'MODEL_MAX' and no max tokens provided. Add it to 'MODEL_MAX' or set 'chat_max tokens' in '~/.agent_app/config.toml'.",
+                "Model '%s' not in 'MODEL_MAX' and no max tokens provided. "
+                "Add it to 'MODEL_MAX' or set 'chat_max tokens' in '~/.agent_app/config.toml'.",
                 self.model
             )
             self.model_max_tkns = None
-
 
     def count_string_tokens(self, text: str) -> int | None:
         """Counts tokens in string."""
@@ -193,7 +192,6 @@ class LocalTokenizer:
             return
         app_log.debug("Counting tokens from the provided text")
         return len(self.load_tknizr.encode(text))
-
 
     def count_history_tokens(self, msgs: list[dict]) -> int | None:
         """Calculates total token count in the message list."""
@@ -204,26 +202,6 @@ class LocalTokenizer:
         texts = [msg.get("content") or "" for msg in msgs]
         encodings = self.load_tknizr.encode_batch(texts)
         return sum(len(e.ids) for e in encodings) + 4 * len(msgs) + 3
-
-        # tol_tkns = 0
-
-        # count = 0
-        # for msg in msgs:
-        #     count += 1
-        #     app_log.debug("Retrieving message (%d/%d) from the message list", count, len(msgs))
-        #     # Account for message content text
-        #     add_tkns = self.count_string_tokens(msg.get("content", ""))
-        #     if not add_tkns:
-        #         return
-        #     tol_tkns += add_tkns
-
-        #     # For tags (e.g. 'assistant'/'user')
-        #     tol_tkns += 4
-
-        # tol_tkns += 3 # Assistant indicator tokens
-        # app_log.debug("All messages has been processed: Total token counts = %d tokens", tol_tkns)
-        # return tol_tkns
-
 
     def encode_text(self, txt: str) -> list[int] | None:
         """Encode text using the loaded tokenizer."""

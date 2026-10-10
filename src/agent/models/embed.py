@@ -1,12 +1,12 @@
-from src.config import models
+from src.config.models import EMBED_MODEL
+
+from src.libs.constants import GenericEventHook, TokenCallback
+from src.libs.custom_dataclasses import AgentHooks
 
 from src.agent.models.ollama import ollama_clt
 from src import logger
 
-
 app_log = logger.app_logger(f"{__name__}.app")
-
-EMBED_MODEL = models.EMBED_MODEL
 
 
 def embedding_content(cont: str) -> tuple[str, list[float], int] | None:

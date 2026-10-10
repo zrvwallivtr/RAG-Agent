@@ -21,14 +21,14 @@ def show_loading_indicator(
 
 
 def end_loading_and_show_content(
-    screen, md_widget: Markdown, full_txt, chat_container: VerticalScroll
+    screen, md_widget: Markdown, full_text, chat_container: VerticalScroll
 ):
     """
     Update the assistant message box to show model response. Only call after
     model start streaming tokens.
     """
     def _update():
-        md_widget.update(full_txt)
+        md_widget.update(full_text)
         if chat_container is not None:
             chat_container.scroll_end(animate=False)
 

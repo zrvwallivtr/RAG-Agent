@@ -1,17 +1,14 @@
 from pathlib import Path
 from typing import Any, Callable
 
-from textual.containers import VerticalScroll
-from textual.widgets import Markdown
-
 from src.config.models import MODEL
 
-from src.libs.slash_commands_dictionary import SLASH_CMDS_DICT
 from src.libs.helpers.tui_helpers.agent_interface_helper import (
     show_loading_indicator, show_info
 )
+from src.libs.constants import COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN, GenericEventHook
+from src.libs.custom_dataclasses import AgentHooks
 
-from src.agent.models.llm import TokenCallback
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.chat_session_logs.compression import CompressionResult
 from src.rag.knowledge_base import DocumentKnowledgeBase
@@ -21,54 +18,44 @@ from src.logger import app_logger
 app_log = app_logger(f"{__name__}.app")
 
 
-def _ignore_attachment_warning() -> str | None:
-    return SLASH_CMDS_DICT["compress"].get("no_prompt_attachments_warn")
-
-
-def _loading_information() -> str | None:
-    return SLASH_CMDS_DICT["compress"].get("loading_info")
-
-
 # --- Frontend helpers ----------------------------------
+# 
+# def _notify_ignore_attachments(
+#     paths: list[Path] | None,
+#     in_tui: bool | None = None,
+#     screen: Any | None = None
+# ) -> None:
+#     """
+#     Handles notifications depend on where the TUI is running if file is attached.
+#     Call this for default compression.
+#     """
+#     warn_str = NO_PROMPT_ATTCHMNT_WARN
+# 
+#     if in_tui and paths:
+#         app_log.warning(warn_str)
+#         if in_tui:
+#             show_info(screen=screen, info=warn_str)
+#         return None
+# 
+#     if paths:
+#         app_log.warning(warn_str)
+# 
+# 
+# def _show_compressing_indicator(
+#     in_tui: bool | None = None,
+#     screen: Any | None = None,
+#     md_widget: Markdown | None = None,
+#     chat_container: VerticalScroll | None = None,
+# ):
+#     if in_tui:
+#         show_loading_indicator(
+#             screen=screen,
+#             md_widget=md_widget,
+#             info=,
+#             is_scroll_end=True,
+#             chat_container=chat_container
+#         )
 
-def _notify_ignore_attachments(
-    paths: list[Path] | None,
-    in_tui: bool | None = None,
-    screen: Any | None = None
-) -> None:
-    """
-    Handles notifications depend on where the TUI is running if file is attached.
-    Call this for default compression.
-    """
-    warn_str = _ignore_attachment_warning() or ""
-
-    if in_tui and paths:
-        app_log.warning(warn_str)
-        if in_tui:
-            show_info(screen=screen, info=warn_str)
-        return None
-
-    if paths:
-        app_log.warning(warn_str)
-
-
-def _show_compressing_indicator(
-    in_tui: bool | None = None,
-    screen: Any | None = None,
-    md_widget: Markdown | None = None,
-    chat_container: VerticalScroll | None = None,
-):
-    if in_tui:
-        show_loading_indicator(
-            screen=screen,
-            md_widget=md_widget,
-            info=_loading_information() or "",
-            is_scroll_end=True,
-            chat_container=chat_container
-        )
-
-
-# --- Backend -------------------------------------------
 
 class SlashCompress:
     """
@@ -81,7 +68,6 @@ class SlashCompress:
 
     def __init__(self, conn, chat_logs: ChatSessionLogs):
         self.conn = conn
-
         self.chat_sess_logs = chat_logs
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_sess_logs=self.chat_sess_logs
@@ -89,15 +75,10 @@ class SlashCompress:
 
     def _default_compression(
         self,
+        unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
-        unfmt_prompt: str,
-        callback: TokenCallback | None = None,
-        # --- TUI related ---
-        in_tui: bool | None = None,
-        screen: Any | None = None,
-        md_widget: Markdown | None = None,
-        chat_container: VerticalScroll | None = None,
+        hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
         No instructions, ONLY '/compress' is entered in the chat, a simple
@@ -106,12 +87,12 @@ class SlashCompress:
         This function does NOT support attachment uploads, a message will
         be displayed to notify user that the uploaded will be ignored.
         """
-        _notify_ignore_attachments(paths=paths, in_tui=in_tui, screen=screen)
-        _show_compressing_indicator(
-            in_tui=in_tui, screen=screen, md_widget=md_widget, chat_container=chat_container
-        )
+        if (is_attchmnt or paths) and hooks and hooks.on_stat_change:
+            app_log.warning(NO_PROMPT_WARN)
+            hooks.on_stat_change(NO_PROMPT_WARN)
+
         result = self.chat_sess_logs.default_compress_active_conversations(
-            unfmt_prompt, "default", callback
+            unfmt_prompt, "default", hooks=hooks
         )
         return result if result else None
 
@@ -121,27 +102,21 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
-        callback: TokenCallback | None = None,
-        # --- TUI related ---
-        in_tui: bool | None = None,
-        screen: Any | None = None,
-        md_widget: Markdown | None = None,
-        chat_container: VerticalScroll | None = None,
+        hooks: AgentHooks | None = None
     ) -> CompressionResult | None:
         """'/compress' with added prompt to instructe to model what exactly to summaries."""
         attchmnt_dict = self.doc_kw_bs.get_attachments_content(
             is_attchmnt=is_attchmnt, attch_paths=paths
         )
-        _show_compressing_indicator(
-            in_tui=in_tui, screen=screen, md_widget=md_widget, chat_container=chat_container
-        )
+        if hooks and hooks.on_loading:
+            hooks.on_loading("Compressing session...")
 
         result = self.chat_sess_logs.instruct_compress_active_conversations(
             clean_prompt=clean_prompt,
             unfmt_prompt=unfmt_prompt,
             attchmnt_dict=attchmnt_dict,
             cmp_method="instruct",
-            callback=callback
+            hooks=hooks
         )
 
         if not result:
@@ -160,11 +135,7 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
-        callback: TokenCallback | None = None,
-        in_tui: bool | None = None,  # TUI related
-        screen: Any | None = None,  # TUI related
-        md_widget: Markdown | None = None,  # TUI related
-        chat_container: VerticalScroll | None = None,  # TUI related
+        hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
         Retrieve and print relevant entries according to user prompt.
@@ -182,11 +153,7 @@ class SlashCompress:
                 is_attchmnt=is_attchmnt,
                 paths=paths,
                 unfmt_prompt=unfmt_prompt,
-                callback=callback,
-                in_tui=in_tui,
-                screen=screen,
-                md_widget=md_widget,
-                chat_container=chat_container,
+                hooks=hooks,
             )
 
         return self._instructed_compression(
@@ -194,9 +161,5 @@ class SlashCompress:
             unfmt_prompt=unfmt_prompt,
             is_attchmnt=is_attchmnt,
             paths=paths,
-            callback=callback,
-            in_tui=in_tui,
-            screen=screen,
-            md_widget=md_widget,
-            chat_container=chat_container,
+            hooks=hooks,
         )
