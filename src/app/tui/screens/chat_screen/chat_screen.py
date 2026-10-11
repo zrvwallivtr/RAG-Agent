@@ -16,7 +16,7 @@ from .chat_container import (
     create_assistant_message_box,
     load_chat_history
 )
-from .pending_attachments import to_attachments_popup
+from .pending_attachments import to_attachments_popup, process_add_pending_attachments
 from .token_counter import (
     create_session_used_tokens_widget,
     refresh_session_token_cache,
@@ -76,7 +76,13 @@ class ChatScreen(BaseScreen):
                     )
 
                     # Button for stop model response
-                    yield Button("Stop", id="stop-button", classes="hidden")
+                    yield Button(
+                        "Stop",
+                        id="stop-button",
+                        classes="hidden",
+                        compact=True,
+                        flat=True,
+                    )
 
                 # Prompt input bar
                 yield Input(
@@ -225,3 +231,6 @@ class ChatScreen(BaseScreen):
 
         else:
             self.pending_key = None
+
+    def run_process_add_pending_attachments(self, cmd: str, prefix: str) -> None:
+        process_add_pending_attachments(self, cmd=cmd, prefix=prefix)

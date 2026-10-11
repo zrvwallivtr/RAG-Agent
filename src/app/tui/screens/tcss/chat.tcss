@@ -70,7 +70,7 @@ $chat-accent-bright: lightcyan;
     height: auto;
     width: 100%;
     margin: 1 3;
-    padding: 1 3;
+    padding: 0 1 1 1;
     border: solid $chat-accent;
     color: $chat-accent;
 }
@@ -94,17 +94,17 @@ $chat-accent-bright: lightcyan;
 }
 
 #stop-button {
-    min-width: 10;
-    margin-left: 1;
     color: $chat-accent;
-    background: transparent;
-    border: tall $chat-accent;
 }
 
 #stop-button:hover {
-    color: $chat-accent-bright;
-    background: transparent;
-    border: tall $chat-accent-bright;
+    color: black;
+    background: $chat-accent-bright;
+}
+
+#stop-button:focus {
+    color: black;
+    background: $chat-accent-bright;
 }
 
 #stop-button:disabled {

@@ -88,9 +88,27 @@ class DashboardScreen(BaseScreen):
 
             # Sessions actions
             with Horizontal(id="session-action-bar", classes="action-bar"):
-                yield Button("Search session", id="search-session-button", classes="action-item")
-                yield Button("New session", id="new-session-button", classes="action-item")
-                yield Button("Delete session", id="delete-session-button", classes="action-item")
+                yield Button(
+                    "Search session",
+                    id="search-session-button",
+                    classes="action-item",
+                    compact=True,
+                    flat=True,
+                )
+                yield Button(
+                    "New session",
+                    id="new-session-button",
+                    classes="action-item",
+                    compact=True,
+                    flat=True,
+                )
+                yield Button(
+                    "Delete session",
+                    id="delete-session-button",
+                    classes="action-item",
+                    compact=True,
+                    flat=True,
+                )
 
             yield Input(
                 id="session-search-input",

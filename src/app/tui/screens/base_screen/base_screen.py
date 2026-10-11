@@ -5,6 +5,8 @@ from textual.screen import Screen
 from textual.widgets import Input
 from textual.events import Key
 
+from .tab_completion import tab_completion
+
 
 class BaseScreen(Screen):
     CSS_PATH = "tcss/base.tcss"
@@ -43,6 +45,10 @@ class BaseScreen(Screen):
                 cmd_input.value = ""
                 cmd_input.add_class("hidden")
                 self.set_focus(None)
+
+        if event.key == "tab":
+            if cmd_input.has_focus:
+                tab_completion(self, cmd_input=cmd_input, event=event)
 
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -91,7 +97,7 @@ class BaseScreen(Screen):
         elif isinstance(self, ChatScreen):
             if cmd.startswith(":a ") or cmd.startswith(":attach "):
                 prefix = ":a " if cmd.startswith(":a ") else ":attach "
-                self.filter_and_add_pending(cmd=cmd, prefix=prefix)
+                self.run_process_add_pending_attachments(cmd=cmd, prefix=prefix)
                 return
 
         else:
