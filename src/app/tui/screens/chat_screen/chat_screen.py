@@ -32,6 +32,7 @@ from src.app.tui.screens.base_screen import BaseScreen
 
 
 class ChatScreen(BaseScreen):
+    """Chat screen interface managing prompt inputs, session metrics, and chat threads."""
     CSS_PATH = "../tcss/chat.tcss"
 
     def __init__(self, sess_name: str | None):
@@ -48,7 +49,6 @@ class ChatScreen(BaseScreen):
 
         self._cached_sess_tkns: int = 0
         self._awaiting_response = False
-
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -88,6 +88,7 @@ class ChatScreen(BaseScreen):
         yield from self.compose_command_bar()
 
     def on_mount(self) -> None:
+        """Initialises chat history, token cache counters, and button visibility."""
         load_chat_history(self)
         refresh_session_token_cache(self)
         static_update_session_used_tokens_widget(self)

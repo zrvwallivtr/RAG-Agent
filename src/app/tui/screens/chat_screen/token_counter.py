@@ -2,14 +2,9 @@ from textual import work
 from textual.widgets import Static
 
 
-# Features a live token count for showing the how many tokens will be
-# in the current session if the prompt is submitted
-# (session used tokens + prompt tokens).
-
 def create_session_used_tokens_widget(screen) -> str | None:
     """
-    Returns the string displaying the number of tokens used throughout
-    the session against the max tokens limit of the active chat model.
+    Returns session tokens used over the max token limit of the model.
     """
     if not screen.local_tknizr.model_max_tkns:
         return
@@ -26,8 +21,9 @@ def create_session_used_tokens_widget(screen) -> str | None:
 
 def refresh_session_token_cache(screen) -> None:
     """
-    Refresh the value for tokens used throughout session.
-    Call ONLY WHEN CHAT HISTORY CHANGES:
+    Refresh session token used.
+
+    Call only when chat history changes:
     - On mount.
     - After sending a message.
     - Model finished responding.
@@ -41,8 +37,8 @@ def refresh_session_token_cache(screen) -> None:
 @work(exclusive=True, thread=True, group="token_count")
 def _session_used_tokens_and_prompt_tokens_count(screen, prompt: str):
     """
-    Update of the session used tokens widget:
-    - Session used tokens + current tokens count in prompt input.
+    Background worker that calculates total tokens combining history usage
+    and live prompt inputs.
     """
     if screen._awaiting_response or not screen.local_tknizr.model_max_tkns:
         return
@@ -57,9 +53,8 @@ def _session_used_tokens_and_prompt_tokens_count(screen, prompt: str):
 
 def debounced_token_count(screen, prompt: str) -> None:
     """
-    Reset a short timer on every keystroke; only the LAST keystroke in
-    a burst actually trigger tokenization (so rapid typing does not run
-    it dozens of times per second).
+    Implements a tokenization debounce timer to prevent excessive calculation
+    during rapid typing.
     """
     if hasattr(screen, "_token_timer") and screen._token_timer:
         screen._token_timer.stop()
@@ -71,8 +66,7 @@ def debounced_token_count(screen, prompt: str) -> None:
 
 def static_update_session_used_tokens_widget(screen) -> None:
     """
-    Refresh session used token cache value, and update
-    tokens counter widget in the user section.
+    Refreshes token caches and updates the UI token counter widget.
 
     ONLY call this when:
     - On mount.

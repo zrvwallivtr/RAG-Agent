@@ -96,6 +96,7 @@ def reset_pending_attachment_widget(screen) -> None:
 
 
 def to_attachments_popup(screen) -> None:
+    """Pushes the manage attachments popup screen to the front."""
     def _on_manage_attachments_close(updated_paths: list[Path] | None) -> None:
         if updated_paths is not None:
             screen.pending_attchmnt = updated_paths

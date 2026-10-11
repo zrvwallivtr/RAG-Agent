@@ -5,11 +5,16 @@ from textual.widgets import Static, Markdown
 
 from src.libs.constants import COMPRESS_DB_ENTRY
 from src.libs.helpers.tui_helpers.size_bytes_helpers import format_size_bytes
+from src.libs.constants import AUTO_COMPRESS_SUM_TITLE
 
 from src import logger
 
 
 def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
+    """
+    Unpacks raw database message dictionary records into normalised tuples
+    for UI rendering.
+    """
     role = str(msg.get("role"))
     cont = str(msg.get("content", ""))
 
@@ -32,8 +37,11 @@ def create_user_message_box(
     slash_cmd_metadata: dict | None = None,
 ) -> Vertical:
     """
-    Contains the content sent from the user, show widget if attachments was
-    attached in that conversation turn.
+    Constructs the user message box, render attached files widget (if present).
+
+    Render the original unformatted message that was stored in the database
+    metadata entry (Only useful when re-rendering the chat if a slash
+    command is used in that conversation turn).
     """
     widgets = [cont_widget]
 
@@ -48,7 +56,8 @@ def create_user_message_box(
     if slash_cmd_metadata:
         unfmt_prompt = slash_cmd_metadata.get("unformatted_prompt")
         if unfmt_prompt:
-            widgets[0] = Static(unfmt_prompt)  # Replace the prompt with unformatted prompt
+            # Replace the prompt with unformatted prompt
+            widgets[0] = Static(unfmt_prompt)
 
     return Vertical(*widgets, classes=f"msg-box user-box")
 
@@ -59,36 +68,44 @@ def create_assistant_message_box(
     slash_cmd_metadata: dict | None = None,
     hide_tkns: bool = False,
 ) -> tuple[Vertical, Static]:
-    """Contains the assistant's response and token count for said response."""
-    # Extra widget to indicate auto compression summary
+    """
+    Constructs the assistant message box, handle auto-compression summary
+    message box and render message token counts widget.
+    """
+    # Check if auto summary is triggered
     is_auto_sum = bool(
         slash_cmd_metadata and slash_cmd_metadata.get("method") == "auto"
     )
 
+    # Message token counts widget (Only reveal when the response is completed)
     tkn_widget = Static(
         f"{tol_tkns} token used", classes="msg-token-count"
     )
     if hide_tkns:
-        tkn_widget.add_class("hidden")  # Only reveal when the response is complete
+        tkn_widget.add_class("hidden")
 
+    # Widget class for labelling whether if it is the regular
+    # assistant message box or the auto summary box.
     classes = "msg-box assistant-box"
     if is_auto_sum:
         classes += " auto-summary"
 
     box = Vertical(cont_widget, tkn_widget, classes=classes)
 
+    # Add message box title if it is a auto summary box
     if is_auto_sum:
-        box.border_title = "AUTO SESSION SUMMARY DUE TO TOKEN LIMIT REACHED"
+        box.border_title = AUTO_COMPRESS_SUM_TITLE
 
     return box, tkn_widget
 
 
 def load_chat_history(screen) -> None:
     """
-    Get entire chat history from the database and
-    display it on to the interface.
+    Get entire chat history from the database and populates the chat container
+    with user and assistant widget.
     """
     chat_container = screen.query_one("#chat-container", VerticalScroll)
+
     chat_hist = screen.agent.chat_sess_logs.get_chat_history(filter="all")
     if not chat_hist:
         return
@@ -116,4 +133,3 @@ def load_chat_history(screen) -> None:
             chat_container.mount(msg_box)
 
     chat_container.scroll_end(animate=False)
-
