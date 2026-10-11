@@ -1,25 +1,114 @@
-ChatInterface {
-    layout: vertical;
-    width: 100%;
-    height: 100%;
-}
+/* --- Variables -------------------------------------------------- */
+
+$chat-accent: cyan;
+$chat-accent-bright: lightcyan;
+
+
+/* --- Chat area -------------------------------------------------- */
 
 #chat-container {
     margin: 0 3;
     padding: 0 3;
 }
 
+
+/* --- Message boxes: shared -------------------------------------- */
+
+.msg-box {
+    height: auto;
+}
+
+.msg-token-count {
+    width: auto;
+    padding: 0 1;
+    margin-left: 1;
+    color: $chat-accent;
+}
+
+
+/* --- Message boxes: user ---------------------------------------- */
+
+.msg-box.user-box {
+    width: 100%;
+    margin-left: 30;
+    margin-right: 3;
+    margin-bottom: 3;
+    padding: 1 2;
+    border: solid $chat-accent;
+    color: $chat-accent-bright;
+}
+
+.user-attachments {
+    width: 100%;
+    height: auto;
+    margin: 1 0;
+    color: $chat-accent;
+}
+
+
+/* --- Message boxes: assistant ----------------------------------- */
+
+.assistant-box {
+    width: 100%;
+    margin-left: 3;
+    margin-right: 3;
+    margin-bottom: 3;
+    padding: 1;
+}
+
+.assistant-box.auto-summary {
+    border: solid $chat-accent;
+    border-title-align: center;
+    border-title-color: $chat-accent;
+    border-title-style: bold;
+}
+
+
+/* --- User section (status bar and prompt) ----------------------- */
+
 #user-section {
     height: auto;
     width: 100%;
-    border: solid darkcyan;
     margin: 1 3;
+    padding: 1 3;
+    border: solid $chat-accent;
+    color: $chat-accent;
 }
 
 #sess-status {
     height: auto;
     width: 100%;
     padding: 0 1;
+}
+
+.user-item {
+    width: auto;
+    height: auto;
+    padding: 1;
+    margin-right: 1;
+    color: $chat-accent;
+}
+
+#pending-attachments-counter:hover {
+    color: $chat-accent-bright;
+}
+
+#stop-button {
+    min-width: 10;
+    margin-left: 1;
+    color: $chat-accent;
+    background: transparent;
+    border: tall $chat-accent;
+}
+
+#stop-button:hover {
+    color: $chat-accent-bright;
+    background: transparent;
+    border: tall $chat-accent-bright;
+}
+
+#stop-button:disabled {
+    opacity: 60%;
 }
 
 #prompt-input {
@@ -32,100 +121,9 @@ ChatInterface {
     border: solid cyan;
 }
 
-.user-item {
-    width: auto;
-    color: darkcyan;
-    padding: 1;
-    height: auto;
-    margin-right: 1;
-}
 
-#attachment-indicator {
-    width: auto;
-}
+/* --- Utilities --------------------------------------------------- */
 
-#attachment-indicator:hover {
-    border: cyan;
-    color: cyan;
-}
-
-#attachment-indicator:focus {
-    border: cyan;
-    color: cyan;
-}
-
-#tokens-counter {
-    width: auto;
-}
-
-#user-section {
-    border: solid darkcyan;
-    color: darkcyan;
-    padding: 1 3;
-}
-
-.msg-box {
-    height: auto;
-}
-
-.usr-box {
-    width: 100%;
-    margin-left: 30;
-    margin-right: 3;
-    margin-bottom: 3;
-}
-
-.msg-box.user-box {
-    border: solid darkcyan;
-    width: 100%;
-    margin-left: 30;
-    margin-right: 3;
-    margin-bottom: 3;
-    color: cyan;
-    padding: 1 2;
-}
-
-.assistant-box {
-    width: 100%;
-    margin-left: 3;
-    margin-bottom: 3;
-    padding: 1;
-}
-
-.msg-token-count {
-    color: darkcyan;
-    width: auto;
-    padding: 0 1;
-    margin-left: 1;
-}
-
-.msg-token-count.hidden {
+.hidden {
     display: none;
-}
-
-.user-attachments {
-    width: 100%;
-    height: auto;
-    /*padding: 0 1;*/
-    margin: 1 0;
-    /*border-left: solid darkcyan;*/
-    color: darkcyan;
-}
-
-.auto-summary-label {
-    height: auto;
-    margin-bottom: 1;
-}
-
-.auto-summary-label Static {
-    text-align: center;
-    text-style: bold;
-    color: darkcyan;
-}
-
-.assistant-box.auto-summary {
-    border: solid darkcyan;
-    border-title-align: center;
-    border-title-color: darkcyan;
-    border-title-style: bold;
 }

@@ -1,12 +1,10 @@
-from src.config import postgres
+from src.config.postgres import CONN
 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base import KnowledgeBase
 from src import logger
 
-
-conn = postgres.conn
-cur = conn.cursor()
+CUR = CONN.cursor()
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -16,8 +14,8 @@ def del_sess(sess_name: str | None = None) -> None:
     Delete session related chat logs and database contents. If 'session'
     is not specified, delete default session related contents.
     """
-    chat_sess_logs   = ChatSessionLogs(conn=conn, sess_name=sess_name)
-    kw_bs       = KnowledgeBase(conn=conn, chat_sess_logs=chat_sess_logs)
+    chat_sess_logs   = ChatSessionLogs(conn=CONN, sess_name=sess_name)
+    kw_bs       = KnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
 
     sess_id = chat_sess_logs.get_session_id()
     if not sess_id:
@@ -35,16 +33,16 @@ def del_sess(sess_name: str | None = None) -> None:
     if not has_del_chat:
         app_log.warning("Failed to clear session '%s' chat logs", sess_name)
 
-    cur.execute(
+    CUR.execute(
         """
         DELETE FROM chat_sessions
         WHERE session_id = %s;
         """,
         (sess_id,)
     )
-    conn.commit()
-    del_count = cur.rowcount
-    conn.commit()
+    CONN.commit()
+    del_count = CUR.rowcount
+    CONN.commit()
 
     if del_count == 0:
         app_log.warning("Failed to delete session: Session '%s' does not exist", sess_name)

@@ -10,9 +10,10 @@ embedding = "nomic-embed-text"
 # embedding_max_tokens  =
 
 fallback_tokenizer  = "gpt2"
+token_reserve       = 1000
 
 
-[file_reader]
+[rag]
 
 retrieve_entry_limit                        = 3
 enable_auto_read_dropbox                    = true

@@ -1,6 +1,3 @@
-from difflib import get_close_matches
-from typing import Literal
-from datetime import datetime
 from psycopg2.errors import UniqueViolation
 
 from rich import box
@@ -14,14 +11,29 @@ from textual.widgets import Static, Input, OptionList, Button
 from textual.widgets.option_list import Option
 from textual.events import Key
 
-from src.config import models, postgres
+from src.config.models import MODEL, EMBED_MODEL, FALLBACK_TOKENIZER
+from src.config.postgres import CONN
+
+from .fuzzy_search import fuzzy_search_behaviour, load_sessions, show_session_list, sessions
+from .tokenizers import get_tknizr_list
+from .status_widgets import update_model_status_section, update_tokenizer_status_section
+from .session_selector import (
+    _delete_session,
+    go_to_session,
+    reset_session_list_layout,
+    option_list_highlight_none,
+    show_sessions,
+    show_new_session_input,
+    create_new_session,
+    show_delete_session_input,
+    confirm_and_delete_session,
+    show_session_search_input
+)
+
 from src.agent.models import ollama
 from src.agent import tokenizers
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
-
-from src.libs.helpers.tui_helpers import date_helpers, tokenizers_helpers, fuzzy_search_helpers
-
 
 MODEL_ROLES = ["chat_model", "embedding_model"]
 SESSION_INPUT_IDS = {"session-search-input", "new-session-input", "delete-session-input"}
@@ -33,18 +45,17 @@ def app_icon() -> str:
 
 
 class DashboardScreen(BaseScreen):
-    CSS_PATH = "tcss/dashboard.tcss"
-
+    CSS_PATH = "../tcss/dashboard.tcss"
 
     def __init__(self):
         super().__init__()
         self.ava_models = ollama.ollama_models_list()
         self.selected_models = {
-            MODEL_ROLES[0]: models.MODEL,
-            MODEL_ROLES[1]: models.EMBED_MODEL,
+            MODEL_ROLES[0]: MODEL,
+            MODEL_ROLES[1]: EMBED_MODEL,
         }
 
-        self.fb_tknizr = models.FALLBACK_TOKENIZER
+        self.fb_tknizr = FALLBACK_TOKENIZER
 
         self.curr_model_role: str | None = None
         self.curr_fb_tknizr: str | None = None
@@ -53,7 +64,6 @@ class DashboardScreen(BaseScreen):
         self.in_sess_search: bool = False
         self.in_new_sess_input: bool = False
         self.in_del_sess_input: bool = False
-
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="app-banner"):
@@ -106,27 +116,24 @@ class DashboardScreen(BaseScreen):
 
         yield from self.compose_command_bar()
 
-
     def on_mount(self) -> None:
         """Show app icon, app description and status on startup."""
         self.query_one("#app-icon", Static).update(app_icon())
-        self._update_model_status_section()
-        self._update_tokenizer_status_section()
-        self._show_sessions()
+        update_model_status_section(self)
+        update_tokenizer_status_section(self)
+        show_sessions(self)
         self.refresh(layout=True)
-
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Controls the behaviour when action bar button is pressed."""
         if event.button.id == "search-session-button":
-            self._show_session_search_input()
+            show_session_search_input(self)
 
         elif event.button.id == "new-session-button":
-            self._show_new_session_input()
+            show_new_session_input(self)
 
         elif event.button.id == "delete-session-button":
-            self._show_delete_session_input()
-
+            show_delete_session_input(self)
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """
@@ -142,14 +149,13 @@ class DashboardScreen(BaseScreen):
                 return
 
             elif self.in_sess_search or self.in_new_sess_input:
-                self._go_to_session(sess_name=event.option.id)
+                go_to_session(self, sess_name=event.option.id)
 
             elif self.in_del_sess_input:
-                self._confirm_and_delete_session(sess_name=event.option.id)
+                confirm_and_delete_session(self, sess_name=event.option.id)
 
             else:
-                self._go_to_session(sess_name=event.option.id)
-
+                go_to_session(self, sess_name=event.option.id)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Fuzzy search for models, tokenizers and sessions."""
@@ -160,9 +166,8 @@ class DashboardScreen(BaseScreen):
         if getattr(self, "_fuzzy_timer", None):
             self._fuzzy_timer.stop()
         self._fuzzy_timer = self.set_timer(
-            0.1, lambda: fuzzy_search_helpers.fuzzy_search_behaviour(event, opt_list)
+            0.1, lambda: fuzzy_search_behaviour(event, opt_list)
         )
-
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """
@@ -185,7 +190,7 @@ class DashboardScreen(BaseScreen):
 
         # New session naming bar
         if event.input.id == "new-session-input":
-            self._create_new_session(sess_name=event.value)
+            create_new_session(self, sess_name=event.value)
             return
 
         # Delete session search bar
@@ -199,9 +204,8 @@ class DashboardScreen(BaseScreen):
             if not selected_option.id:
                 return
 
-            self._confirm_and_delete_session(sess_name=selected_option.id)
+            confirm_and_delete_session(self, sess_name=selected_option.id)
             return
-
 
     def on_key(self, event: Key) -> None:
         """Menu and option list keybinds."""
@@ -325,249 +329,5 @@ class DashboardScreen(BaseScreen):
         elif event.key == "escape":
             event.prevent_default()
             event.stop()
-            self._reset_session_list_layout()
-            self._option_list_highlight_none()
-
-
-    # The following contains static widgets listing the models and tokenizers status
-
-    def _update_model_status_section(self):
-        self.query_one("#model-section-title", Static).update(f"[bold]Models[/] ({len(self.ava_models)} installed)")
-
-        model_list = []
-        for model_type in MODEL_ROLES:
-            model_names = model_type.replace("_", " ").capitalize()
-            model_list.append(f"{model_names}")
-        models_str = "\n".join(model_list)
-
-        selected_list = []
-        for model in self.selected_models.values():
-            selected_list.append(f"{model}")
-        selected_str = "\n".join(selected_list)
-
-        self.query_one("#model-type-list", Static).update(models_str)
-        self.query_one("#selected-model-list", Static).update(selected_str)
-
-
-    def _update_tokenizer_status_section(self):
-        tknizr_list = tokenizers_helpers.get_tknizr_list()
-        tknizr_count = len(tknizr_list) if tknizr_list else 0
-
-        self.query_one("#tokenizer-section-title", Static).update(f"[bold]Tokenizers[/] ({tknizr_count} installed)")
-        self.query_one("#fallback-tokenizer", Static).update("Fallback tokenizer:")
-        self.query_one("#selected-tokenizer", Static).update(f"{models.FALLBACK_TOKENIZER}")
-
-
-    # Session action bar:
-    # - Contains three buttons that triggers and show the input bar to
-    #   search existing session, name and create new session, and delete
-    #   existing session.
-     
-    def _show_session_action_bar(self) -> None:
-        """Option list for search session, new session, delete session."""
-        self.in_sess_search = False # User not searching sessions
-        self.curr_to_sess = None
-
-        action_bar = self.query_one("#session-action-bar")
-        action_bar.remove_class("hidden")
-        self.query_one("#search-session-button", Button).focus()
-
-
-    # Session list default behaviour section. Where the session list
-    # should return to the uninterupted default layout in normal mode.
-
-    def _reset_session_list_layout(self) -> None:
-        """Return to default sessions view if in an input mode."""
-        if self.in_sess_search or self.in_new_sess_input or self.in_del_sess_input:
-            self.in_new_sess_input = False
-            self.in_del_sess_input = False
-            self._show_sessions()
-
-
-    def _option_list_highlight_none(self) -> None:
-        """Remove all highlightings if any OptionList is highlighted."""
-        for opt_list in self.query(OptionList):
-            if opt_list.highlighted is not None:
-                opt_list.highlighted = None
-
-
-    def _show_sessions(self) -> None:
-        """
-        Consist:
-        - Show latest sessions. If selected go to the chat screen for said session.
-        - Show go to session option. If selected, the fuzzy search session selector
-          will popup.
-        """
-        self.in_sess_search = False
-        self.in_new_sess_input = False
-        self.in_del_sess_input = False
-        self.curr_to_sess = None
-
-        fuzzy_search_helpers.load_sessions()
-        count = len(fuzzy_search_helpers._sessions)
-
-        title = (
-            f"[bold]Sessions[/bold] ({count}) created"
-            if count
-            else f"[bold]Sessions[/bold] (0 created)\n"
-        )
-        self.query_one("#session-section-title", Static).update(title)
-
-        # Session list
-        sess_list = self.query_one("#session-list", OptionList)
-        fuzzy_search_helpers.show_session_list(sess_list=sess_list)
-
-        self._show_session_action_bar()
-
-        # Hide input bar
-        self.query_one("#session-search-input", Input).add_class("hidden")
-        self.query_one("#new-session-input", Input).add_class("hidden")
-        self.query_one("#delete-session-input", Input).add_class("hidden")
-
-
-    # Search session input bar behaviour section. This input bar
-    # searches all existing session name, mainly used for quick
-    # search and continue chat session.
-
-    def _show_session_search_input(self) -> None:
-        """
-        Consist of the search input bar and available sessions list.
-        Session list will be updated according to the search bar.
-        """
-        self.in_sess_search = True # User is searching sessions
-
-        # Session option list
-        sess_list = self.query_one("#session-list", OptionList)
-
-        # Highlight first match
-        if sess_list.option_count > 1:
-            sess_list.highlighted = 1
-
-        # Fuzzy search
-        search_input = self.query_one("#session-search-input", Input)
-        search_input.value = ""
-        search_input.remove_class("hidden")
-        sess_list.remove_class("hidden")
-        search_input.focus()
-
-        # Hide session search input trigger
-        self.query_one("#session-action-bar").add_class("hidden")
-
-
-    def _go_to_session(self, sess_name: str) -> None:
-        """Go to specified chat session screen."""
-        self.notify(f"Opening session: {sess_name}")
-        from src.app.tui.screens.chat_screen import ChatScreen
-        self.app.push_screen(ChatScreen(sess_name=sess_name))
-
-
-    # Create session input bar behaviour section. The submitted
-    # string will be the name of the newly created chat session.
-
-    def _show_new_session_input(self) -> None:
-        """
-        Consist of the input bar for naming the new session.
-        Show existing session list with fuzzy search on.
-        """
-        self.in_new_sess_input = True # User is entering session name
-        sess_list = self.query_one("#session-list", OptionList)
-        fuzzy_search_helpers.show_session_list(sess_list=sess_list)
-
-        # Existing session list
-        sess_list = self.query_one("#session-list", OptionList)
-
-        # Highlight first match
-        if sess_list.option_count > 1:
-            sess_list.highlighted = 1
-
-        # Input bar
-        new_sess_input = self.query_one("#new-session-input", Input)
-        new_sess_input.value = ""
-        new_sess_input.remove_class("hidden")
-        sess_list.remove_class("hidden")
-        new_sess_input.focus()
-
-        # Hide widgets
-        self.query_one("#session-action-bar").add_class("hidden")
-
-
-    def _create_new_session(self, sess_name: str) -> None:
-        """Create new session."""
-        clean_name = sess_name.strip()
-        if not clean_name:
-            self.notify("Session name cannot be empty.", severity="error")
-            return
-
-        from src.agent.chat_session_logs import ChatSessionLogs
-        chat_sess_logs = ChatSessionLogs(conn=postgres.conn, sess_name=clean_name)
-
-        try:
-            chat_sess_logs.create_session()
-
-        except UniqueViolation:
-            chat_sess_logs.conn.rollback()
-            self.notify(f"Session '{clean_name}' already exists", severity="error")
-            return
-
-        self.notify(f"New session created: {clean_name}")
-        self._reset_session_list_layout()
-        self._go_to_session(clean_name)
-
-
-    # Delete session input bar behaviour section. Search for existing chat
-    # session for quick deletetion. A confirmation popup will show to prevent
-    # accidental deletetion.
-
-    def _show_delete_session_input(self) -> None:
-        """
-        Consist of the input bar for available sessions.
-        Show existing session list with fuzzy search on.
-        """
-        self.in_del_sess_input = True # User is entering session name
-
-        # Existing session list
-        sess_list = self.query_one("#session-list", OptionList)
-
-        # Input bar
-        del_sess_input = self.query_one("#delete-session-input", Input)
-        del_sess_input.value = ""
-        del_sess_input.remove_class("hidden")
-        sess_list.remove_class("hidden")
-        del_sess_input.focus()
-
-        # Hide widgets
-        self.query_one("#session-action-bar").add_class("hidden")
-
-
-    def _delete_session(self, sess_name: str) -> None:
-        """Delete session."""
-        from src.libs.helpers import sessions_helpers
-        result = sessions_helpers.del_sess(sess_name=sess_name)
-
-        if result and "fail" in result.lower():
-            self.notify(result, severity="error")
-            return
-
-        self.notify(f"Session deleted: {sess_name}")
-        self._show_sessions()
-
-
-    def _confirm_and_delete_session(self, sess_name: str) -> None:
-        clean_name = sess_name.strip()
-        if not clean_name:
-            self.notify("Session name cannot be empty.", severity="error")
-            return
-
-        from src.app.tui.screens.confirmation_popup_screen import ConfirmationPopupScreen
-
-        def handle_confirmation(is_confirm: bool | None) -> None:
-            if is_confirm:
-                self._delete_session(sess_name=clean_name)
-
-        title = f"Proceed to delete session '{sess_name}'?"
-        positive = "Proceed"
-        negative = "Cancel"
-        self.app.push_screen(
-            ConfirmationPopupScreen(title=title, positive=positive, negative=negative),
-            callback=handle_confirmation
-        )
+            reset_session_list_layout(self)
+            option_list_highlight_none(self)

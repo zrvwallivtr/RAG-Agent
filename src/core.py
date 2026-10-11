@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Callable, Any
 
-from src.config.postgres import conn
-from src.config.models import MODEL
+from src.config.postgres import CONN
+from src.config.models import MODEL, TOKEN_RESERVE
 
 from src.libs.helpers.format_context_helper import build_prompt
 from src.libs.helpers.slash_commands_helpers import detect_cmd
@@ -21,10 +21,6 @@ from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-TOKEN_RESERVE = 1000
-
-GenericEventHook = Callable[[str], None]
-
 
 class Agent:
     def __init__(
@@ -32,7 +28,7 @@ class Agent:
         sess_name: str | None = None,
     ):
         self.sess_name = sess_name
-        self.conn      = conn
+        self.conn      = CONN
 
         self.chat_sess_logs = ChatSessionLogs(
             conn=self.conn, sess_name=self.sess_name

@@ -69,3 +69,6 @@ EMBED_MODEL, EMBED_MAX_TOKENS = _set_model_tokens(
 
 # Tokenizer
 FALLBACK_TOKENIZER = _cfg["models"]["fallback_tokenizer"]
+
+# Token reserve before triggering auto session compression
+TOKEN_RESERVE = _cfg["models"]["token_reserve"] or 1000

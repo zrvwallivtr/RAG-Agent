@@ -8,7 +8,7 @@ from textual.widgets import Static, Input, Markdown, Button
 from textual.events import Key
 
 from src.config.models import MODEL
-from src.config.postgres import conn
+from src.config.postgres import CONN
 
 from .agent_response import run_fetch_agent_response
 from .chat_container import (
@@ -40,7 +40,7 @@ class ChatScreen(BaseScreen):
 
         self.agent = Agent(sess_name=sess_name)
         self.local_tknizr = LocalTokenizer(model=MODEL)
-        self.chat_sess_logs = ChatSessionLogs(conn=conn, sess_name=sess_name)
+        self.chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=sess_name)
 
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None

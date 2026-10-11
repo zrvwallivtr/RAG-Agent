@@ -3,9 +3,6 @@ from typing import Any, Callable
 
 from src.config.models import MODEL
 
-from src.libs.helpers.tui_helpers.agent_interface_helper import (
-    show_loading_indicator, show_info
-)
 from src.libs.constants import COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN, GenericEventHook
 from src.libs.custom_dataclasses import AgentHooks
 
@@ -16,45 +13,6 @@ from src.rag.knowledge_base import DocumentKnowledgeBase
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
-
-
-# --- Frontend helpers ----------------------------------
-# 
-# def _notify_ignore_attachments(
-#     paths: list[Path] | None,
-#     in_tui: bool | None = None,
-#     screen: Any | None = None
-# ) -> None:
-#     """
-#     Handles notifications depend on where the TUI is running if file is attached.
-#     Call this for default compression.
-#     """
-#     warn_str = NO_PROMPT_ATTCHMNT_WARN
-# 
-#     if in_tui and paths:
-#         app_log.warning(warn_str)
-#         if in_tui:
-#             show_info(screen=screen, info=warn_str)
-#         return None
-# 
-#     if paths:
-#         app_log.warning(warn_str)
-# 
-# 
-# def _show_compressing_indicator(
-#     in_tui: bool | None = None,
-#     screen: Any | None = None,
-#     md_widget: Markdown | None = None,
-#     chat_container: VerticalScroll | None = None,
-# ):
-#     if in_tui:
-#         show_loading_indicator(
-#             screen=screen,
-#             md_widget=md_widget,
-#             info=,
-#             is_scroll_end=True,
-#             chat_container=chat_container
-#         )
 
 
 class SlashCompress:
