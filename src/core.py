@@ -160,7 +160,7 @@ class Agent:
     def ask(
         self,
         prompt: str,
-        paths: list[Path],
+        paths: list[Path] | None = None,
         is_auto_doc_rtve: bool = True,
         is_attchmnt: bool = False,
         hooks: AgentHooks | None = None,

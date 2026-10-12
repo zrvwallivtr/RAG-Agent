@@ -2,14 +2,18 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .document_reader import DocumentReader
+from src.config.models import MODEL
+
 from .query_documents import QueryDocuments
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.helpers.string_helpers import hash_string
+from src.libs.helpers.file_metadata_helpers import unpack_file_metadata
 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
+from src.rag.file_reader import FileReader
+from src.agent.tokenizers import LocalTokenizer
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
@@ -20,14 +24,16 @@ class StoreDocuments:
         self,
         conn,
         chat_sess_logs: ChatSessionLogs,
-        doc_reader: DocumentReader,
+        file_reader: FileReader,
         query_docs: QueryDocuments
     ):
         self._conn = conn
 
         self.chat_sess_logs = chat_sess_logs
-        self.doc_reader = doc_reader
+        self.file_reader = file_reader
         self.query_docs = query_docs
+
+        self.local_tknizr = LocalTokenizer(MODEL)
 
     def _is_doc_cont_chunk_exist(self, new_hash: str) -> tuple[str, list[float], int] | None:
         """
@@ -38,7 +44,7 @@ class StoreDocuments:
             conn=self._conn,
             sql=(
                 """
-                SELECT content, embeddings, prompt_tokens
+                SELECT content, embeddings, embed_tokens
                 FROM knowledge_base
                 WHERE content_hash = %s
                 LIMIT 1
@@ -57,8 +63,9 @@ class StoreDocuments:
         doc_name: str,
         chnk_idx: int,
         embdings: list[float],
-        chnk_tkns: int,
+        embed_tkns: int,
         cont: str,
+        prompt_tkns: int,
         mime: str,
         size: int,
         cont_hash: str,
@@ -76,14 +83,16 @@ class StoreDocuments:
             conn=self._conn,
             sql=(
                 """
-                INSERT INTO knowledge_base (session_id, type, embeddings, prompt_tokens, content, content_hash, expires_at, metadata)
-                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
+                INSERT INTO knowledge_base 
+                    (session_id, type, embeddings, embed_tokens, content,
+                    prompt_tokens, content_hash, expires_at, metadata)
+                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """
             ),
             params=(
                 self.chat_sess_logs.get_session_id(), "document", str(embdings),
-                chnk_tkns, cont, cont_hash, exprs_at, json.dumps(metadata),
+                embed_tkns, cont, prompt_tkns, cont_hash, exprs_at, json.dumps(metadata),
             )
         )
 
@@ -101,15 +110,15 @@ class StoreDocuments:
         Uses langchain text splitters for file format accordingly,
         embed each chunks and save to knowledge base.
         """
-        doc_data = self.query_docs.get_document_metadata_from_path(path)
-        if not doc_data:
+        file_data = unpack_file_metadata(path)
+        if not file_data:
             return
-        name, mime, size = doc_data
+        name, mime, size = file_data
 
         chnks = []
 
         if not cont and not format:
-            out = self.doc_reader.read_document(path)
+            out = self.file_reader.read_document(path)
             if not out:
                 return
             cont, format = out
@@ -135,13 +144,19 @@ class StoreDocuments:
                     "Document already exists in session '%s' knowledge base. Skipping re-embed",
                     self.chat_sess_logs.sess_name
                 )
-                chnk_cont, embdings, chnk_tkns = doc_chnk
+                chnk_cont, embdings, embed_tkns = doc_chnk
+                prompt_tkns = self.local_tknizr.count_string_tokens(chnk_cont)
+                if not prompt_tkns:
+                    return None
 
             else:
                 response = embedding_content(chnk)
                 if not response:
                     continue
-                chnk_cont, embdings, chnk_tkns = response
+                chnk_cont, embdings, embed_tkns = response
+                prompt_tkns = self.local_tknizr.count_string_tokens(chnk_cont)
+                if not prompt_tkns:
+                    return None
 
             hash = hash_string(chnk_cont)
 
@@ -158,8 +173,9 @@ class StoreDocuments:
                     doc_name=name,
                     chnk_idx=idx,
                     embdings=embdings,
-                    chnk_tkns=chnk_tkns,
+                    embed_tkns=embed_tkns,
                     cont=chnk_cont,
+                    prompt_tkns=prompt_tkns,
                     mime=mime,
                     size=size,
                     cont_hash=chnk_hash
@@ -168,7 +184,7 @@ class StoreDocuments:
 
         return count
 
-    def store_attachments(self, attchmnt_dict: dict[Path, dict[str, str]]) -> None:
+    def store_documents(self, attchmnt_dict: dict[Path, dict[str, str]]) -> None:
         for doc_path, data in attchmnt_dict.items():
             cont = data["content"]
             format = data["format"]

@@ -12,7 +12,7 @@ from .token_counter import static_update_session_used_tokens_widget
 from .pending_attachments import reset_pending_attachment_widget
 from .chat_container import create_assistant_message_box
 
-from src.libs.helpers.size_bytes_helpers import format_size_bytes
+from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import COMPRESS_CMD
 from src.libs.custom_dataclasses import AgentHooks
 

@@ -14,33 +14,11 @@ app_log = app_logger(f"{__name__}.app")
 
 
 class QueryDocuments:
+    """SQL query for document knowledge base."""
+
     def __init__(self, conn, chat_sess_logs: ChatSessionLogs):
         self._conn = conn
-
         self.chat_sess_logs = chat_sess_logs
-
-    @staticmethod
-    def get_document_metadata_from_path(path: Path) -> tuple[str, str, int] | None:
-        """Return name, mime type and size bytes from given path."""
-        if not path.exists():
-            app_log.warning(
-                "File '%s' is not in the upload directory '%s'",
-                path.name,
-                UPLOAD_DIR
-            )
-            return
-
-        # Prevent duplicated name in the metadata
-        name = path.name
-        counter = 1
-
-        mime, _ = mimetypes.guess_type(path)
-        mime = mime or "unknown"
-        size = path.stat().st_size
-        app_log.debug("Metadata extracted from %s", path.name)
-        return name, mime, size
-
-    # Get metadata from documents
 
     def all_documents_metadata(self) -> list[tuple[Any, Any]] | None:
         """Return a list of all uploaded documents data in the database."""
@@ -76,11 +54,12 @@ class QueryDocuments:
             doc_names.append(metadata["document_name"])
         return doc_names
 
-    # Vector search
+    # --- Vector search ---------------------------------------------
 
     def cosine_similarity(
         self,
-        qry: str, qry_embdings: list[float],
+        qry: str,
+        qry_embdings: list[float],
         min_sim: float = 0.65
     ) -> list[dict[str, Any]] | None:
         """Queries knowledge base for similar content."""

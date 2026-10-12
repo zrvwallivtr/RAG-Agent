@@ -1,5 +1,23 @@
 """Database query helpers to prevent repeating cursor / commit / rollback in code."""
 
+from contextlib import contextmanager
+from typing import Iterable
+
+
+@contextmanager
+def transaction(conn):
+    """
+    Make several helper calls ONE all-or-nothing transaction. Pass commit=False
+    to each helper inside the block; this commits once on success and rolls everything
+    back if anything raises.
+    """
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
 
 def init_database(conn, stmts: tuple[str, ...]) -> None:
     try:
@@ -12,14 +30,18 @@ def init_database(conn, stmts: tuple[str, ...]) -> None:
         raise
 
 
-def fetch_one(conn, sql: str, params: tuple = ()):
-    """Run a query, return one row (or None). Commits when done."""
+def fetch_one(conn, sql: str, params: tuple = (), commit: bool = True):
+    """Run a query, return one row (or None). Commits when done unless specified."""
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             row = cur.fetchone()
-        conn.commit()
+
+        if commit:
+            conn.commit()
+
         return row
+
     except Exception:
         conn.rollback()
         raise
@@ -45,6 +67,24 @@ def execute(conn, sql: str, params: tuple = ()) -> int:
             count = cur.rowcount
         conn.commit()
         return count
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def execute_many(
+    conn, sql: str, params_seq: Iterable[tuple], commit: bool = True
+) -> None:
+    """Runn one INSERT/UPDATE once per params tuple. No-op if params_seq is empty."""
+    rows = list(params_seq)
+    if not rows:
+        return
+
+    try:
+        with conn.cursor() as cur:
+            cur.executemany(sql, rows)
+        if commit:
+            conn.commit()
     except Exception:
         conn.rollback()
         raise

@@ -4,7 +4,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Markdown
 
 from src.libs.constants import COMPRESS_DB_ENTRY
-from src.libs.helpers.size_bytes_helpers import format_size_bytes
+from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import AUTO_COMPRESS_SUM_TITLE
 
 from src import logger
