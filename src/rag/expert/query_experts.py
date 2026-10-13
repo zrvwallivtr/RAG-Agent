@@ -1,5 +1,8 @@
 from typing import Sequence
 
+from src.config.models import MODEL, MODEL_MAX_TOKENS
+from src.config.expert import EXPLORATION_FACTOR, EXPERT_RETRIEVE_LIMIT
+
 from src.libs.helpers.database_helpers import fetch_one, fetch_all
 from src.libs.helpers.expert_helpers import to_vector_literal
 
@@ -24,7 +27,7 @@ _SEAR_SQL = (
 
 
 class QueryExperts:
-    def __init__(self, conn, ef_search: int = 100):
+    def __init__(self, conn, ef_search: int = EXPLORATION_FACTOR):
         self._conn = conn
         self._ef_search = ef_search
 
@@ -41,21 +44,22 @@ class QueryExperts:
 
         return to_vector_literal(qry_vec)
 
-    def search_from_prompt(
+    def query_from_prompt(
         self,
         prompt: str,
         exp_ids: Sequence[int],
-        k: int = 8,
-        per_exp_k: int | None = None,
-        tkn_budget: int | None = None,
+        retrieve_lim: int = EXPERT_RETRIEVE_LIMIT,
+        per_exp_lim: int | None = None,
+        tkn_budget: int = MODEL_MAX_TOKENS,
     ) -> list[dict] | None:
         """
         Embed the prompt and return the closest chunks across the given experts,
         best first. Return [] if there are no experts or the prompt can't be embedded.
 
-        per_exp_k:  Cap on how many chunks any single expert may contribute, so a
-                    large expert can't crowd out a small one. Runs one indexed query
-                    per expert, then merges best-first and cuts to k.
+        per_exp_k:  Cap on how many chunks a single expert may contribute, so a
+                    large expert can't crowd out a small one.
+                    USE THIS ONLY IF MORE THAN ONE EXPERT IS ENABLED.
+
         tkn_budget: Stop adding chunks once their token_count total would exceed this.
                     A chunk that doesn't fit is skipped, smaller ones may still fit.
         """
@@ -68,14 +72,14 @@ class QueryExperts:
 
         self._set_ef_search()
 
-        if per_exp_k:
+        if per_exp_lim:
             rows = []
             for exp_id in exp_ids:
-                rows.extend(self._query(qv, [exp_id], per_exp_k))
+                rows.extend(self._query(qv, [exp_id], per_exp_lim))
             rows.sort(key=lambda r: r[6])
-            rows = rows[:k]
+            rows = rows[:retrieve_lim]
         else:
-            rows = self._query(qv, list(exp_ids), k)
+            rows = self._query(qv, list(exp_ids), retrieve_lim)
 
         hits = self._to_hits(rows, tkn_budget)
         app_log.debug(

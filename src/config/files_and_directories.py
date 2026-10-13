@@ -1,3 +1,10 @@
+"""
+All the path constants stores here, which will be called by other
+config modules.
+
+NEVER IMPORT ANY OTHER MODULES INTO THIS FILE.
+"""
+
 import sys
 import shutil
 import tomllib

@@ -15,6 +15,11 @@ token_reserve       = 1000
 
 [rag]
 
-retrieve_entry_limit                        = 3
-enable_auto_read_dropbox                    = true
-enable_docling                              = true
+retrieve_entry_limit     = 3
+enable_auto_read_dropbox = true
+enable_docling           = true
+
+[expert]
+exploration_factor         = 100   
+retrieval_limit            = 8
+per_expert_retrieval_limit = 3

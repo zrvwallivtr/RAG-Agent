@@ -14,14 +14,15 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 class StoreDocuments:
-    def __init__(self, conn, curr, exp_name: str, exp_id: int):
+    def __init__(self, conn, exp_name: str, exp_id: int):
         self._conn = conn
-        self.curr = curr
 
         self.exp_name = exp_name
         self.exp_id = exp_id
 
         self.local_tknizr = LocalTokenizer(MODEL)
+
+    # --- Checker -------------------------------------------------------------
 
     def has_document(self, cont_hash: str) -> bool:
         """
@@ -39,6 +40,8 @@ class StoreDocuments:
             params=(self.exp_id, cont_hash),
         )
         return row is not None
+
+    # --- Embedding -----------------------------------------------------------
 
     def _embed_every_chunks_in_document(
         self, chunks: list[str], hooks: AgentHooks | None = None
@@ -64,6 +67,8 @@ class StoreDocuments:
 
             embed_results.append((vector, embed_tkns or 0))
         return embed_results
+
+    # --- Document ------------------------------------------------------------
 
     def _add_document(
         self,
