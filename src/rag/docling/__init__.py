@@ -1,3 +1,4 @@
-from .docling_parsers import DoclingParsers
+from .docling_parser import DoclingParser
+from .docling_chunker import DoclingChunker
 
-__all__ = ["DoclingParsers"]
+__all__ = ["DoclingParser", "DoclingChunker"]

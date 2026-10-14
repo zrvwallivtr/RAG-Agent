@@ -1,16 +1,21 @@
-import json
 import argparse
 from pathlib import Path
 
 from rich_argparse import RichHelpFormatter
 
 from src.config.postgres import CONN
-from src.config.models import MODEL
 from src.config.files_and_directories import UPLOAD_DIR
+from src.config.config_toml import MODEL
 
-from .interface import init_logger, installed_models_table, sessions_table
+from .interface import init_logger
+from .tables import (
+    installed_models_table,
+    sessions_table,
+    upload_documents_table,
+)
+from .logs import structured_app_log, structured_prompt_log
 
-from src.libs.helpers import sessions_helpers
+from src.libs.helpers.sessions_helpers import delete_session
 
 from src.core import Agent
 from src.agent.models.ollama import ollama_pull_model, ollama_clt
@@ -19,24 +24,6 @@ from src.rag.knowledge_base.documents import DocumentKnowledgeBase
 from src.rag.expert import Expert
 
 from src import logger
-
-
-def _format_upload_documents(rows) -> str:
-    lines = [
-        f"UPLOADED DOCUMENT(S)\n"
-        f"====================\n"
-        f"UPLOADED AT\t\t\t\tNAME"
-    ]
-
-    for uploaded_at, metadata in rows:
-        data = (
-            json.loads(metadata) 
-            if isinstance(metadata, str) else metadata
-        )
-        doc_name = data.get("document_name", "Unknown")
-        lines.append(f"{str(uploaded_at)}\t{doc_name}")
-
-    return "\n".join(lines)
 
 
 def _create_parser() -> argparse.ArgumentParser:
@@ -158,6 +145,18 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Create an expert, with an optional description",
     )
 
+    # Show logs
+    parser.add_argument(
+        "--app-logs",
+        action="store_true",
+        help="Print out the application logs into the terminal",
+    )
+    parser.add_argument(
+        "--prompt-logs",
+        action="store_true",
+        help="Print out the prompt sent to the model into the terminal",
+    )
+
     return parser
 
 
@@ -214,12 +213,12 @@ def build_parser() -> None:
 
     # Delete default session flag
     if args.delete_default_session:
-        sessions_helpers.del_sess()
+        delete_session()
         return
 
     # Delete session flag
     if args.delete_session:
-        response = sessions_helpers.del_sess(args.delete_session)
+        response = delete_session(args.delete_session)
         if response:
             print(response)
         return
@@ -249,7 +248,7 @@ def build_parser() -> None:
 
         rows = doc_kw_bs.query_docs.all_documents_metadata()
         print(
-            _format_upload_documents(rows)
+            upload_documents_table(rows)
             if rows else "No documents uploaded."
         )
         return
@@ -260,6 +259,18 @@ def build_parser() -> None:
     if args.create_expert:
         exp_name, des = (args.create_expert + [None])[:2]
         Expert(conn=CONN, exp_name=exp_name, des=des)
+        return
+
+    # --- Logs ----------------------------------------------------------------
+
+    # App logs
+    if args.app_logs:
+        structured_app_log()
+        return
+
+    # Prompt logs
+    if args.prompt_logs:
+        return
 
     # --- TUI -----------------------------------------------------------------
 

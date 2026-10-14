@@ -2,8 +2,10 @@ import mimetypes
 from pathlib import Path
 from typing import Any
 
-from src.config.files_and_directories import UPLOAD_DIR
-from src.config.documents import RETRIEVE_DOC_ENTRY_LIMIT
+from src.config.config_toml import (
+    RETRIEVE_DOC_ENTRY_LIMIT,
+    MIN_SIMILARITY_SCORE
+)
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 
@@ -11,6 +13,17 @@ from src.agent.chat_session_logs import ChatSessionLogs
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
+
+# Cosine distance
+_SEAR_SQL = (
+    """
+    SELECT content, metadata, 1 - (embeddings <=> %s) AS cosine_similarity
+    FROM knowledge_base
+    WHERE 1 - (embeddings <=> %s) >= %s
+    ORDER BY embeddings <=> %s ASC
+    LIMIT %s;
+    """
+)
 
 
 class QueryDocuments:
@@ -37,7 +50,8 @@ class QueryDocuments:
 
         if not rows:
             app_log.debug(
-                "Failed to retrieve any documents metadata: Session '%s' knowledge base is empty",
+                "Failed to retrieve any documents metadata: "
+                "Session '%s' knowledge base is empty",
                 self.chat_sess_logs.sess_name
             )
         return rows
@@ -54,31 +68,27 @@ class QueryDocuments:
             doc_names.append(metadata["document_name"])
         return doc_names
 
-    # --- Vector search ---------------------------------------------
+    # --- Vector search -------------------------------------------------------
 
-    def cosine_similarity(
+    def query_uploads(
         self,
         qry: str,
         qry_embdings: list[float],
-        min_sim: float = 0.65
+        sear_sql: str = _SEAR_SQL,
+        min_sim_score: float = MIN_SIMILARITY_SCORE,
     ) -> list[dict[str, Any]] | None:
         """Queries knowledge base for similar content."""
         kw_dict = []
 
         rows = fetch_all(
             conn=self._conn,
-            sql=(
-                """
-                SELECT content, metadata, 1 - (embeddings <=> %s) AS cosine_similarity
-                FROM knowledge_base
-                WHERE 1 - (embeddings <=> %s) >= %s
-                ORDER BY embeddings <=> %s ASC
-                LIMIT %s;
-                """
-            ),
+            sql=sear_sql,
             params=(
-                str(qry_embdings), str(qry_embdings), min_sim,
-                str(qry_embdings), RETRIEVE_DOC_ENTRY_LIMIT
+                str(qry_embdings),
+                str(qry_embdings),
+                min_sim_score,
+                str(qry_embdings),
+                RETRIEVE_DOC_ENTRY_LIMIT,
             )
         )
 
@@ -93,6 +103,7 @@ class QueryDocuments:
         else:
             app_log.debug(
                 "Failed to retrieve relevant document chunks: "
-                "Session knowledge base is empty or no content reached minimum similarity score"
+                "Session knowledge base is empty or no content reached"
+                " minimum similarity score"
             )
             return

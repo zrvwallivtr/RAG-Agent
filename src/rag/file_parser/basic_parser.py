@@ -1,3 +1,8 @@
+"""
+Contains all the code for the basic parser behaviour, do not import this
+module directly, all parser tools route through the 'file_parser' package.
+"""
+
 from pathlib import Path
 from bs4 import BeautifulSoup
 
@@ -8,27 +13,27 @@ from src.logger import app_logger
 app_log = app_logger(f"{__name__}.app")
 
 
-class PathTraversalError(Exception):
-    pass
+# class PathTraversalError(Exception):
+#     pass
+# 
+# 
+# def _validate_path(path: Path) -> Path:
+#     """Resolve 'path' to its real, absolute form."""
+#     resolved = path.resolve()
+# 
+#     try:
+#         resolved.relative_to(UPLOAD_DIR)
+# 
+#     except ValueError:
+#         raise PathTraversalError(
+#             f"Path '{path}' resolves to '{resolved}', which is outside "
+#             f"the allowed directory '{UPLOAD_DIR}'"
+#         )
+# 
+#     return resolved
 
 
-def _validate_path(path: Path) -> Path:
-    """Resolve 'path' to its real, absolute form."""
-    resolved = path.resolve()
-
-    try:
-        resolved.relative_to(UPLOAD_DIR)
-
-    except ValueError:
-        raise PathTraversalError(
-            f"Path '{path}' resolves to '{resolved}', which is outside "
-            f"the allowed directory '{UPLOAD_DIR}'"
-        )
-
-    return resolved
-
-
-class BasicParsers:
+class BasicParser:
     def __init__(self):
         # Map formats to their parsing methods
         self.formats = {
@@ -245,13 +250,13 @@ class BasicParsers:
 
     def read_document(self, path: Path) -> str | None:
         """Return file content as a string using mapped parsers."""
-        safe_path = _validate_path(path)
+        # safe_path = _validate_path(path)
 
-        if not safe_path.exists():
-            raise FileNotFoundError(f"File '{safe_path}' does not exist")
-        if not safe_path.is_file():
-            raise ValueError(f"File '{safe_path}' is not a regular file")
+        # if not safe_path.exists():
+        #     raise FileNotFoundError(f"File '{safe_path}' does not exist")
+        # if not safe_path.is_file():
+        #     raise ValueError(f"File '{safe_path}' is not a regular file")
 
-        ext = safe_path.suffix.lower()
+        ext = path.suffix.lower()
         parser = self.formats.get(ext, self.read_txt)
-        return parser(safe_path)
+        return parser(path)

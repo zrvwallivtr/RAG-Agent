@@ -1,7 +1,7 @@
 import ollama
 import subprocess
 
-from src.config.models import OLLAMA_HOST
+from src.config.config_toml import OLLAMA_HOST
 
 from src.logger import app_logger
 

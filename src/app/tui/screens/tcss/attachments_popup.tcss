@@ -1,12 +1,26 @@
+/* --- Theme --------------------------------------------------------------- */
+
+$color-primary: cyan;
+$color-primary-bright: lightcyan;
+$color-primary-dim: darkcyan;
+$color-highlight: yellow;
+$color-on-primary: black;
+$color-surface: black;
+$color-overlay: rgba(0, 0, 0, 0.6);
+$color-focus-border: $color-primary-bright;
+$color-focus-tint: $color-primary 10%;
+$color-transparent: transparent;
+
+
 AttachmentsPopupScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.6);
+    background: $color-overlay;
 }
 
 #attachments-modal {
     max-width: 100;
     height: auto;
-    border: solid cyan;
+    border: solid $color-primary;
     min-height: 40;
     padding: 1 2;
 }

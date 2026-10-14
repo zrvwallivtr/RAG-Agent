@@ -2,7 +2,7 @@ from typing import Any, TYPE_CHECKING, Literal, Callable
 from pathlib import Path
 from dataclasses import replace
 
-from src.config.models import MODEL
+from src.config.config_toml import MODEL
 from src.config.prompts import COMPRESS_PROMPT
 
 from .metadata import ToolCallsMetadata

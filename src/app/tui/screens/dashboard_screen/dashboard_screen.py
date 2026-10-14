@@ -11,8 +11,8 @@ from textual.widgets import Static, Input, OptionList, Button
 from textual.widgets.option_list import Option
 from textual.events import Key
 
-from src.config.models import MODEL, EMBED_MODEL, FALLBACK_TOKENIZER
 from src.config.postgres import CONN
+from src.config.config_toml import MODEL, EMBED_MODEL, FALLBACK_TOKENIZER
 
 from .fuzzy_search import fuzzy_search_behaviour, load_sessions, show_session_list, sessions
 from .tokenizers import get_tknizr_list
@@ -45,7 +45,7 @@ def app_icon() -> str:
 
 
 class DashboardScreen(BaseScreen):
-    CSS_PATH = "../tcss/dashboard.tcss"
+    CSS_PATH = ["../tcss/base.tcss", "../tcss/dashboard.tcss"]
 
     def __init__(self):
         super().__init__()
@@ -141,6 +141,7 @@ class DashboardScreen(BaseScreen):
         update_tokenizer_status_section(self)
         show_sessions(self)
         self.refresh(layout=True)
+        self.refresh_status()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Controls the behaviour when action bar button is pressed."""
@@ -204,7 +205,7 @@ class DashboardScreen(BaseScreen):
             if not selected_option.id:
                 return
 
-            self._go_to_session(sess_name=selected_option.id)
+            go_to_session(self, sess_name=selected_option.id)
 
         # New session naming bar
         if event.input.id == "new-session-input":

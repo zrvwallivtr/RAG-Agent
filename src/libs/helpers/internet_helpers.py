@@ -1,7 +1,7 @@
 import socket
 
 
-def _is_connected(host="1.1.1.1", port=53, timeout=3) -> bool:
+def is_connected(host="1.1.1.1", port=53, timeout=3) -> bool:
     """
     Returns True if the system can connect to the host/port,
     otherwise returns false.

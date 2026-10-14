@@ -2,7 +2,7 @@ import threading
 
 from src.libs.helpers.database_helpers import init_database
 
-from src.config.models import EMBED_MODEL
+from src.config.config_toml import EMBED_MODEL
 
 from src.libs.models_database import EMB_MODEL_DIMENSION
 

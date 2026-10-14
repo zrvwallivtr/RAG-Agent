@@ -1,4 +1,4 @@
-from src.config.models import EMBED_MODEL
+from src.config.config_toml import EMBED_MODEL
 
 from src.libs.helpers.database_helpers import fetch_one, execute
 

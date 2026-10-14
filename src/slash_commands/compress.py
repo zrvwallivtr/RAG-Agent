@@ -1,9 +1,11 @@
 from pathlib import Path
 from typing import Any, Callable
 
-from src.config.models import MODEL
+from src.config.config_toml import MODEL
 
-from src.libs.constants import COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN, GenericEventHook
+from src.libs.constants import (
+    COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN, GenericEventHook
+)
 from src.libs.custom_dataclasses import AgentHooks
 
 from src.agent.chat_session_logs import ChatSessionLogs
@@ -62,7 +64,10 @@ class SlashCompress:
         paths: list[Path] | None,
         hooks: AgentHooks | None = None
     ) -> CompressionResult | None:
-        """'/compress' with added prompt to instructe to model what exactly to summaries."""
+        """
+        '/compress' with added prompt to instructe the model
+        what exactly to summaries.
+        """
         attchmnt_dict = self.doc_kw_bs.get_attachments_content(
             is_attchmnt=is_attchmnt, attch_paths=paths
         )
@@ -100,7 +105,8 @@ class SlashCompress:
 
         COMPRESS PROMPT INCLUDES:
         - Attachments (optional):
-          -> Allows option to upload attachments that might influence chat compression.
+          -> Allows option to upload attachments that might influence chat
+             compression.
         - All previous conversations that labelled as 'is_compressed = FALSE'
           -> Already included in 'compress_active_conv()'.
         - User prompt:

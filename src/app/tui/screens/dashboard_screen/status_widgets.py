@@ -1,6 +1,6 @@
 from textual.widgets import Static
 
-from src.config.models import FALLBACK_TOKENIZER
+from src.config.config_toml import FALLBACK_TOKENIZER
 
 from .tokenizers import get_tknizr_list
 

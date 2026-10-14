@@ -1,7 +1,6 @@
 from textual.app import App
 from textual.widgets import Input, OptionList
 
-from src.config import models
 from src.core import Agent
 from src.agent.models import ollama
 

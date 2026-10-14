@@ -1,10 +1,73 @@
-#cmd-input {
+/* --- Theme --------------------------------------------------------------- */
+
+$color-primary: cyan;
+$color-primary-bright: lightcyan;
+$color-primary-dim: darkcyan;
+$color-highlight: yellow;
+$color-on-primary: black;
+$color-surface: black;
+$color-overlay: rgba(0, 0, 0, 0.6);
+$color-focus-border: $color-primary-bright;
+$color-focus-tint: $color-primary 10%;
+$color-transparent: transparent;
+
+$color-status-bg: #04142a;
+$color-status-fg: #2a7f9e;
+
+
+/* --- Command bar --------------------------------------------------------- */
+
+#bottom-bar {
     dock: bottom;
-    layer: overlay;
-    height: 1;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
     border: none;
 }
 
-#cmd-input.hidden {
-    display: none;
+#ruler {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    background: $color-status-bg;
+    color: $color-status-fg;
+    text-align: right;
+}
+
+#cmd-row {
+    width: 100%;
+    height: 1;
+    margin: 0;
+    padding: 0;
+    background: $color-surface;
+}
+
+#cmd-input {
+    width: 1fr;
+    height: 1;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: $color-surface;
+    color: $color-primary;
+}
+
+#cmd-input:focus {
+    border: none;
+    background: $color-surface;
+}
+
+#cmd-input > .input--placeholder {
+    color: $color-primary;
+    text-style: bold;
+}
+
+#showcmd {
+    width: 12;
+    height: 1;
+    padding: 0 1;
+    background: $color-surface;
+    color: $color-primary;
+    text-align: right;
 }

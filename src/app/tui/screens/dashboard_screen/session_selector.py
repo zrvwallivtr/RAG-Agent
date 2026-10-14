@@ -4,6 +4,8 @@ from textual.widgets import Static, Input, OptionList
 
 from src.config.postgres import CONN
 
+from src.libs.helpers.sessions_helpers import delete_session
+
 from .fuzzy_search import load_sessions, show_session_list, sessions
 from .action_bar import show_session_action_bar
 
@@ -168,8 +170,7 @@ def show_delete_session_input(screen) -> None:
 
 def _delete_session(screen, sess_name: str) -> None:
     """Delete session."""
-    from src.libs.helpers import sessions_helpers
-    result = sessions_helpers.del_sess(sess_name=sess_name)
+    result = delete_session(sess_name=sess_name)
 
     if result and "fail" in result.lower():
         screen.notify(result, severity="error")

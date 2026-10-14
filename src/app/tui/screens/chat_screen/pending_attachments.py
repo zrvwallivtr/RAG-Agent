@@ -4,6 +4,8 @@ from pathlib import Path
 from textual.widgets import Static
 
 from src.config.files_and_directories import UPLOAD_DIR
+from src.config.config_toml import ENABLE_PATH_SAFETY
+
 from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
 
 
@@ -23,6 +25,16 @@ def _add_pending_attachments(screen, paths: list[Path]) -> None:
     )
 
 
+def _complete_path_helper(path: str) -> Path:
+    """
+    Helper for automatically adding the preset upload directory at the front
+    of the path if path safety is enabled.
+    """
+    if ENABLE_PATH_SAFETY:
+        return (UPLOAD_DIR / Path(path)).expanduser()
+    return Path(path)
+
+
 def _separate_existing_path_from_not_exist(
     all_paths: list[str] | None
 ) -> tuple[list, list | None] | None:
@@ -37,7 +49,7 @@ def _separate_existing_path_from_not_exist(
     missing = []
 
     for p in all_paths:
-        path = (UPLOAD_DIR / Path(p)).expanduser()
+        path = _complete_path_helper(p)
         if path.exists():
             found.append(path)
         else:

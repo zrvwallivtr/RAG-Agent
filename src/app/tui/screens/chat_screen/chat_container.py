@@ -1,14 +1,30 @@
-from typing import Any
+from typing import Any, Literal
 
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Static, Markdown
+from textual.widgets import Static, Markdown, Input
+from textual.widgets.markdown import MarkdownFence
 
 from src.libs.constants import COMPRESS_DB_ENTRY
 from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import AUTO_COMPRESS_SUM_TITLE
 
+from src.app.tui.movement_helpers import (
+    calculate_current_vertical_scroll_component,
+    calculate_jump_vertical_sroll_component,
+    calculate_nth_index,
+    calculate_jump_index,
+)
+
 from src import logger
 
+CODE_SELECTED_CLASS = "code-selected"
+
+
+class MessageBox(Vertical, can_focus=True):
+    """A focusable container for a single chat message."""
+
+
+# --- Chat container interface ------------------------------------------------
 
 def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
     """
@@ -35,7 +51,7 @@ def create_user_message_box(
     cont_widget: Static | Markdown,
     attchmnt_metadata: dict | None = None,
     slash_cmd_metadata: dict | None = None,
-) -> Vertical:
+) -> MessageBox:
     """
     Constructs the user message box, render attached files widget (if present).
 
@@ -59,7 +75,7 @@ def create_user_message_box(
             # Replace the prompt with unformatted prompt
             widgets[0] = Static(unfmt_prompt)
 
-    return Vertical(*widgets, classes=f"msg-box user-box")
+    return MessageBox(*widgets, classes=f"msg-box user-box")
 
 
 def create_assistant_message_box(
@@ -67,7 +83,7 @@ def create_assistant_message_box(
     tol_tkns: int,
     slash_cmd_metadata: dict | None = None,
     hide_tkns: bool = False,
-) -> tuple[Vertical, Static]:
+) -> tuple[MessageBox, Static]:
     """
     Constructs the assistant message box, handle auto-compression summary
     message box and render message token counts widget.
@@ -90,7 +106,7 @@ def create_assistant_message_box(
     if is_auto_sum:
         classes += " auto-summary"
 
-    box = Vertical(cont_widget, tkn_widget, classes=classes)
+    box = MessageBox(cont_widget, tkn_widget, classes=classes)
 
     # Add message box title if it is a auto summary box
     if is_auto_sum:
@@ -132,4 +148,207 @@ def load_chat_history(screen) -> None:
             auto_cmp_metadata = None  # Reset for next iteration
             chat_container.mount(msg_box)
 
-    chat_container.scroll_end(animate=False)
+    screen.call_after_refresh(chat_container.scroll_end, animate=False)
+
+
+# --- Message navigation ------------------------------------------------------
+
+def focus_current_message_box(screen) -> None:
+    chat_container = screen.query_one("#chat-container", VerticalScroll)
+    msg_boxes = list(chat_container.query(".msg-box"))
+
+    target_box = calculate_current_vertical_scroll_component(
+        screen, chat_container, msg_boxes
+    )
+    if not target_box:
+        return
+
+    clear_code_selection(screen)
+    screen.in_msg_mode = True
+    screen.focused_msg_box = target_box
+    target_box.focus()
+
+
+def jump_messages(
+    screen,
+    direction: Literal["up", "down"],
+    count: int = 1,
+) -> None:
+    """
+    Jump to message box:
+    - 'count' determines the number of messages to jump across.
+
+    Only calls if in normal mode.
+    """
+    chat_container = screen.query_one("#chat-container", VerticalScroll)
+    msg_boxes = list(chat_container.query(".msg-box"))
+    
+    target_box = calculate_jump_vertical_sroll_component(
+        screen=screen,
+        vert_scroll=chat_container,
+        components=msg_boxes,
+        direction=direction,
+        count=count
+    )
+    if not target_box:
+        return
+
+    chat_container.scroll_to_widget(target_box, top=True, animate=False)
+
+    if screen.in_msg_mode:
+        screen.focused_msg_box = target_box
+        target_box.focus()
+
+
+def goto_message(screen, n: int) -> None:
+    chat_container = screen.query_one("#chat-container", VerticalScroll)
+    msg_boxes = list(chat_container.query(".msg-box"))
+
+    idx = calculate_nth_index(n, len(msg_boxes))
+    if idx is None:
+        return
+    chat_container.scroll_to_widget(msg_boxes[idx], top=True, animate=False)
+
+
+# --- Code block navigation (message mode) ------------------------------------
+
+def _get_code_blocks(screen) -> list[MarkdownFence]:
+    box = screen.focused_msg_box
+    if box is None or not box.is_attached:
+        return []
+    return list(box.query(MarkdownFence))
+
+
+def clear_code_selection(screen) -> None:
+    for block in screen.query(f".{CODE_SELECTED_CLASS}"):
+        block.remove_class(CODE_SELECTED_CLASS)
+    screen.code_idx = None
+
+
+def _select_code_block(screen, blocks: list[MarkdownFence], idx: int) -> None:
+    for i, block in enumerate(blocks):
+        block.set_class(i == idx, CODE_SELECTED_CLASS)
+    screen.code_idx = idx
+
+    chat_container = screen.query_one("#chat-container", VerticalScroll)
+    chat_container.scroll_to_widget(blocks[idx], top=True, animate=False)
+
+
+def jump_code_blocks(
+    screen,
+    direction: Literal["up", "down"],
+    count: int = 1,
+) -> None:
+    """
+    Jump to code block:
+    - 'count' determines the number of code block to jump across.
+
+    Only calls if in message mode.
+    """
+    blocks = _get_code_blocks(screen)
+    if not blocks:
+        return
+
+    curr = screen.code_idx
+    if curr is not None:
+        curr = min(curr, len(blocks) - 1)
+
+    idx = calculate_jump_index(curr, len(blocks), direction, count)
+    if idx is not None:
+        _select_code_block(screen, blocks, idx)
+
+
+def go_to_code_block(screen, n: int | None = None) -> None:
+    """
+    Go to code block:
+    - 'n' determines the code block's index to go to, if None,
+      go to the last code block
+
+    Only call in message mode.
+    """
+    blocks = _get_code_blocks(screen)
+    if not blocks:
+        return
+
+    idx = len(blocks) - 1 if n is None else calculate_nth_index(n, len(blocks))
+    if idx is not None:
+        _select_code_block(screen, blocks, idx)
+
+
+# --- Horizontal scrolling of the selected code block -------------------------
+
+def _selected_code_block(screen) -> MarkdownFence | None:
+    blocks = _get_code_blocks(screen)
+    if not blocks or screen.code_idx is None:
+        return None
+    return blocks[min(screen.code_idx, len(blocks) - 1)]
+
+
+def scroll_code_block(
+    screen, direction: Literal["left", "right"], count: int = 1
+) -> None:
+    block = _selected_code_block(screen)
+    if block is None:
+        return
+    step = count if direction == "right" else -count
+    x = max(0, min(block.scroll_x + step, block.max_scroll_x))
+    block.scroll_to(x=x, animate=False)
+
+
+def scroll_code_block_edge(screen, edge: Literal["start", "end"]) -> None:
+    block = _selected_code_block(screen)
+    if block is None:
+        return
+    block.scroll_to(
+        x=0 if edge == "start" else block.max_scroll_x, animate=False
+    )
+
+
+def get_location_text(screen) -> str:
+    """
+    '<message>,<code block>' plus Top / Bot / All / NN% of the chat scroll.
+    The code block is '-' when none is selected.
+    """
+    chat = screen.query_one("#chat-container", VerticalScroll)
+    boxes = list(chat.query(".msg-box"))
+    if not boxes:
+        return ""
+
+    if screen.in_msg_mode and screen.focused_msg_box in boxes:
+        current = screen.focused_msg_box
+    else:
+        current = calculate_current_vertical_scroll_component(
+            screen, chat, boxes
+        )
+    msg_n = boxes.index(current) + 1
+
+    block = "-"
+    if screen.in_msg_mode and screen.code_idx is not None:
+        block = str(screen.code_idx + 1)
+
+    max_y = chat.max_scroll_y
+    if max_y <= 0:
+        pct = "All"
+    elif chat.scroll_y <= 0:
+        pct = "Top"
+    elif chat.scroll_y >= max_y - 0.5:
+        pct = "Bot"
+    else:
+        pct = f"{int(chat.scroll_y * 100 / max_y)}%"
+
+    return f"{msg_n},{block}".ljust(14) + pct.rjust(3)
+
+
+def mode_text(screen) -> str:
+    if screen.focused is screen.query_one("#prompt-input", Input):
+        return "-- INSERT --"
+    if screen.in_msg_mode:
+        return "-- CODE BLOCK --" if screen.code_idx is not None else "-- MESSAGE --"
+    return ""
+
+
+def showcmd_text(screen) -> str:
+    key = screen.pending_key
+    if key == "space":
+        return "<Spcae>"
+    return key or ""

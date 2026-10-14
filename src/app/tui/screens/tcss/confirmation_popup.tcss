@@ -1,12 +1,26 @@
+/* --- Theme --------------------------------------------------------------- */
+
+$color-primary: cyan;
+$color-primary-bright: lightcyan;
+$color-primary-dim: darkcyan;
+$color-highlight: yellow;
+$color-on-primary: black;
+$color-surface: black;
+$color-overlay: rgba(0, 0, 0, 0.6);
+$color-focus-border: $color-primary-bright;
+$color-focus-tint: $color-primary 10%;
+$color-transparent: transparent;
+
+
 ConfirmationPopupScreen {
     align: center middle;
-    background: rgba(0, 0, 0, 0.6);
+    background: $color-overlay;
 }
 
 #confirmation-popup-modal {
     max-width: 100;
     height: auto;
-    border: solid cyan;
+    border: solid $color-primary;
     max-height: 60;
     padding: 1 2;
 }
@@ -26,11 +40,11 @@ ConfirmationPopupScreen {
 }
 
 #confirmation-modal-true-button {
-    background: cyan;
-    color: black;
+    background: $color-primary;
+    color: $color-on-primary;
 }
 
 #confirmation-modal-false-button {
-    background: darkcyan;
-    color: black;
+    background: $color-primary-dim;
+    color: $color-on-primary;
 }

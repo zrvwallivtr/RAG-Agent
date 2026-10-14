@@ -1,7 +1,8 @@
 from typing import Sequence
 
-from src.config.models import MODEL, MODEL_MAX_TOKENS
-from src.config.expert import EXPLORATION_FACTOR, EXPERT_RETRIEVE_LIMIT
+from src.config.config_toml import (
+    MODEL, MODEL_MAX_TOKENS, EXPLORATION_FACTOR, EXPERT_RETRIEVE_LIMIT
+)
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all
 from src.libs.helpers.expert_helpers import to_vector_literal

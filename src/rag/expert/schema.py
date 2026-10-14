@@ -6,7 +6,7 @@ session_experts is an optional link table created on demand.
 
 import threading
 
-from src.config.models import EMBED_MODEL
+from src.config.config_toml import EMBED_MODEL
 
 from src.libs.models_database import EMB_MODEL_DIMENSION
 from src.libs.helpers.database_helpers import init_database

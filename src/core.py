@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Callable, Any
 
 from src.config.postgres import CONN
-from src.config.models import MODEL, TOKEN_RESERVE
+from src.config.config_toml import MODEL, TOKEN_RESERVE
 
 from src.libs.helpers.format_context_helper import build_prompt
 from src.libs.helpers.slash_commands_helpers import detect_cmd

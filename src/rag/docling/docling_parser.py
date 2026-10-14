@@ -1,11 +1,20 @@
+"""
+Contains all the code for the docling parser behaviour, do not import this
+module directly, all parser tools route through the 'file_parser' package.
+"""
+
 from pathlib import Path
+
+from src.libs.custom_dataclasses import AgentHooks
 
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
 
 
-class DoclingParsers:
+class DoclingParser:
+    """Uses Docling to convert all listed file format to Markdown."""
+
     def __init__(
         self,
     ):
@@ -33,31 +42,46 @@ class DoclingParsers:
         self.converter = None
 
     def _get_converter(self):
-        """Lazy import docling."""
+        """Lazy import docling converter."""
         if self.converter is None:
             from docling.document_converter import DocumentConverter
             self.converter = DocumentConverter()
         return self.converter
 
-    def _docling_convert_to_md(self, path: Path) -> tuple[str, str] | None:
+    def _docling_convert_to_md(
+        self,
+        path: Path,
+        hooks: AgentHooks | None = None
+    ) -> tuple[str, str] | None:
         """Convert any file to markdown via docling."""
-        app_log.debug(
-            "Docling converting %s file '%s' to MD format", path.suffix.lstrip(".").upper(), path
+        string = (
+            "Docling converting %s file '%s'..."
+            % (path.suffix.lstrip(".").upper(), path)
         )
-        result = self.converter.convert(path)
+        if hooks and hooks.on_loading:
+            hooks.on_loading(string)
+        app_log.debug(string)
 
-        if not result:
-            app_log.warning(
-                "Docling failed to convert %s file '%s' to MD format",
-                path.suffix.lstrip(".").upper,
+        try:
+            result = self.converter.convert(path)
+            app_log.info(
+                "%s file '%s' converted to MD format",
+                path.suffix.lstrip(".").upper(),
                 path
             )
+            return result.document.export_to_markdown(), "md"
+
+        except Exception as e:
+            err_string = Exception(
+                "Docling failed to convert %s file '%s': %s"
+                % (path.suffix.lstrip(".").upper, path, e)
+            )
+            if hooks and hooks.on_error:
+                hooks.on_error(err_string)
+            app_log.warning(err_string)
             return
 
-        app_log.info("%s file '%s' converted to MD format", path.suffix.lstrip(".").upper(), path)
-        return result.document.export_to_markdown(), "md"
-
-    # Libreoffice
+    # --- Libreoffice ---------------------------------------------------------
 
     def _read_odt(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
@@ -70,7 +94,7 @@ class DoclingParsers:
     def _read_odp(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
 
-    # Microsoft office
+    # --- Microsoft office ----------------------------------------------------
 
     def _read_docx(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
@@ -81,7 +105,7 @@ class DoclingParsers:
     def _read_pptx(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
 
-    # Data & configuration formats
+    # --- Data & configuration formats ----------------------------------------
 
     def _read_csv(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
@@ -89,7 +113,7 @@ class DoclingParsers:
     def _read_xml(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)
 
-    # Text documents
+    # --- Text documents ------------------------------------------------------
 
     def _read_pdf(self, path: Path) -> tuple[str, str] | None:
         return self._docling_convert_to_md(path)

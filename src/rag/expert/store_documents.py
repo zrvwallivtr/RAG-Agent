@@ -1,6 +1,6 @@
 import json
 
-from src.config.models import MODEL
+from src.config.config_toml import MODEL
 
 from src.libs.helpers.database_helpers import fetch_one, execute_many, transaction
 from src.libs.helpers.expert_helpers import to_vector_literal

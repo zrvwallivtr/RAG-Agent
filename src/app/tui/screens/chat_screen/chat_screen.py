@@ -7,14 +7,25 @@ from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.widgets import Static, Input, Markdown, Button
 from textual.events import Key
 
-from src.config.models import MODEL
 from src.config.postgres import CONN
+from src.config.config_toml import MODEL
 
 from .agent_response import run_fetch_agent_response
 from .chat_container import (
+    clear_code_selection,
     create_user_message_box,
     create_assistant_message_box,
-    load_chat_history
+    load_chat_history,
+    focus_current_message_box,
+    jump_messages,
+    goto_message,
+    jump_code_blocks,
+    go_to_code_block,
+    scroll_code_block,
+    scroll_code_block_edge,
+    get_location_text,
+    mode_text,
+    showcmd_text,
 )
 from .pending_attachments import to_attachments_popup, process_add_pending_attachments
 from .token_counter import (
@@ -29,11 +40,13 @@ from src.core import Agent
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
+from src.app.tui.movement_helpers import pending_key_is_digit_counter
 
 
 class ChatScreen(BaseScreen):
     """Chat screen interface managing prompt inputs, session metrics, and chat threads."""
-    CSS_PATH = "../tcss/chat.tcss"
+
+    CSS_PATH = ["../tcss/base.tcss", "../tcss/chat.tcss"]
 
     def __init__(self, sess_name: str | None):
         super().__init__()
@@ -49,6 +62,13 @@ class ChatScreen(BaseScreen):
 
         self._cached_sess_tkns: int = 0
         self._awaiting_response = False
+
+        self.focused_msg_box = None
+        self.code_idx: int | None = None
+
+        # Modes
+        self.in_insert_mode = False  # Insert mode
+        self.in_msg_mode = False  # Message mode
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -99,6 +119,10 @@ class ChatScreen(BaseScreen):
         refresh_session_token_cache(self)
         static_update_session_used_tokens_widget(self)
         self.query_one("#stop-button", Button).add_class("hidden")
+
+        chat = self.query_one("#chat-container", VerticalScroll)
+        self.watch(chat, "scroll_y", self._on_chat_scrolled, init=False)
+        self.refresh_status()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "stop-button":
@@ -156,81 +180,202 @@ class ChatScreen(BaseScreen):
         )
 
     def on_key(self, event: Key) -> None:
-        """
-        Keybindings in normal model (not focused on anything):
-        - 'k', 'j', 'h' and 'l' -> move up, down, left and right.
-        - 'G' -> go to the bottom.
-        - 'gg' -> go to the top.
-        - 'space' then 'a' -> go to manage attachments screen.
-        - 'i' or 'a' -> focuse on to the input bar.
-        """
         super().on_key(event)
 
         # All following keybinds only works if none of them are in focus (normal mode)
         prompt_input = self.query_one("#prompt-input", Input)
         cmd_input = self.query_one("#cmd-input", Input)
+
+        if prompt_input.has_focus and event.key == "escape":
+            self.in_insert_mode = False
+            self.set_focus(None)
+            return
+
         if prompt_input.has_focus or cmd_input.has_focus:
             return
 
         scroll_bar = self.query_one("#chat-container", VerticalScroll)
 
-        # Set pending key 'g'
-        if event.character == "g":
-            # Set as first pending key
-            if self.pending_key == None:
-                self.pending_key = "g"
-
-            # 'g' then 'g'
-            elif self.pending_key == "g":
-                scroll_bar.scroll_home(animate=False)
+        if event.character and event.character.isdigit():
+            if event.character == "0" and not (
+                self.pending_key and self.pending_key.isdigit()
+            ):
+                if self.in_msg_mode:
+                    scroll_code_block_edge(self, "start")
                 self.pending_key = None
+                return
 
-        # Set pending key 'space'
-        elif event.key == "space":
-            # Set as first pending key
+            if self.pending_key is None or not self.pending_key.isdigit():
+                self.pending_key = event.character  # Set first digit
+            else:
+                self.pending_key += event.character  # Regular pending key
+            return
+
+        # Leader key
+        if event.key == "space":
+            # <space>
             if self.pending_key == None:
                 self.pending_key = "space"
 
+            else:
+                self.pending_key = None
+
+        elif event.character == "g":
+            # <g>
+            if self.pending_key is None:
+                self.pending_key = "g"
+
+            # <gg>
+            elif self.pending_key == "g":
+                if self.in_msg_mode:
+                    # In message mode
+                    go_to_code_block(self, 1)
+
+                else:
+                    # In normal mode
+                    scroll_bar.scroll_home(animate=False)
+
+                self.pending_key = None
+            else:
+                self.pending_key = None
+
         elif event.character == "a":
-            # 'space' then 'a'
-            if self.pending_key == "space":
+            # <a>
+            if self.pending_key is None:
+                self.in_insert_mode = True
+                prompt_input.focus()
+
+            # <space>a
+            elif self.pending_key == "space":
+                # In all modes
                 to_attachments_popup(self)
                 self.pending_key = None
 
-            # Single key
-            if self.pending_key == None:
-                prompt_input.focus()
-                self.pending_key = None
+            self.pending_key = None
 
-        elif event.key == "k":
-            # Single key
-            if self.pending_key == None:
-                scroll_bar.scroll_up()
-                self.pending_key = None
+        elif event.key in ("k", "j"):
+            direction = "up" if event.key == "k" else "down"
+            count = pending_key_is_digit_counter(self)
 
-        elif event.key == "j":
-            # Single key
-            if self.pending_key == None:
-                scroll_bar.scroll_down()
-                self.pending_key = None
+            # <k> or <j>
+            if self.pending_key is None:
+                if self.in_msg_mode:
+                    jump_code_blocks(self, direction, 1)
+                else:
+                    if direction == "up":
+                        scroll_bar.scroll_up()
+                    else:
+                        scroll_bar.scroll_down()
+
+            # <n>k or <n>j
+            elif count is not None:
+                # In message mode
+                if self.in_msg_mode:
+                    jump_code_blocks(self, direction, count)
+                # In normal mode
+                else:
+                    jump_messages(self,direction, count=count)
+
+            self.pending_key = None
+
+        elif event.key in ("h", "l"):
+            direction = "left" if event.key == "h" else "right"
+            count = pending_key_is_digit_counter(self)
+
+            if self.pending_key is None:
+                if self.in_msg_mode:
+                    scroll_code_block(self, direction, 1)
+
+            elif count is not None:
+                if self.in_msg_mode:
+                    scroll_code_block(self, direction, count)
+
+            self.pending_key = None
+
+        elif event.character == "$":
+            if self.pending_key is None and self.in_msg_mode:
+                scroll_code_block_edge(self, "end")
+
+            self.pending_key = None
+
+        elif event.character in ("K", "J"):
+            direction = "up" if event.character == "K" else "down"
+
+            # In message mode
+            if self.in_msg_mode:
+                jump_code_blocks(self, direction, 1)
+            # In normal mode
+            else:
+                jump_messages(self, direction, count=1)
+
+            self.pending_key = None
 
         elif event.character == "G":
-            # Single key
-            if self.pending_key == None:
-                scroll_bar.scroll_end(animate=False)
-                self.pending_key = None
+            count = pending_key_is_digit_counter(self)
+
+            # <G>
+            if self.pending_key is None:
+                # In message mode
+                if self.in_msg_mode:
+                    go_to_code_block(self, None)
+                # In normal mode
+                else:
+                    scroll_bar.scroll_end(animate=False)
+
+            # <n>G
+            elif count is not None:
+                # In message mode
+                if self.in_msg_mode:
+                    go_to_code_block(self, count)
+                # In normal mode
+                else:
+                    goto_message(self, count)
+
+            self.pending_key = None
 
         elif event.key == "i":
-            # Single key
-            if self.pending_key == None:
+            # <i>
+            if self.pending_key is None:
+                self.in_insert_mode = True
                 prompt_input.focus()
-                self.pending_key = None
 
-        # if event.key == "escape" and self._awaiting_response:
-        #     self._request_stop()
+            self.pending_key = None
+
+        elif event.key == "m":
+            # <m>
+            if self.pending_key is None:
+                focus_current_message_box(self)
+
+            self.pending_key = None
+
+        elif event.key == "escape":
+            # <escape>
+            self.pending_key = None
+            # In mesage mode
+            if self.in_msg_mode:
+                self.in_msg_mode = False
+                self.focused_msg_box = None
+                clear_code_selection(self)
+                self.set_focus(None)
+            # In insert mode
+            if self.in_insert_mode:
+                self.in_insert_mode = False
+                self.set_focus(None)
 
         else:
             self.pending_key = None
 
     def run_process_add_pending_attachments(self, cmd: str, prefix: str) -> None:
         process_add_pending_attachments(self, cmd=cmd, prefix=prefix)
+
+    def _on_chat_scrolled(self) -> None:
+        self.refresh_status()
+
+    def mode_text(self) -> str:
+        return mode_text(self)
+
+    def ruler_text(self) -> str:
+        return get_location_text(self)
+
+    def showcmd_text(self) -> str:
+        return showcmd_text(self)

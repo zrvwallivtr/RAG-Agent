@@ -1,15 +1,27 @@
 from typing import Sequence, Any
+from pathlib import Path
 
-from src.config.models import EMBED_MODEL, MODEL_MAX_TOKENS
-from src.config.expert import PER_EXPERT_RETRIEVAL_LIMIT
+from src.config.config_toml import (
+    MODEL,
+    EMBED_MODEL,
+    MODEL_MAX_TOKENS,
+    PER_EXPERT_RETRIEVAL_LIMIT,
+    ENABLE_DOCLING,
+)
 
 from src.libs.helpers.database_helpers import fetch_one, execute
 from src.libs.custom_dataclasses import AgentHooks
+from src.libs.helpers.string_helpers import hash_string
+from src.libs.helpers.file_metadata_helpers import unpack_file_metadata
 
 from .get_or_create import get_or_create_expert
 from .query_experts import QueryExperts
 from .store_documents import StoreDocuments
 
+from src.rag.file_parser import FileParser
+from src.rag.docling import DoclingParser
+from src.rag.docling import DoclingChunker
+from src.agent.tokenizers import LocalTokenizer
 from src.rag.expert.schema import ensure_link_schema, ensure_schema
 from src import logger
 
@@ -29,6 +41,30 @@ def query_multiple_experts(
     )
 
 
+def _format_to_document_dictionary(
+    path: Path, chunks: list[str], cont_hash: str
+) -> dict[str, dict[Any, Any]] | None:
+    """Format into the expected dictionary structure for store_documents()."""
+    file_data = unpack_file_metadata(path)
+    if not file_data:
+        return
+    name, mime, size = file_data
+
+    return {
+        name: {
+            "format": format,
+            "content_hash": cont_hash,
+            "chunks": chunks,
+            "path": str(path.resolve()),
+            "metadata": {
+                "mime_type": mime,
+                "size_bytes": size,
+                "page_count": "",
+            }
+        }
+    }
+
+
 class Expert:
     """
     Created on first use, loaded on every use after that, so building the
@@ -43,6 +79,9 @@ class Expert:
     ):
         self.conn = conn
         self.exp_name = exp_name
+        self.local_tknizr = LocalTokenizer(MODEL)
+        self.file_parser = FileParser()
+        self.chunker = DoclingChunker(self.local_tknizr)
 
         ensure_schema(self.conn)
         ensure_link_schema(self.conn)
@@ -61,7 +100,7 @@ class Expert:
         exp_ids: Sequence[int],
     ):
         if len(exp_ids) > 1:
-            per_exp_lim = PER_EXPERT_RETRIEVE_LIMIT
+            per_exp_lim = PER_EXPERT_RETRIEVAL_LIMIT
         else:
             per_exp_lim = None
 
@@ -73,9 +112,9 @@ class Expert:
 
     # --- Store ----------------------------------------------------------------
 
-    def store_documents(
+    def _store_documents(
         self,
-        docs: dict[str, dict[Any, Any]],
+        doc_dict: dict[str, dict[Any, Any]],
         hooks: AgentHooks | None = None,
     ):
         """
@@ -83,14 +122,14 @@ class Expert:
 
         Per document dictionary:
         "title": {
-            "doc_type": ,
+            "format": ,
             "cont_hash": ,
             "chunks": [],
             "path": ,
             "metadata": {},
         }
         """
-        for title, data in docs.items():
+        for title, data in doc_dict.items():
             doc_type = data.get("doc_type")
             cont_hash = data.get("cont_hash")
             chunks = data.get("chunks")
@@ -106,3 +145,26 @@ class Expert:
                 metadata=metadata,
                 hooks=hooks
             )
+
+    def chunk_document_to_database(
+        self,
+        path: Path,
+        is_docling: bool = ENABLE_DOCLING,
+        hooks: AgentHooks | None = None
+    ):
+        """
+        Parse the document for the docling chunker, using the docling
+        chunker to chunk the document and store to the database.
+        """
+        out = self.file_parser.read_document(path)
+        if not out:
+            return
+        cont, format = out
+
+        chunks = self.chunker.chunking(cont)
+        cont_hash = hash_string(cont)
+        doc_dict = _format_to_document_dictionary(path, chunks, cont_hash)
+        if not doc_dict:
+            return
+
+        doc_id = self._store_documents(doc_dict, hooks=hooks)

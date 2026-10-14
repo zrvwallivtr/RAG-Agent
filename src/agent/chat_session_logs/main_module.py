@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Literal, Any, Callable
 
-from src.config.models import MODEL
+from src.config.config_toml import MODEL
 from src.config.prompts import SYS_PROMPT, COMPRESS_PROMPT
 
 from .schema import ensure_schema

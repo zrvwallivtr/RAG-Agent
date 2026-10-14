@@ -1,21 +1,33 @@
-/* --- Variables -------------------------------------------------- */
+/* --- Theme --------------------------------------------------------------- */
 
-$dash-accent: cyan;
-$dash-highlight: yellow;
+$color-primary: cyan;
+$color-primary-bright: lightcyan;
+$color-primary-dim: darkcyan;
+$color-highlight: yellow;
+$color-on-primary: black;
+$color-surface: black;
+$color-overlay: rgba(0, 0, 0, 0.6);
+$color-focus-border: $color-primary-bright;
+$color-focus-tint: $color-primary 10%;
+$color-transparent: transparent;
 
 
-/* --- Screen ----------------------------------------------------- */
+/* --- Screen -------------------------------------------------------------- */
 
 DashboardScreen {
-    padding: 1 4;
+    padding: 0;
+}
+
+#sessions-section {
+    margin: 0 4 1 4;
 }
 
 
-/* --- App banner ------------------------------------------------- */
+/* --- App banner ---------------------------------------------------------- */
 
 #app-banner {
     height: 13;
-    margin-bottom: 1;
+    margin: 1 4 1 4;
 }
 
 .box {
@@ -25,17 +37,17 @@ DashboardScreen {
 #app-icon {
     width: 26;
     padding: 1;
-    border: solid $dash-accent;
+    border: solid $color-primary;
 }
 
 #app-config {
     margin-left: 3;
     padding-left: 3;
-    border: solid $dash-accent;
+    border: solid $color-primary;
 }
 
 
-/* --- Models ----------------------------------------------------- */
+/* --- Models -------------------------------------------------------------- */
 
 #model-section-title {
     height: auto;
@@ -55,11 +67,11 @@ DashboardScreen {
 }
 
 #selected-model-list {
-    color: $dash-highlight;
+    color: $color-highlight;
 }
 
 
-/* --- Tokenizers ------------------------------------------------- */
+/* --- Tokenizers ---------------------------------------------------------- */
 
 #tokenizer-section-title {
     height: auto;
@@ -78,11 +90,11 @@ DashboardScreen {
 }
 
 #selected-tokenizer {
-    color: $dash-highlight;
+    color: $color-highlight;
 }
 
 
-/* --- Sessions: title -------------------------------------------- */
+/* --- Sessions: title ----------------------------------------------------- */
 
 #session-section-title {
     height: auto;
@@ -91,40 +103,32 @@ DashboardScreen {
 }
 
 
-/* --- Sessions: action bar --------------------------------------- */
+/* --- Sessions: action bar ------------------------------------------------ */
 
 #session-action-bar {
     height: auto;
     padding-left: 1;
 }
 
-#search-session-button {
-    width: auto;
-}
-
-#new-session-button {
-    width: auto;
-}
-
+#search-session-button,
+#new-session-button,
 #delete-session-button {
     width: auto;
 }
 
 .action-item {
-    color: $dash-accent;
+    color: $color-primary;
     margin: 1 1 1 0;
 }
 
-.action-item:hover {
-    color: black;
-    background: $dash-accent;
-}
-
+.action-item:hover,
 .action-item:focus {
+    color: $color-on-primary;
+    background: $color-primary;
 }
 
 
-/* --- Sessions: input bars --------------------------------------- */
+/* --- Sessions: input bars ------------------------------------------------ */
 
 #session-search-input,
 #new-session-input,
@@ -135,33 +139,33 @@ DashboardScreen {
 #session-search-input:focus,
 #new-session-input:focus,
 #delete-session-input:focus {
-    border: solid cyan;
+    border: solid $color-primary;
 }
 
 
-/* --- Sessions: list --------------------------------------------- */
+/* --- Sessions: list ------------------------------------------------------ */
 
 #session-list {
     height: auto;
-    color: $dash-accent;
+    color: $color-primary;
 }
 
 #session-list:focus {
-    border: solid $dash-accent;
+    border: solid $color-primary;
 }
 
 #session-list > .option-list--option-highlighted {
-    color: black;
-    background: $dash-accent 40%;
+    color: $color-on-primary;
+    background: $color-primary 40%;
 }
 
 #session-list:focus > .option-list--option-highlighted {
-    color: black;
-    background: $dash-accent;
+    color: $color-on-primary;
+    background: $color-primary;
 }
 
 
-/* --- Utilities -------------------------------------------------- */
+/* --- Utilities ----------------------------------------------------------- */
 
 .hidden {
     display: none;

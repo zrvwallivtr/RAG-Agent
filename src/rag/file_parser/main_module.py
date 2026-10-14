@@ -1,48 +1,75 @@
+"""
+Routing to the correct parser based on if user enabled docling in the config.
+"""
+
 from pathlib import Path
 
 from src.config.files_and_directories import UPLOAD_DIR
-from src.config.documents import ENABLE_DOCLING
+from src.config.config_toml import ENABLE_DOCLING, ENABLE_PATH_SAFETY
 
-from src.libs.parsers.basic_parsers import BasicParsers
+from .basic_parser import BasicParser
+
 from src.libs.custom_dataclasses import AgentHooks
 
-from src.rag.docling import DoclingParsers
+from src.rag.docling import DoclingParser
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 
 
 class PathTraversalError(Exception):
-    """Raised when a file path attempts to escape outside the permitted upload directory."""
+    """
+    Raised when a file path attempts to escape outside
+    the permitted upload directory.
+    """
     pass
 
 
-class FileReader:
+def _validate_path(
+    path: Path,
+    enable_path_safety: bool = ENABLE_PATH_SAFETY
+) -> Path:
     """
-    Manages secure file path resolution, verification, and text extraction via
-    Docling or basic parsers.
+    If path safety is enabled:
+    This function resolves the given path and ensures it remains strictly
+    contained within the permitted upload directory.
     """
-
-    def __init__(self):
-        self.bs_prsrs       = BasicParsers()
-        self.docling_prsrs  = DoclingParsers()
-
-    def _validate_path(self, path: Path) -> Path:
-        """
-        Resolves the given path and ensures it remains strictly contained within
-        the permitted upload directory.
-        """
+    if enable_path_safety:
+        info_str = (
+            "Path safety feature is enabled: Validating upload path '%s'"
+            % (path)
+        )
+        app_log.debug(info_str)
         resolved = path.resolve()
 
         try:
             resolved.relative_to(UPLOAD_DIR)
         except ValueError:
             raise PathTraversalError(
-                "Path '%s' resolves to '%s', which is outside the allowed directory '%s'"
+                "Path '%s' resolves to '%s', "
+                "which is outside the allowed directory '%s'"
                 % (path, resolved, UPLOAD_DIR)
             )
 
         return resolved
+
+    info_str = (
+        "Path safety feature is disabled: Upload path '%s' validation skipped"
+        % (path)
+    )
+    app_log.debug(info_str)
+    return path
+
+
+class FileParser:
+    """
+    Manages secure file path resolution, verification, and text extraction via
+    Docling or basic parsers.
+    """
+
+    def __init__(self):
+        self.basic_parser  = BasicParser()
+        self.docling_prsrs = DoclingParser()
 
     def _docling_parser_default(
         self,
@@ -60,7 +87,7 @@ class FileReader:
             if hooks and hooks.on_loading:
                 hooks.on_loading("Running Docling parser for '%s'..." % path)
 
-            parser = self.docling_prsrs.formats.get(ext, self.bs_prsrs.read_txt)
+            parser = self.docling_prsrs.formats.get(ext, self.basic_parser.read_txt)
             out = parser(safe_path)
             if not out:
                 return
@@ -71,11 +98,14 @@ class FileReader:
         except Exception as e:
             if hooks and hooks.on_loading:
                 hooks.on_loading(
-                    "Failed to run Docling for '%s'. Falling back to basic parser..."
+                    "Failed to run Docling for '%s'. "
+                    "Falling back to basic parser..."
                     % path
                 )
             try:
-                parser = self.bs_prsrs.formats.get(ext, self.bs_prsrs.read_txt)
+                parser = self.basic_parser.formats.get(
+                    ext, self.basic_parser.read_txt
+                )
                 return parser(safe_path), "txt"
 
             except Exception as fallback_err:
@@ -99,7 +129,7 @@ class FileReader:
             if hooks and hooks.on_loading:
                 hooks.on_loading("Running basic parser for '%s'" % path)
 
-            parser = self.bs_prsrs.formats.get(ext, self.bs_prsrs.read_txt)
+            parser = self.basic_parser.formats.get(ext, self.basic_parser.read_txt)
             return parser(safe_path), "txt"
 
         except Exception as e:
@@ -115,12 +145,15 @@ class FileReader:
 
             if hooks and hooks.on_loading:
                 hooks.on_loading(
-                    "Failed to run basic parser for '%s': %s. Falling back to Docling parser..."
+                    "Failed to run basic parser for '%s': %s. "
+                    "Falling back to Docling parser..."
                     % (path, e)
                 )
 
             try:
-                parser = self.docling_prsrs.formats.get(ext, self.bs_prsrs.read_txt)
+                parser = self.docling_prsrs.formats.get(
+                    ext, self.basic_parser.read_txt
+                )
                 out = parser(safe_path)
                 if not out:
                     return
@@ -142,8 +175,11 @@ class FileReader:
         path: Path,
         hooks: AgentHooks | None = None,
     ) -> tuple[str, str] | None:
-        """Return file content as a string using mapped parsers and converted file format."""
-        safe_path = self._validate_path(path)
+        """
+        Return file content as a string using mapped parsers
+        and converted file format.
+        """
+        safe_path = _validate_path(path)
 
         if not safe_path.exists():
             raise FileNotFoundError("'%s' does not exist" % safe_path)

@@ -1,22 +1,36 @@
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
-from src.config.models import MODEL
+from src.config.config_toml import MODEL
 
 from .query_documents import QueryDocuments
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.helpers.string_helpers import hash_string
 from src.libs.helpers.file_metadata_helpers import unpack_file_metadata
+from src.libs.custom_dataclasses import AgentHooks
 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
-from src.rag.file_reader import FileReader
 from src.agent.tokenizers import LocalTokenizer
+from src.rag.file_parser import FileParser
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
+
+
+def _document_metadata(
+    doc_name: str, chnk_idx: int, mime: str, size: int
+) -> dict[str, Any]:
+    """Return a formatted metadata dictionary to store into the database."""
+    return {
+        "document_name": doc_name,
+        "document_chunk_index": chnk_idx,
+        "mime_type": mime,
+        "size_bytes": size,
+    }
 
 
 class StoreDocuments:
@@ -24,18 +38,22 @@ class StoreDocuments:
         self,
         conn,
         chat_sess_logs: ChatSessionLogs,
-        file_reader: FileReader,
+        file_parser: FileParser,
         query_docs: QueryDocuments
     ):
         self._conn = conn
 
         self.chat_sess_logs = chat_sess_logs
-        self.file_reader = file_reader
+        self.file_parser = file_parser
         self.query_docs = query_docs
 
         self.local_tknizr = LocalTokenizer(MODEL)
 
-    def _is_doc_cont_chunk_exist(self, new_hash: str) -> tuple[str, list[float], int] | None:
+    # --- Local helpers -------------------------------------------------------
+
+    def _is_doc_cont_chunk_exist(
+        self, new_hash: str
+    ) -> tuple[str, list[float], int] | None:
         """
         Check if the same document content chunk was uploaded before (same
         hash, accross sessions). Return embeddings if a duplicate exist.
@@ -50,12 +68,10 @@ class StoreDocuments:
                 LIMIT 1
                 """
             ),
-            params=(new_hash,)
+            params=(new_hash,),
         )
         if row is None:
             return None
-
-        app_log.debug("Document content chunk already exist")
         return row
 
     def _upload_to_knowledge_base(
@@ -70,14 +86,15 @@ class StoreDocuments:
         size: int,
         cont_hash: str,
         exprs_at: datetime | None = None,
+        hooks: AgentHooks | None = None,
     ) -> None:
         """Upload a document to knowledge base."""
-        metadata = {
-            "document_name": doc_name,
-            "document_chunk_index": chnk_idx,
-            "mime_type": mime,
-            "size_bytes": size
-        }
+        metadata = _document_metadata(
+            doc_name=doc_name,
+            chnk_idx=chnk_idx,
+            mime=mime,
+            size=size
+        )
 
         row = fetch_one(
             conn=self._conn,
@@ -91,20 +108,36 @@ class StoreDocuments:
                 """
             ),
             params=(
-                self.chat_sess_logs.get_session_id(), "document", str(embdings),
-                embed_tkns, cont, prompt_tkns, cont_hash, exprs_at, json.dumps(metadata),
-            )
+                self.chat_sess_logs.get_session_id(),
+                "document",
+                str(embdings),
+                embed_tkns,
+                cont,
+                prompt_tkns,
+                cont_hash,
+                exprs_at,
+                json.dumps(metadata),
+            ),
         )
 
         if row:
-            app_log.info(
-                "Added document '%s' to session '%s' knowledge base",
-                doc_name, self.chat_sess_logs.sess_name
+            info_str = (
+                "Added document '%s' to session '%s' knowledge base"
+                % (doc_name, self.chat_sess_logs.sess_name)
             )
+            app_log.info(info_str)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(info_str)
             return
 
+    # --- Store ---------------------------------------------------------------
+
     def add_embed_to_knowledge_base(
-        self, path: Path, cont: str | None, format: str | None
+        self,
+        path: Path,
+        cont: str | None,
+        format: str | None,
+        hooks: AgentHooks | None = None
     ) -> int | None:
         """
         Uses langchain text splitters for file format accordingly,
@@ -118,7 +151,7 @@ class StoreDocuments:
         chnks = []
 
         if not cont and not format:
-            out = self.file_reader.read_document(path)
+            out = self.file_parser.read_document(path)
             if not out:
                 return
             cont, format = out
@@ -141,7 +174,8 @@ class StoreDocuments:
             if doc_chnk:
                 # Skip embedding if already exists
                 app_log.debug(
-                    "Document already exists in session '%s' knowledge base. Skipping re-embed",
+                    "Document already exists in session '%s' knowledge base."
+                    " Skipping re-embed",
                     self.chat_sess_logs.sess_name
                 )
                 chnk_cont, embdings, embed_tkns = doc_chnk
@@ -163,7 +197,8 @@ class StoreDocuments:
             # Skip chunks that failed
             if not embdings:
                 app_log.warning(
-                    "Error occur in embedding chunk in '%s'. Skipping chunk", path
+                    "Error occur in embedding chunk in '%s'. Skipping chunk",
+                    path
                 )
                 continue
 
@@ -178,18 +213,23 @@ class StoreDocuments:
                     prompt_tkns=prompt_tkns,
                     mime=mime,
                     size=size,
-                    cont_hash=chnk_hash
+                    cont_hash=chnk_hash,
+                    hooks=hooks,
                 )
             count += 1
 
         return count
 
-    def store_documents(self, attchmnt_dict: dict[Path, dict[str, str]]) -> None:
+    def store_documents(
+        self,
+        attchmnt_dict: dict[Path, dict[str, str]],
+        hooks: AgentHooks | None = None,
+    ) -> None:
         for doc_path, data in attchmnt_dict.items():
             cont = data["content"]
             format = data["format"]
             count = self.add_embed_to_knowledge_base(
-                path=doc_path, cont=cont, format=format
+                path=doc_path, cont=cont, format=format, hooks=hooks
             )
             if not count:
                 continue
