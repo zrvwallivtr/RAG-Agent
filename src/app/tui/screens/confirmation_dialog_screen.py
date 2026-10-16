@@ -6,16 +6,14 @@ from textual.widgets.option_list import Option
 from textual.events import Key
 
 
-class ConfirmationPopupScreen(ModalScreen[None]):
-    CSS_PATH = "tcss/confirmation_popup.tcss"
-
+class ConfirmationDialogScreen(ModalScreen[None]):
+    CSS_PATH = "tcss/confirmation_dialog.tcss"
 
     def __init__(self, title: str, positive: str, negative: str):
         super().__init__()
         self.title = title
         self.positive = positive
         self.negative = negative
-
 
     def compose(self) -> ComposeResult:
         with Vertical(id=f"confirmation-popup-modal"):
@@ -25,13 +23,11 @@ class ConfirmationPopupScreen(ModalScreen[None]):
                 yield Button(f"{self.positive}", id="confirmation-modal-true-button")
                 yield Button(f"{self.negative}", id="confirmation-modal-false-button")
 
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirmation-modal-true-button":
             self.dismiss(True)
         else:
             self.dismiss(False)
-
 
     def on_key(self, event: Key) -> None:
         if event.key == "escape":

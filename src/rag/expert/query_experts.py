@@ -1,7 +1,7 @@
 from typing import Sequence
 
 from src.config.config_toml import (
-    MODEL, MODEL_MAX_TOKENS, EXPLORATION_FACTOR, EXPERT_RETRIEVE_LIMIT
+    EMBED_MODEL, EXPLORATION_FACTOR, EXPERT_RETRIEVE_LIMIT
 )
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all
@@ -15,16 +15,47 @@ app_log = logger.app_logger(f"{__name__}.app")
 # Cosine distance
 _SEAR_SQL = (
     """
-    SELECT e.name, d.title, d.source_path, c.content, c.metadata,
-        c.prompt_tokens, c.embedings <=> %s::vector AS distance
-    FROM expert_chunks c
-    JOIN experts e          ON e.id = c.expert_id
-    JOIN expert_documents d ON d.id = c.document_id
-    WHERE c.expert_id = ANY(%s::bigint[])
+    SELECT c.id,
+        (
+            SELECT array_agg(e.name ORDER BY e.name)
+            FROM expert_documents ed
+            JOIN experts e ON e.id = ed.expert_id
+            WHERE ed.document_id = d.id AND ed.expert_id = ANY(%s::bigint[])
+        ) AS experts,
+        d.title, d.source_path, c.content, c.metadata,
+        c.prompt_tokens, c.embeddings <=> %s::vector AS distance
+    FROM document_chunks c
+    JOIN documents d ON d.id = c.document_id
+    WHERE d.embedding_model = %s
+        AND c.document_id IN (
+            SELECT document_id FROM expert_documents
+            WHERE expert_id = ANY(%s::bigint[])
+        )
     ORDER BY c.embeddings <=> %s::vector
     LIMIT %s;
     """
 )
+
+_DIST = 7  # Index of the distance column in a result row
+
+REPLY_RESERVE_TKNS = 1000
+
+
+def expert_tkn_budget(
+    model_max: int | None,
+    used_tkns: int,
+    prompt_tkns: int,
+    share: float = 0.5,
+) -> int | None:
+    """
+    Token budget for expert chunks: a share of the context window that is 
+    still free after the session history, the prompt and the reply reserve.
+    Returns None (no limit) if the model's token limit is unknown.
+    """
+    if not model_max:
+        return None
+    free = model_max - used_tkns - prompt_tkns - REPLY_RESERVE_TKNS
+    return max(0, int(free * share))
 
 
 class QueryExperts:
@@ -51,18 +82,21 @@ class QueryExperts:
         exp_ids: Sequence[int],
         retrieve_lim: int = EXPERT_RETRIEVE_LIMIT,
         per_exp_lim: int | None = None,
-        tkn_budget: int = MODEL_MAX_TOKENS,
-    ) -> list[dict] | None:
+        tkn_budget: int | None = None,
+    ) -> list[dict]:
         """
         Embed the prompt and return the closest chunks across the given experts,
-        best first. Return [] if there are no experts or the prompt can't be embedded.
+        best first. Return [] if there are no experts or the prompt can't be 
+        embedded.
 
         per_exp_k:  Cap on how many chunks a single expert may contribute, so a
                     large expert can't crowd out a small one.
                     USE THIS ONLY IF MORE THAN ONE EXPERT IS ENABLED.
 
-        tkn_budget: Stop adding chunks once their token_count total would exceed this.
-                    A chunk that doesn't fit is skipped, smaller ones may still fit.
+        tkn_budget: Stop adding chunks once their token_count total would 
+                    exceed this. A chunk that doesn't fit is skipped, smaller
+                    ones may still fit. None means no limit. Use
+                    expert_tkn_budget().
         """
         if not exp_ids:
             return []
@@ -77,7 +111,8 @@ class QueryExperts:
             rows = []
             for exp_id in exp_ids:
                 rows.extend(self._query(qv, [exp_id], per_exp_lim))
-            rows.sort(key=lambda r: r[6])
+            rows = self._merge_duplicates(rows)
+            rows.sort(key=lambda r: r[_DIST])
             rows = rows[:retrieve_lim]
         else:
             rows = self._query(qv, list(exp_ids), retrieve_lim)
@@ -100,18 +135,37 @@ class QueryExperts:
         return fetch_all(
             conn=self._conn,
             sql=_SEAR_SQL,
-            params=(qv, exp_ids, qv, limit),
+            params=(exp_ids, qv, EMBED_MODEL, exp_ids, qv, limit),
         )
+
+    @staticmethod
+    def _merge_duplicates(rows: list) -> list:
+        """
+        A document linked to several experts is found once per expert when
+        each is searched separately. Keep one row per chunk and combine the
+        epxert name.
+        """
+        merged: dict = {}
+        for row in rows:
+            chunk_id = row[0]
+            if chunk_id in merged:
+                prev = merged[chunk_id]
+                names = sorted(set(prev[1]) | set(row[1]))
+                merged[chunk_id] = (prev[0], names, *prev[2:])
+            else:
+                merged[chunk_id] = row
+        return list(merged.values())
 
     @staticmethod
     def _to_hits(rows: list, tkn_budget: int | None) -> list[dict]:
         hits, used = [], 0
-        for exp_name, title, source, content, meta, tkns, dist in rows:
+        for _, exp_names, title, source, content, meta, tkns, dist in rows:
             if tkn_budget is not None and used + tkns > tkn_budget:
                 continue
             used += tkns
             hits.append({
-                "expert": exp_name,
+                "expert": ", ".join(exp_names),
+                "experts": list(exp_names),
                 "title": title,
                 "source": source,
                 "content": content,

@@ -1,18 +1,12 @@
 /* --- Theme --------------------------------------------------------------- */
 
 $color-primary: cyan;
-$color-primary-bright: lightcyan;
-$color-primary-dim: darkcyan;
-$color-highlight: yellow;
-$color-on-primary: black;
-$color-surface: black;
 $color-overlay: rgba(0, 0, 0, 0.6);
-$color-focus-border: $color-primary-bright;
-$color-focus-tint: $color-primary 10%;
-$color-transparent: transparent;
 
 
-AttachmentsPopupScreen {
+/* --- AttachmentsPopupScreen ---------------------------------------------- */
+
+AttachmentsDialogScreen {
     align: center middle;
     background: $color-overlay;
 }

@@ -12,7 +12,7 @@ from .action_bar import show_session_action_bar
 
 def go_to_session(screen, sess_name: str) -> None:
     """Go to specified chat session screen."""
-    screen.notify(f"Opening session: {sess_name}")
+    # screen.notify(f"Opening session: {sess_name}")
     from src.app.tui.screens.chat_screen import ChatScreen
     screen.app.push_screen(ChatScreen(sess_name=sess_name))
 

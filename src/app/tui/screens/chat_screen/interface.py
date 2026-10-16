@@ -1,7 +1,9 @@
-"""Local chat screen helpers for interface rendering and behaviours."""
+"""Chat screen helpers for interface rendering and behaviours."""
 
 from textual.containers import VerticalScroll
 from textual.widgets import Markdown, Button
+
+from src.app.tui.screens.base_screen import BaseScreen
 
 
 def show_loading_indicator(
@@ -42,9 +44,14 @@ def show_markdown_content(
     screen.app.call_from_thread(_update)
 
 
-def show_ui_information(screen, info: str):
-    """Show UI information with custom content."""
-    screen.app.call_from_thread(screen.notify, info)
+# def show_ui_information(screen, info: str):
+#     """Show UI information with custom content."""
+#     screen.app.call_from_thread(screen.notify, info)
+
+
+def show_information_in_command_bar(screen, info: str):
+    """Show infromation on the command bar with custom string."""
+    screen.app.call_from_thread(screen.show_command_message, info)
 
 
 def request_stop(screen) -> None:
@@ -58,4 +65,5 @@ def request_stop(screen) -> None:
         return
     screen.stop_event.set()
     screen.query_one("#stop-button", Button).disabled = True  # No double clicks
-    screen.notify("Stopping...")
+    BaseScreen.show_command_message(screen, msg="Stopping agent response...")
+    # screen.notify("Stopping...")

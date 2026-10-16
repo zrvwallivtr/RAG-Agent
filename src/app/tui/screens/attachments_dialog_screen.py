@@ -11,8 +11,8 @@ from textual.events import Key
 from src.libs.helpers.string_helpers import clean_id_string
 
 
-class AttachmentsPopupScreen(ModalScreen[None]):
-    CSS_PATH = "tcss/attachments_popup.tcss"
+class AttachmentsDialogScreen(ModalScreen[None]):
+    CSS_PATH = "tcss/attachments_dialog.tcss"
 
     def __init__(self, paths: list[Path]):
         super().__init__()

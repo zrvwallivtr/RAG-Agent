@@ -23,6 +23,8 @@ from .chat_container import (
     go_to_code_block,
     scroll_code_block,
     scroll_code_block_edge,
+)
+from .ruler import (
     get_location_text,
     mode_text,
     showcmd_text,
@@ -114,7 +116,10 @@ class ChatScreen(BaseScreen):
         yield from self.compose_command_bar()
 
     def on_mount(self) -> None:
-        """Initialises chat history, token cache counters, and button visibility."""
+        """
+        Initialises chat history, token cache counters,
+        and button visibility.
+        """
         load_chat_history(self)
         refresh_session_token_cache(self)
         static_update_session_used_tokens_widget(self)

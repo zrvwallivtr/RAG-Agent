@@ -8,6 +8,8 @@ from textual.widgets import Input, Static
 from textual.events import Key, DescendantFocus, DescendantBlur
 
 from .tab_completion import tab_completion
+from .ruler import ruler_text
+from .command_bar import show_command_message, reset_command_bar, showcmd_text
 
 
 class BaseScreen(Screen):
@@ -36,30 +38,6 @@ class BaseScreen(Screen):
             return "-- INSERT --"
         return ""
 
-    def ruler_text(self) -> str:
-        """Line above the command line (location). Empty hides the line."""
-        return ""
-
-    def showcmd_text(self) -> str:
-        """Right side of the command line (pending keys)."""
-        return ""
-
-    def refresh_status(self) -> None:
-        """Redraw mode, ruler and pending keys."""
-        try:
-            cmd_input = self.query_one("#cmd-input", Input)
-            ruler = self.query_one("#ruler", Static)
-            showcmd = self.query_one("#showcmd", Static)
-        except NoMatches:
-            return
-        
-        cmd_input.placeholder = self.mode_text()
-        text = self.ruler_text()
-        ruler.update(text)
-        ruler.display = bool(text)
-
-        showcmd.update(self.showcmd_text())
-
     def on_descendant_focus(self, event: DescendantFocus) -> None:
         self.call_after_refresh(self.refresh_status)
 
@@ -87,7 +65,7 @@ class BaseScreen(Screen):
 
         if event.key == "escape":
             if cmd_input.has_focus:
-                self._reset_command_bar()
+                reset_command_bar(self)
 
         if event.key == "tab":
             if cmd_input.has_focus:
@@ -107,7 +85,7 @@ class BaseScreen(Screen):
             return
 
         if not event.value.startswith(":"):
-            self._reset_command_bar()
+            reset_command_bar(self)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Valid commands, show error message when invalid command is submitted."""
@@ -121,52 +99,40 @@ class BaseScreen(Screen):
 
         if cmd in (":q", ":quit"):
             self.app.exit()
-            self._reset_command_bar()
+            reset_command_bar(self)
 
         elif cmd in (":d", ":dashboard"):
             self.app.switch_screen(DashboardScreen())
-            self._reset_command_bar()
+            reset_command_bar(self)
 
         elif cmd in (":s", ":session"):
             self.app.push_screen(ChatScreen(sess_name=None))
-            self._reset_command_bar()
+            reset_command_bar(self)
 
         elif cmd.startswith(":s ") or cmd.startswith(":session "):
             prefix = ":s " if cmd.startswith(":s ") else ":session "
             sess_name = cmd.split(prefix, 1)[1].strip()
             self.app.push_screen(ChatScreen(sess_name=sess_name))
-            self._reset_command_bar()
+            reset_command_bar(self)
 
         elif isinstance(self, ChatScreen) and cmd.startswith((":a ", ":attach ")):
             prefix = ":a " if cmd.startswith(":a ") else ":attach "
             self.run_process_add_pending_attachments(cmd=cmd, prefix=prefix)
 
         else:
-            self.show_command_message(f"Not a valid command: {cmd}")
+            show_command_message(self, f"Not a valid command: {cmd}")
 
-    def show_command_message(self, msg: str, duration: float = 3.0) -> None:
-        """Display message in the command bar and unfoucs."""
-        cmd_input = self.query_one("#cmd-input", Input)
-
-        self.is_displaying_message = True
-
-        cmd_input.value = msg
-
-        self.set_focus(None)
-
-        self.set_timer(duration, self._clear_command_bar)
-
-    def _clear_command_bar(self) -> None:
-        """Empty the bar after a message. Skipped if the user started typing."""
-        if not self.is_displaying_message:
+    def refresh_status(self) -> None:
+        """Redraw mode, ruler and pending keys."""
+        try:
+            cmd_input = self.query_one("#cmd-input", Input)
+            ruler = self.query_one("#ruler", Static)
+            showcmd = self.query_one("#showcmd", Static)
+        except NoMatches:
             return
-        cmd_input = self.query_one("#cmd-input", Input)
-        cmd_input.value = ""
-        self.is_displaying_message = False
+        
+        cmd_input.placeholder = self.mode_text()
+        text = ruler_text()
+        ruler.update(text)
 
-    def _reset_command_bar(self) -> None:
-        """Empty the bar and drop focus."""
-        cmd_input = self.query_one("#cmd-input", Input)
-        self.is_displaying_message = False
-        cmd_input.value = ""
-        self.set_focus(None)
+        showcmd.update(showcmd_text())

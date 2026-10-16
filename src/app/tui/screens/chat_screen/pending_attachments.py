@@ -1,3 +1,9 @@
+"""
+Session attachments modules, contain functions for the session
+pending attachments indicator, and the attachment management
+dialog.
+"""
+
 import shlex
 from pathlib import Path
 
@@ -6,7 +12,7 @@ from textual.widgets import Static
 from src.config.files_and_directories import UPLOAD_DIR
 from src.config.config_toml import ENABLE_PATH_SAFETY
 
-from src.app.tui.screens.attachments_popup_screen import AttachmentsPopupScreen
+from src.app.tui.screens.attachments_dialog_screen import AttachmentsDialogScreen
 
 
 def _add_pending_attachments(screen, paths: list[Path]) -> None:
@@ -117,7 +123,7 @@ def to_attachments_popup(screen) -> None:
             )
 
     screen.app.push_screen(
-        AttachmentsPopupScreen(screen.pending_attchmnt),
+        AttachmentsDialogScreen(screen.pending_attchmnt),
         _on_manage_attachments_close
     )
     return

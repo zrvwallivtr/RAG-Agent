@@ -1,6 +1,17 @@
 """
-Expert database for storing accurate documents chunks that can be queried
-via vector search. The core tables are independent of chat sessions; 
+Expert database for storing documents chunks, searchable via vector search.
+Document are stored ONCE and linked to any number of experts:
+
+Interaction with this database:
+- Delete an expert, or unlinking a document, removes only the link row.
+  Documents and their chunks are never deleted by it.
+- documents.content keeps the parsed Markdown, so a document can be
+  re-chunked and re-embedded (e.g. after the embedding model changes)
+  without re-parsing.
+- documents.embedding_model records which model embedded that document's
+  chunks.
+
+The core tables are independent of chat sessions; 
 session_experts is an optional link table created on demand.
 """
 
@@ -8,8 +19,9 @@ import threading
 
 from src.config.config_toml import EMBED_MODEL
 
+from src.libs.custom_dataclasses import AgentHooks
 from src.libs.models_database import EMB_MODEL_DIMENSION
-from src.libs.helpers.database_helpers import init_database
+from src.libs.helpers.database_helpers import fetch_all, fetch_one, init_database
 
 from src import logger
 
@@ -22,40 +34,59 @@ _link_schema_ready = False
 _STATEMENTS = (
     """CREATE EXTENSION IF NOT EXISTS VECTOR;""",
 
-    # One row per expert
+    # Experts table:
+    #
+    # Storing all created experts data, one row per expert
     """
     CREATE TABLE IF NOT EXISTS experts (
         id              BIGSERIAL PRIMARY KEY,
         name            VARCHAR(255) NOT NULL UNIQUE,
         description     TEXT,
-        embedding_model VARCHAR(255) NOT NULL,  -- model used to embed every chunk of this expert
         created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     );
     """,
 
-    # One row per source document
+    # Expert document table:
+    #
+    # Stores the all the data for the embedded documents
     """
-    CREATE TABLE IF NOT EXISTS expert_documents (
-        id           BIGSERIAL PRIMARY KEY,
-        expert_id    BIGINT NOT NULL REFERENCES expert(id) ON DELETE CASSCADE,
-        source_path  TEXT,
-        title        TEXT,
-        type         VARCHAR(20) NOT NULL,  -- e.g. pdf, markdown, code, spreadsheet
-        content_hash TEXT NOT NULL,
-        created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        metadata     JSONB NOT NULL DEFAULT '{{}}'::jsonb,
-        UNIQUE (expert_id, content_hash)
+    CREATE TABLE IF NOT EXISTS documents (
+        id              BIGSERIAL PRIMARY KEY,
+        title           TEXT NOT NULL,
+        type            VARCHAR(20) NOT NULL,   -- e.g. pdf, markdown, code
+        content_hash    TEXT NOT NULL UNIQUE,
+        source_path     TEXT,                   -- Where it was read from
+        content         TEXT NOT NULL,          -- Parsed Markdown
+        description     TEXT,  -- Optional summary of the whole document
+        embedding_model VARCHAR(255) NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        metadata        JSONB NOT NULL DEFAULT '{{}}'::jsonb,
     )
     """,
 
-    # One row per embedded chunk. expert_id is denormalised so the
-    # retrieval query can filter without joining expert_documents.
+    # Expert documents table:
+    #
+    # Linke the expert to the embedded documents in the database.
     """
-    CREATE TABLE IF NOT EXISTS expert_chunks (
+    CREAT TABLE IF NOT EXISTS expert_documents (
+        expert_id   BIGINT NOT NULL REFERENCES experts(id) ON DELETE CASCADE,
+        document_id BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        linked_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (expert_id, document_id)
+    )
+    """,
+
+    # Document chunks table:
+    #
+    # Stores all the chunks (including the text and embeddings) from the
+    # document. One row per embedded chunk of a document, linked by
+    # document id for the same document.
+    """
+    CREATE TABLE IF NOT EXISTS document_chunks (
         id            BIGSERIAL PRIMARY KEY,
-        expert_id     BIGINT NOT NULL REFERENCES expert(id) ON DELETE CASSCADE,
-        document_id   BIGINT NOT NULL REFERENCES expert_documents(id) ON DELETE CASSCADE,
+        document_id   BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASSCADE,
         chunk_index   INTEGER NOT NULL,
         embeddings    VECTOR({dimension}) NOT NULL,
         embed_tokens  INTEGER NOT NULL,
@@ -76,12 +107,6 @@ _STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_exp_chunks_expert
     ON expert_chunks (expert_id);
-    """,
-
-    # Document listing / deletion per expert
-    """
-    CREATE INDEX IF NOT EXISTS idx_exp_docs_expert
-    ON expert_documents (expert_id);
     """,
 )
 
@@ -105,7 +130,35 @@ _LINK_STATEMENTS = (
     """,
 )
 
-def ensure_schema(conn) -> None:
+
+def _count_rows(conn, table: str) -> int:
+    row = fetch_one(
+        conn=conn,
+        sql="SELECT COUNT(*) FROM %s;",
+        params=(table,)
+    )
+    return int(row[0])
+
+
+def stored_dimension(conn) -> int | None:
+    """
+    Vector dimension of document_chunks.embeddings, or None if the table is
+    missing.
+    """
+    row = fetch_one(
+        conn=conn,
+        sql=(
+            """
+            SELECT attypmod FROM pg_attribute
+            WHERE attrelid = to_regclass('document_chunks')
+                AND attname = 'embeddings' AND NOT attisdropped;
+            """
+        ),
+    )
+    return int(row[0]) if row and row[0] > 0 else None
+
+
+def ensure_schema(conn, hooks: AgentHooks | None = None) -> None:
     """Create the core expert tables. Needs no chat tables."""
     global _schema_ready
     if _schema_ready:
@@ -116,25 +169,45 @@ def ensure_schema(conn) -> None:
             f"Unknown embedding dimension for model '{EMBED_MODEL}'. "
         )
 
-    app_log.debug("Initialising expert tables")
+    if hooks and hooks.on_loading:
+        hooks.on_loading("Initialising expert tables...")
+
     stmts = tuple(s.format(dimension=int(dim)) for s in _STATEMENTS)
     init_database(conn=conn, stmts=stmts)
+
+    # The vector size is fixed when teh table is first created. Warn, rather
+    # than raise, so experts can still be listed and deleted after a model
+    # change.
+    existing = stored_dimension(conn)
+    if existing is not None and existing != int(dim):
+        app_log.warning(
+            "Embedding model '%s' produces %d-dimension vectores but "
+            "document_chunks stores %d. Documents must be re-embedded before "
+            "adding or searching.",
+            EMBED_MODEL, int(dim), existing,
+        )
 
     _schema_ready = True
 
 
-def ensure_link_schema(conn) -> None:
-    """Create session_experts (and chat_sessions, which it references) on demand."""
+def ensure_link_schema(conn, hooks: AgentHooks | None = None) -> None:
+    """
+    Create session_experts (and chat_sessions, which it references) on demand.
+    """
     global _link_schema_ready
     if _link_schema_ready:
         return
 
-    from src.agent.chat_session_logs.schema import ensure_schema as ensure_chat_schema
+    from src.agent.chat_session_logs.schema import (
+        ensure_schema as ensure_chat_schema
+    )
 
     ensure_schema(conn)
     ensure_chat_schema(conn)
 
-    app_log.debug("Initialising session_experts link table")
+    if hooks and hooks.on_loading:
+        hooks.on_loading("Initialising session_experts link table")
+
     init_database(conn=conn, stmts=_LINK_STATEMENTS)
 
     _link_schema_ready = True

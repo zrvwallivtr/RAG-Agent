@@ -23,3 +23,4 @@ enable_docling           = true
 exploration_factor         = 100   
 retrieval_limit            = 8
 per_expert_retrieval_limit = 3
+docling_default_chunk_tokens = 300

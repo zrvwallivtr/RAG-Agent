@@ -59,13 +59,14 @@ def fetch_all(conn, sql: str, params: tuple = ()) -> list:
         raise
 
 
-def execute(conn, sql: str, params: tuple = ()) -> int:
+def execute(conn, sql: str, params: tuple = (), commit: bool = True) -> int:
     """Run INSERT/UPDATE/DELETE. Returns teh number of rows affected."""
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
             count = cur.rowcount
-        conn.commit()
+        if commit:
+            conn.commit()
         return count
     except Exception:
         conn.rollback()

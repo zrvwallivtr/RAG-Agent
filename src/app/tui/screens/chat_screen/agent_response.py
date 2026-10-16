@@ -1,3 +1,8 @@
+"""
+Contains code that dictates how the chat interface, related widgets
+and the streaming behaves during the model response.
+"""
+
 import time
 from pathlib import Path
 
@@ -5,9 +10,11 @@ from textual import work
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Markdown, Button
 
-from src.libs.constants import THINKING, RESPONSE_STOPPED, NO_RESPONSE
-
-from .interface import show_loading_indicator, show_markdown_content, show_ui_information
+from .interface import (
+    show_loading_indicator,
+    show_markdown_content,
+    show_information_in_command_bar
+)
 from .token_counter import static_update_session_used_tokens_widget
 from .pending_attachments import reset_pending_attachment_widget
 from .chat_container import create_assistant_message_box
@@ -15,9 +22,13 @@ from .chat_container import create_assistant_message_box
 from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import COMPRESS_CMD
 from src.libs.custom_dataclasses import AgentHooks
+from src.libs.constants import THINKING, RESPONSE_STOPPED, NO_RESPONSE
 
+from src.app.tui.screens.base_screen import BaseScreen
 from src.core import Agent
 
+
+# --- Chat container ----------------------------------------------------------
 
 def _update_user_message_box(
     screen, attchmnt_metadata: dict | None, user_msg_box: Vertical
@@ -53,6 +64,8 @@ def _update_assistant_message_box(screen, tkn_wid: Static, msg_tol_tkns: int):
 
     screen.app.call_from_thread(_reveal_token_count_widget)
 
+
+# --- Stream behaviours -------------------------------------------------------
 
 def _fetch_agent_response(
     screen,
@@ -131,13 +144,16 @@ def _fetch_agent_response(
 
     def on_stat_change(msg: str) -> None:
         """Show UI notification on status updates."""
-        show_ui_information(screen, msg)
+        # show_ui_information(screen, msg)
+        show_information_in_command_bar(screen, msg)
 
     def on_error(err: Exception) -> None:
         """Show UI notification when error occurs."""
-        screen.app.call_from_thread(
-            screen.notify, f"Error: {err}", severity="error"
-        )
+        err_str = ("Error: %s" % err)
+        show_information_in_command_bar(screen, err_str)
+        # screen.app.call_from_thread(
+        #     screen.notify, f"Error: {err}", severity="error"
+        # )
 
     # Auto-compression summary stream trackers
     cmp_md: Markdown | None = None
@@ -277,6 +293,8 @@ def _fetch_agent_response(
     screen.app.call_from_thread(reset_pending_attachment_widget, screen)
 
 
+# --- Related widgets ---------------------------------------------------------
+
 def _finish_response_ui(screen) -> None:
     """
     Updates session token cache and hides the stop response button.
@@ -286,6 +304,8 @@ def _finish_response_ui(screen) -> None:
     static_update_session_used_tokens_widget(screen)
     screen.query_one("#stop-button", Button).add_class("hidden")
 
+
+# --- Process -----------------------------------------------------------------
 
 @work(exclusive=True, thread=True)
 def run_fetch_agent_response(
@@ -312,3 +332,5 @@ def run_fetch_agent_response(
     # End: Response completed
     finally:
         screen.app.call_from_thread(_finish_response_ui, screen)
+
+

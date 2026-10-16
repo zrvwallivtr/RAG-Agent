@@ -8,31 +8,25 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 def get_or_create_expert(expert, des: str | None) -> int:
-    """Create an expert. Only calls at the initiation of the Expert class."""
+    """Return the expert's id, creating the expert if it doesn't exist yet."""
     row = fetch_one(
         conn=expert.conn,
-        sql="SELECT id, embedding_model FROM experts WHERE name = %s;",
+        sql="SELECT id FROM experts WHERE name = %s;",
         params=(expert.exp_name,),
     )
     if row:
-        if row[1] != EMBED_MODEL:
-            raise ValueError(
-                "Expert '%s' was built with '%s' but the "
-                "current model is '%s'. Re-embed it first."
-                % (expert.exp_name, row[1], EMBED_MODEL)
-            )
         return int(row[0])
 
     row = fetch_one(
         conn=expert.conn,
         sql=(
             """
-            INSERT INTOP experts (name, description, embedding_model)
-            VALUES (%s, %s, %s)
+            INSERT INTOP experts (name, description)
+            VALUES (%s, %s)
             RETURNING id;
             """
         ),
-        params=(expert.exp_name, des or "", EMBED_MODEL)
+        params=(expert.exp_name, des or "")
     )
     if row is None:
         raise RuntimeError(

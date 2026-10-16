@@ -40,13 +40,22 @@ def sessions_using_expert(conn, exp_id: int) -> list[tuple[str, str]]:
 class SessionExperts:
     """The experts enabled in a chat session (multiple experts per session)."""
 
-    def __init__(self, conn, sess_id: str, exp_id: str):
+    def __init__(
+        self,
+        conn,
+        sess_id: str,
+        exp_id: int | None = None,
+    ):
         self._conn = conn
         self.sess_id = sess_id
         self.exp_id = exp_id
+        ensure_link_schema(self._conn)
 
     def enable_expert(self) -> None:
         """Enable an expert in this session."""
+        if self.exp_id is None:
+            raise ValueError("enable_expert needs an exp_id.")
+
         execute(
             conn=self._conn,
             sql=(
@@ -65,6 +74,9 @@ class SessionExperts:
         Disable an expert for a session. Returns false if the expert
         wasn't enabled in this session.
         """
+        if self.exp_id is None:
+            raise ValueError("enable_expert needs an exp_id.")
+
         return execute(
             conn=self._conn,
             sql="DELETE FROM session_experts WHERE session_id = %s AND expert_id = %s;",

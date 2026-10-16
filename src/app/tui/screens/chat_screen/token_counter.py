@@ -1,3 +1,5 @@
+"""Contains the functions for the session used token indicator."""
+
 from textual import work
 from textual.widgets import Static
 
@@ -79,4 +81,3 @@ def static_update_session_used_tokens_widget(screen) -> None:
     screen.query_one("#tokens-counter", Static).update(
         f"{screen._cached_sess_tkns}/{screen.local_tknizr.model_max_tkns} tokens"
     )
-

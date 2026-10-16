@@ -1,3 +1,8 @@
+"""
+Contain the code for how the chat container (user/assistant message box)
+is drawn, and the navigation behaviours across messages and code blocks.
+"""
+
 from typing import Any, Literal
 
 from textual.containers import Vertical, VerticalScroll
@@ -24,8 +29,6 @@ class MessageBox(Vertical, can_focus=True):
     """A focusable container for a single chat message."""
 
 
-# --- Chat container interface ------------------------------------------------
-
 def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
     """
     Unpacks raw database message dictionary records into normalised tuples
@@ -46,6 +49,8 @@ def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
 
     return role, cont, tol_tkns, attchmnt_metadata, slash_cmd_metadata
 
+
+# --- Chat container interface ------------------------------------------------
 
 def create_user_message_box(
     cont_widget: Static | Markdown,
@@ -129,10 +134,14 @@ def load_chat_history(screen) -> None:
     auto_cmp_metadata: dict | None = None
 
     for msg in chat_hist:
-        role, cont, tol_tkns, attchmnt_metadata, slash_cmd_metadata = _unpack_data(msg)
+        (
+            role, cont, tol_tkns, attchmnt_metadata, slash_cmd_metadata
+        ) = _unpack_data(msg)
 
         if role == "user":
-            if slash_cmd_metadata and slash_cmd_metadata.get("method") == "auto":
+            if (
+                slash_cmd_metadata and slash_cmd_metadata.get("method")
+            ) == "auto":
                 auto_cmp_metadata = slash_cmd_metadata
                 continue
 
@@ -302,53 +311,3 @@ def scroll_code_block_edge(screen, edge: Literal["start", "end"]) -> None:
     block.scroll_to(
         x=0 if edge == "start" else block.max_scroll_x, animate=False
     )
-
-
-def get_location_text(screen) -> str:
-    """
-    '<message>,<code block>' plus Top / Bot / All / NN% of the chat scroll.
-    The code block is '-' when none is selected.
-    """
-    chat = screen.query_one("#chat-container", VerticalScroll)
-    boxes = list(chat.query(".msg-box"))
-    if not boxes:
-        return ""
-
-    if screen.in_msg_mode and screen.focused_msg_box in boxes:
-        current = screen.focused_msg_box
-    else:
-        current = calculate_current_vertical_scroll_component(
-            screen, chat, boxes
-        )
-    msg_n = boxes.index(current) + 1
-
-    block = "-"
-    if screen.in_msg_mode and screen.code_idx is not None:
-        block = str(screen.code_idx + 1)
-
-    max_y = chat.max_scroll_y
-    if max_y <= 0:
-        pct = "All"
-    elif chat.scroll_y <= 0:
-        pct = "Top"
-    elif chat.scroll_y >= max_y - 0.5:
-        pct = "Bot"
-    else:
-        pct = f"{int(chat.scroll_y * 100 / max_y)}%"
-
-    return f"{msg_n},{block}".ljust(14) + pct.rjust(3)
-
-
-def mode_text(screen) -> str:
-    if screen.focused is screen.query_one("#prompt-input", Input):
-        return "-- INSERT --"
-    if screen.in_msg_mode:
-        return "-- CODE BLOCK --" if screen.code_idx is not None else "-- MESSAGE --"
-    return ""
-
-
-def showcmd_text(screen) -> str:
-    key = screen.pending_key
-    if key == "space":
-        return "<Spcae>"
-    return key or ""

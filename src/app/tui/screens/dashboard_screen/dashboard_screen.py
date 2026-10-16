@@ -71,16 +71,28 @@ class DashboardScreen(BaseScreen):
 
             with Vertical(id="app-config", classes="box"):
                 # Models
-                yield Static(id="model-section-title", classes="models-section")
+                yield Static(
+                    id="model-section-title", classes="models-section"
+                )
                 with Horizontal(id="model-section-list"):
-                    yield Static(id="model-type-list", classes="model-list")
-                    yield Static(id="selected-model-list", classes="model-list")
+                    yield Static(
+                        id="model-type-list", classes="model-list"
+                    )
+                    yield Static(
+                        id="selected-model-list", classes="model-list"
+                    )
 
                 # Tokenizers
-                yield Static(id="tokenizer-section-title", classes="tokenizer-section")
+                yield Static(
+                    id="tokenizer-section-title", classes="tokenizer-section"
+                )
                 with Horizontal(id="tokenizer-section-list"):
-                    yield Static(id="fallback-tokenizer", classes="tokenizer-list")
-                    yield Static(id="selected-tokenizer", classes="tokenizer-list")
+                    yield Static(
+                        id="fallback-tokenizer", classes="tokenizer-list"
+                    )
+                    yield Static(
+                        id="selected-tokenizer", classes="tokenizer-list"
+                    )
 
         with Vertical(id="sessions-section"):
             # Sessions title

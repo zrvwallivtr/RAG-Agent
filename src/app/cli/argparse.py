@@ -23,6 +23,9 @@ from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base.documents import DocumentKnowledgeBase
 from src.rag.expert import Expert
 
+from src.app.tui.screens.dashboard_screen.session_selector import go_to_session
+from src.app.tui.screens.chat_screen import ChatScreen
+
 from src import logger
 
 
@@ -144,6 +147,48 @@ def _create_parser() -> argparse.ArgumentParser:
         metavar=("EXPERT_NAME", "DESCRIPTION"),
         help="Create an expert, with an optional description",
     )
+    parser.add_argument(
+        "--delete-expert",
+        action="store_true",
+        help="Delete an expert (no documents will be deleted)",
+    )
+    parser.add_argument(
+        "--expert-upload",
+        nargs="+",
+        metavar=("DOCUMENT_PATH"),
+        help="Embed and chunk documents to database",
+    )
+    parser.add_argument(
+        "--expert-document-description",
+        nargs=1,
+        default=None,
+        metavar=("DOCUMENT_NAME"),
+        help="Call model to generate a description for the embedded document",
+    )
+    parser.add_argument(
+        "--expert-learn",
+        nargs="+",
+        metavar=("DOCUMENT_NAME"),
+        help="Link documents to expert",
+    )
+    parser.add_argument(
+        "--expert-forget",
+        nargs="+",
+        metavar=("DOCUMENT_NAME"),
+        help="Unlink documents to expert",
+    )
+    parser.add_argument(
+        "--expert-qualifications",
+        nargs=1,
+        default=None,
+        metavar=("EXPERT_NAME"),
+        help="Show all documents that is accessable by this expert",
+    )
+    parser.add_argument(
+        "--expert-all-documents",
+        action="store_true",
+        help="Sholl all expert documents across all experts",
+    )
 
     # Show logs
     parser.add_argument(
@@ -174,32 +219,32 @@ def build_parser() -> None:
 
     # --- Models --------------------------------------------------------------
 
-    # Install model flag
+    # Install model
     if args.install_model:
         ollama_pull_model(args.install_model)
         return
 
-    # List installed model flag
+    # List installed model
     if args.list_models:
         model_dict = ollama_clt.list()
         installed_models_table(model_dict)
         return
 
-    # Install tokenizer flag
+    # Install tokenizer
     if args.install_tokenizer:
         from src.agent.tokenizers import install_tokenizers
         install_tokenizers()
 
     # --- Session -------------------------------------------------------------
 
-    # List available sessions flag
+    # List available sessions
     if args.list_session:
         chat_logs = ChatSessionLogs(conn=CONN)
         sess_dict = chat_logs.get_all_existing_session_metadata()
         sessions_table(sess_dict)
         return
 
-    # Create new session flag
+    # Create new session
     if args.new_session:
         chat_logs = ChatSessionLogs(conn=CONN, sess_name=args.new_session)
         chat_logs.create_session()
@@ -211,21 +256,37 @@ def build_parser() -> None:
         answer = agent.ask(prompt=args.prompt)
         return
 
-    # Delete default session flag
+    # Delete default session
     if args.delete_default_session:
         delete_session()
         return
 
-    # Delete session flag
+    # Delete session
     if args.delete_session:
         response = delete_session(args.delete_session)
         if response:
             print(response)
         return
 
+    # To session TUI (when --session is given but without prompt)
+    if args.session and not args.prompt:
+        # - require session name
+        # - Show the session in the tui
+        go_to_session(ChatScreen, sess_name=args.session)
+
+    # To session TUI --show-conversations
+    # - require session name, conversation count
+    # - Show the session in the tui while only showing set amount of 
+    #   conversation at start up
+
+    # To session TUI --focus
+    # - require session name
+    # - Show the session in the tui while only showing one conversation turn
+    #   at a time (One user and assistant message box each)
+
     # --- Attachments ---------------------------------------------------------
 
-    # Attach file(s) flag
+    # Attach file(s)
     if args.attachments:
         if not args.prompt:
             print("Error: Prompt required")
@@ -260,6 +321,39 @@ def build_parser() -> None:
         exp_name, des = (args.create_expert + [None])[:2]
         Expert(conn=CONN, exp_name=exp_name, des=des)
         return
+
+    # Delete expert
+    # - require expert name
+    # - Delete expert WITHOUT DELETING ANY DOCUMENTS
+
+    # ALL Experts
+    # - Show all created experts
+
+    # Expert documents
+    # - Show all embedded documents across ALL experts in the database
+
+    # Expert learn
+    # - require expert name, document paths
+    # - store document into the database, and link the document to the expert
+
+    # Expert description
+    # - require document name
+    # - model read document that was uploaded to the database and generate a
+    #   summary description that accurately describe the entire document,
+    #   allowing better retrieval
+
+    # Expert forget
+    # - require expert name, document name that is in the database
+    # - unlink the document and expert in the database table,
+    #   WITHOUT REMOVING THE DOCUMENT
+
+    # Expert qualifications
+    # - require expert name
+    # - Show all documents that is linked to the expert
+
+    # Expert link
+    # - require expert name, document name in the database
+    # - Link an already embedded document from the database to the expert
 
     # --- Logs ----------------------------------------------------------------
 
