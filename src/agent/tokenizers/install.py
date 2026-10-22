@@ -1,0 +1,159 @@
+from pathlib import Path
+from tokenizers import Tokenizer
+from datetime import datetime
+from functools import lru_cache
+from typing import Any
+
+from src.config.config_toml import FALLBACK_TOKENIZER, MODEL_MAX_TOKENS
+from src.config.files_and_directories import TOKENIZERS_DIR
+
+from src.libs.helpers.internet_helpers import is_connected
+from src.libs.models_database import MODEL_MAX
+from src.libs.custom_dataclasses import AgentHooks
+from src.libs.huggingface_repo import MODEL_NAME_TO_HF_TOKENIZER
+
+from src.agent.models import ollama
+from src.logger import app_logger
+
+app_log = app_logger(__name__)
+
+ollama_clt = ollama.ollama_clt
+
+
+def _install_fallback_tokenizers(
+    tknizr_dir: Path = TOKENIZERS_DIR,
+    fb_tknizr: str = FALLBACK_TOKENIZER,
+    hooks: AgentHooks | None = None,
+) -> None:
+    """Install fallback tokenizer."""
+    fb_tknizr_path = tknizr_dir / f"{fb_tknizr}.json"
+
+    # Skip: Tokenizer already installed
+    if fb_tknizr_path.exists():
+        info_str = (
+            "Model '%s' tokenizer already saved in '%s' as fallback tokenizer"
+            % (fb_tknizr, fb_tknizr_path)
+        )
+        app_log.debug(info_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_str)
+        return
+
+    info_str = "Installing fallback tokenizer '%s'" % fb_tknizr
+    if hooks and hooks.on_loading:
+        hooks.on_loading(info_str)
+
+    try:
+        fb_tknizr = Tokenizer.from_pretrained(fb_tknizr)
+        fb_tknizr.save(str(fb_tknizr_path))
+        info_str = (
+            "Model '%s' tokenizer has been installed and "
+            "saved to '%s' as fallback tokenizer" % (FALLBACK_TOKENIZER, fb_tknizr_path)
+        )
+        app_log.info(info_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_str)
+    except Exception as e:
+        err_msg = (
+            "Failed to install model '%s' tokenizer as fallback tokenizer: "
+            "%s. Skipping" % (FALLBACK_TOKENIZER, e)
+        )
+        app_log.warning(err_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(err_msg)
+
+
+def _install_tokenizer_from_huggingface(
+    count: int,
+    model_name: str,
+    installed_models: list[str],
+    hooks: AgentHooks | None = None,
+) -> None:
+    """Install tokenizers from huggingface model list."""
+    base_name = model_name.split(":")[0]
+    hf_repo = MODEL_NAME_TO_HF_TOKENIZER.get(base_name)
+    tknizr_path = TOKENIZERS_DIR / f"{model_name}.json"
+
+    # Skip: Huggingface repo not found
+    if hf_repo is None:
+        if hooks and hooks.on_stat_change:
+            warn_str = (
+                "No known tokenizer mapping for model '%s' (base '%s'). "
+                "Skipping..." % (model_name, base_name)
+            )
+            hooks.on_stat_change(warn_str)
+        return
+
+    # Skip: Tokenizer already installed
+    if tknizr_path.exists():
+        if hooks and hooks.on_stat_change:
+            info_str = "Model '%s' tokenizer already installed. Skipping" % model_name
+            hooks.on_stat_change(info_str)
+        return
+
+    try:
+        if hooks and hooks.on_loading:
+            info_str = "[%d/%d] Installing model '%s' tokenizer" % (
+                count,
+                len(installed_models),
+                model_name,
+            )
+            hooks.on_loading(info_str)
+
+        tknizr = Tokenizer.from_pretrained(hf_repo)
+        tknizr.save(str(tknizr_path))  # Writes local file
+        info_str = "Model '%s' tokenizer saved to '%s'" % (model_name, tknizr_path)
+        app_log.info(info_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_str)
+
+    except Exception as e:
+        err_msg = Exception(
+            "Failed to install '%s' (repo=%s) tokenizer: %s. Skipping"
+            % (model_name, hf_repo, e)
+        )
+        app_log.warning(err_msg)
+        if hooks and hooks.on_error:
+            hooks.on_error(err_msg)
+
+
+def install_tokenizers(hooks: AgentHooks | None = None) -> None:
+    """
+    Install the fallback tokenizer and tokenizers from model list,
+    internet connection required.
+    """
+    if not is_connected:
+        warn_str = "Failed to install tokenizers: No internet connection"
+        app_log.warning(warn_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(warn_str)
+        return
+
+    _install_fallback_tokenizers(hooks=hooks)
+
+    count = 0
+    installed_models = ollama_clt.list().models
+    for installed_model in installed_models:
+        count += 1
+        model_name = installed_model.model
+        _install_tokenizer_from_huggingface(
+            count=count,
+            model_name=model_name,
+            installed_models=installed_models,
+            hooks=hooks,
+        )
+
+
+def fetch_all_installed_tokenizers() -> list[dict]:
+    """
+    Return the name and modified time of all installed tokenizers
+    in the tokenizer directory.
+    """
+    return [
+        {
+            "name": file.stem,
+            "modified_at": datetime.fromtimestamp(file.stat().st_mtime),
+        }
+        for file in TOKENIZERS_DIR.iterdir()
+        if file.is_file()
+    ]

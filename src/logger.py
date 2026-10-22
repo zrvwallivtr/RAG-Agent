@@ -5,14 +5,14 @@ from logging.handlers import RotatingFileHandler
 from src.config import files_and_directories as files_n_dir
 from src.app.cli import interface
 
-
-APP_LOG_FILE    = files_n_dir.APP_LOG_FILE
+APP_LOG_FILE = files_n_dir.APP_LOG_FILE
 PROMPT_LOG_FILE = files_n_dir.PROMPT_LOG_FILE
-DATE_FORMAT     = "%Y-%m-%d %H:%M:%S"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 # --- Application logs ---------------------------------
 # Logs application base action.
+
 
 class AppLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -32,9 +32,9 @@ class AppLogFormatter(logging.Formatter):
 
 _app_log_config = RotatingFileHandler(
     APP_LOG_FILE,
-    maxBytes=5_000_000, # Caps at 5 MB
-    backupCount=1, # Up to 1 historical log files
-    encoding="utf-8"
+    maxBytes=5_000_000,  # Caps at 5 MB
+    backupCount=1,  # Up to 1 historical log files
+    encoding="utf-8",
 )
 _app_log_config.setFormatter(AppLogFormatter(datefmt=DATE_FORMAT))
 _app_log_config.setLevel(logging.INFO)
@@ -72,6 +72,7 @@ def set_verbose(verbose: bool):
 #
 # Only call in the model based modules.
 
+
 class PromptLogFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         timestamp = self.formatTime(record, self.datefmt)
@@ -93,9 +94,9 @@ class PromptLogFormatter(logging.Formatter):
 
 _prompt_log_config = RotatingFileHandler(
     PROMPT_LOG_FILE,
-    maxBytes=500_000_000, # Caps at 500 MB
-    backupCount=1, # Up to 1 historical log files
-    encoding="utf-8"
+    maxBytes=500_000_000,  # Caps at 500 MB
+    backupCount=1,  # Up to 1 historical log files
+    encoding="utf-8",
 )
 _prompt_log_config.setFormatter(PromptLogFormatter(datefmt=DATE_FORMAT))
 _prompt_log_config.setLevel(logging.INFO)
@@ -112,6 +113,6 @@ def prompt_logger(name: str) -> logging.Logger:
     # Avoid adding duplicate handlers if get_logger is called multiple times
     if not logger.handlers:
         logger.addHandler(_prompt_log_config)
-        logger.propagate = False # Keep logs isolated to the log file
+        logger.propagate = False  # Keep logs isolated to the log file
 
     return logger

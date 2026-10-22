@@ -14,7 +14,6 @@ _schema_ready = False
 
 _STATEMENTS = (
     """CREATE EXTENSION IF NOT EXISTS VECTOR;""",
-
     """
     CREATE TABLE IF NOT EXISTS knowledge_base (
         id            BIGSERIAL PRIMARY KEY,
@@ -30,19 +29,16 @@ _STATEMENTS = (
         metadata      JSONB NOT NULL DEFAULT '{{}}'::jsonb
     );
     """,
-
     # HNSW index - must match the distance operator used in queries
     """
     CREATE INDEX IF NOT EXISTS idx_kw_bs_embeddings
     ON knowledge_base USING hnsw (embeddings vector_cosine_ops);
     """,
-
     # Index for session id and knowledge type lookups
     """
     CREATE INDEX IF NOT EXISTS idx_kw_bs_session_type
     ON knowledge_base (session_id, type);
     """,
-
     # Index for expires at lookups
     """
     CREATE INDEX IF NOT EXISTS idx_kw_bs_expires
@@ -57,9 +53,7 @@ def ensure_schema(conn) -> None:
         return
     dim = EMB_MODEL_DIMENSION.get(EMBED_MODEL)
     if dim is None:
-        raise ValueError(
-            f"Unknown embedding dimension for model '{EMBED_MODEL}'. "
-        )
+        raise ValueError(f"Unknown embedding dimension for model '{EMBED_MODEL}'. ")
 
     app_log.debug("Initialising knowledge base table")
     stmts = tuple(s.format(dimension=int(dim)) for s in _STATEMENTS)

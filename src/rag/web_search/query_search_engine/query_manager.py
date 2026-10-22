@@ -6,16 +6,13 @@ from src.config import prompts
 
 from src.agent import llm
 
-
-MODEL                   = models.MODEL
-SEARCH_OR_NOT_PROMPT    = prompts.SEARCH_OR_NOT_PROMPT
-QUERY_PROMPT            = prompts.QUERY_PROMPT
+MODEL = models.MODEL
+SEARCH_OR_NOT_PROMPT = prompts.SEARCH_OR_NOT_PROMPT
+QUERY_PROMPT = prompts.QUERY_PROMPT
 
 
 def search_or_not(
-    model: str,
-    context: list[dict],
-    prompt: str
+    model: str, context: list[dict], prompt: str
 ) -> tuple[bool, int, int] | None:
     """
     Query model to decide whether a question requires search or not.
@@ -28,7 +25,7 @@ def search_or_not(
         return
     output, p_tkns, o_tkns = response
 
-    if 'true' in output.lower():
+    if "true" in output.lower():
         return True, p_tkns, o_tkns
     else:
         return False, p_tkns, o_tkns
@@ -43,16 +40,23 @@ def _query_check(search_query: str) -> str:
         return ""
 
     # Get only the first line of output
-    search_query = search_query.strip().split('\n')[0]
+    search_query = search_query.strip().split("\n")[0]
 
     # Remove advanced operators that trigger WAF blocks
-    bad_operators = ["inurl:", "site:", "intitle:", "filetype:", "sorted:newest", "sorted:"]
+    bad_operators = [
+        "inurl:",
+        "site:",
+        "intitle:",
+        "filetype:",
+        "sorted:newest",
+        "sorted:",
+    ]
     for operator in bad_operators:
         search_query = search_query.replace(operator, "")
 
     # Remove quotes, colons and stray punctuation
     search_query = search_query.replace('"', "").replace("'", "").replace(":", "")
-    search_query = search_query.strip('`* ')
+    search_query = search_query.strip("`* ")
 
     # Replace any double space into single space
     search_query = re.sub(r"\s+", " ", search_query)
@@ -60,7 +64,9 @@ def _query_check(search_query: str) -> str:
     return search_query
 
 
-def generate_query(model: str, contxt: list[dict], prompt: str) -> tuple[str, int, int] | None:
+def generate_query(
+    model: str, contxt: list[dict], prompt: str
+) -> tuple[str, int, int] | None:
     """Generate query from user input with dynamic date injection."""
     # Update {{current_date}} in the system prompt to actual date
     current_date = datetime.datetime.now().strftime("%A, %d %B %Y")

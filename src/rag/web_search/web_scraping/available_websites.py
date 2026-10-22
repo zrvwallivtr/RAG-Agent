@@ -1,6 +1,4 @@
-AVA_WEBS_LIST = {
-    "arxiv": "arXiv"
-}
+AVA_WEBS_LIST = {"arxiv": "arXiv"}
 
 
 def clean_website_name(w_name: str) -> str | None:
@@ -10,7 +8,7 @@ def clean_website_name(w_name: str) -> str | None:
     """
     if not w_name:
         return
-    
+
     clean_w_name = w_name.strip().strip("\"'`*.:;,")
     clean_w_name = clean_w_name.splitlines()[0].strip()
     lower_w_name = clean_w_name.lower()

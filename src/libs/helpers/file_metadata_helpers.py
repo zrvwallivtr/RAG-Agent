@@ -28,9 +28,7 @@ def unpack_file_metadata(path: Path) -> tuple[str, str, int] | None:
     """Return name, mime type and size bytes from given path."""
     if not path.exists():
         app_log.warning(
-            "File '%s' is not in the upload directory '%s'",
-            path.name,
-            UPLOAD_DIR
+            "File '%s' is not in the upload directory '%s'", path.name, UPLOAD_DIR
         )
         return
 

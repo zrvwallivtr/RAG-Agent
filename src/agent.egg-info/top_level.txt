@@ -1,8 +1,8 @@
 agent
-cli
+app
 config
+libs
 main
 prompts
 rag
-tools
-tui
+slash_commands

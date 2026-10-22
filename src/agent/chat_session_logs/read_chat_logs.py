@@ -14,9 +14,9 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 # Filter parring for SQL for lookup chat history
 _HISTORY_FILTER_SQL = {
-    "compressed":     True,
+    "compressed": True,
     "not_compressed": False,
-    "all":            None,
+    "all": None,
 }
 
 
@@ -37,14 +37,12 @@ class ReadChatLogs:
         """
         rows = fetch_all(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT prompt, response
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
-                """
-            ),
+                """),
             params=(self._lookup_chat_sess.get_or_create_id(),),
         )
 
@@ -59,32 +57,26 @@ class ReadChatLogs:
         self, filter: Literal["compressed", "not_compressed", "all"]
     ):
         if filter == "compressed":
-            sql = (
-                """
+            sql = """
                 SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = TRUE
                 ORDER BY created_at ASC;
                 """
-            )
         elif filter == "not_compressed":
-            sql = (
-                """
+            sql = """
                 SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
                 """
-            )
         else:
-            sql = (
-                """
+            sql = """
                 SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external'
                 ORDER BY created_at ASC;
                 """
-            )
         rows = fetch_all(
             conn=self._conn,
             sql=sql,
@@ -96,48 +88,48 @@ class ReadChatLogs:
         convs = []
         for prompt, response, p_tkns, o_tkns, metadata in rows:
             metadata = metadata or {}
-            user_msg = ({
+            user_msg = {
                 "role": "user",
                 "content": prompt,
-                "attachments": metadata.get("attachments")
-            })
+                "attachments": metadata.get("attachments"),
+            }
 
             if COMPRESS_DB_ENTRY in metadata:
                 user_msg[COMPRESS_DB_ENTRY] = metadata[COMPRESS_DB_ENTRY]
 
             convs.append(user_msg)
-            convs.append({
-                "role": "assistant",
-                "content":response,
-                "prompt_tokens": p_tkns,
-                "output_tokens": o_tkns,
-            })
+            convs.append(
+                {
+                    "role": "assistant",
+                    "content": response,
+                    "prompt_tokens": p_tkns,
+                    "output_tokens": o_tkns,
+                }
+            )
         return convs
 
     def latest_conversation_turn(self) -> list[dict] | None:
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT prompt, response
                 FROM chat_logs
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at DESC
                 LIMIT 1;
-                """
-            ),
+                """),
             params=(self._lookup_chat_sess.get_or_create_id(),),
         )
 
         if not row:
             app_log.warning(
                 "No conversation turns found in session '%s'",
-                self._lookup_chat_sess.sess_name
+                self._lookup_chat_sess.sess_name,
             )
             return None
         return [
             {"role": "user", "content": row[0]},
-            {"role": "assistant", "content": row[1]}
+            {"role": "assistant", "content": row[1]},
         ]
 
     def before_latest_conversations(self) -> list[dict] | None:
@@ -148,8 +140,7 @@ class ReadChatLogs:
         sess_id = self._lookup_chat_sess.get_or_create_id()
         rows = fetch_all(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT prompt, response
                 FROM chat_logs
                 WHERE session_id = %s
@@ -159,8 +150,7 @@ class ReadChatLogs:
                         WHERE session_id = %s AND state = 'external'
                     )
                 ORDER BY id ASC;
-                """
-            ),
+                """),
             params=(sess_id, sess_id),
         )
 
@@ -177,38 +167,36 @@ class ReadChatLogs:
         """Get the latest created time from session id in the chat logs."""
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT created_at
                 FROM chat_logs
                 WHERE session_id = %s
                 ORDER BY created_at DESC
                 LIMIT 1;
-                """
-            ),
+                """),
             params=(sess_id,),
         )
         return str(row[0]) if row else None
 
-    def latest_modified_session(self) ->  tuple[str, str] | None:
+    def latest_modified_session(self) -> tuple[str, str] | None:
         """
         Get the chat 'session_name' and 'created_time' that has
         the latest 'created_time' of the chat logs.
         """
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT session_id, created_at
                 FROM chat_logs
                 ORDER BY created_at DESC
                 LIMIT 1;
-                """
-            ),
+                """),
         )
 
         if not row:
             return None
 
         sess_name = self._lookup_chat_sess.get_name(sess_id=str(row[0]))
-        return (sess_name, str(row[1])) if sess_name else None  # Session name, created at
+        return (
+            (sess_name, str(row[1])) if sess_name else None
+        )  # Session name, created at

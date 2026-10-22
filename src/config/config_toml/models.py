@@ -30,10 +30,10 @@ def _model_not_found(
 def _check_if_value_is_valid(config_file: Path, field_name: str, value: Any):
     """Check if the value is a number in the field."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        err_msg = (
-            "Error in '%s':\n"
-            "'%s' must be a number, got '%s' instead."
-            % (config_file, field_name, value)
+        err_msg = "Error in '%s':\n" "'%s' must be a number, got '%s' instead." % (
+            config_file,
+            field_name,
+            value,
         )
         print(err_msg)
         sys.exit(1)
@@ -47,10 +47,7 @@ def _normalise_to_integer(value: Any) -> int | str | None:
     try:
         return int(value)
     except (ValueError, TypeError):
-        return (
-            "Error: Invalid value '%s'"
-            % value
-        )
+        return "Error: Invalid value '%s'" % value
 
 
 # --- Set model provider ------------------------------------------------------
@@ -60,13 +57,16 @@ OLLAMA_HOST = _cfg["models"]["ollama_host"]  # URL for ollama docker service
 
 # --- Model values ------------------------------------------------------------
 
+
 def _set_model_tokens(
-    field: str, field_name: str, config_file: Path = CONFIG_FILE, 
+    field: str,
+    field_name: str,
+    config_file: Path = CONFIG_FILE,
 ) -> tuple[str, Any]:
     """Verify if 'model_name' is on the list or specified in 'config.toml'."""
-    model               = _cfg["models"][field]
-    max_tokens          = _cfg["models"].get(field_name, None)
-    model_max_tokens    = _normalise_to_integer(max_tokens)
+    model = _cfg["models"][field]
+    max_tokens = _cfg["models"].get(field_name, None)
+    model_max_tokens = _normalise_to_integer(max_tokens)
 
     if model not in MODEL_MAX:
         if model_max_tokens is None:
@@ -90,13 +90,9 @@ EMBED_MODEL, EMBED_MAX_TOKENS = _set_model_tokens(
 # Set fallback tokenizer
 DEFAULT_FALLBACK_TOKENIZER = "gpt2"
 FALLBACK_TOKENIZER = (
-    _cfg.get("models", {}).get("fallback_tokenizer")
-    or DEFAULT_FALLBACK_TOKENIZER
+    _cfg.get("models", {}).get("fallback_tokenizer") or DEFAULT_FALLBACK_TOKENIZER
 )
 
 # Set token reserve for agent
 DEFAULT_TOKEN_RESERVE = 1000
-TOKEN_RESERVE = (
-    _cfg.get("models", {}).get("token_reserve")
-    or DEFAULT_TOKEN_RESERVE
-)
+TOKEN_RESERVE = _cfg.get("models", {}).get("token_reserve") or DEFAULT_TOKEN_RESERVE

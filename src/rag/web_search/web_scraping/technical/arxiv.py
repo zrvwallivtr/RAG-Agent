@@ -6,32 +6,31 @@ from typing import Literal
 
 from src.agent.models.llm import response_with_new_sys_prompt_and_context
 
-
 # ==============================================================
 # API QUERY
 # ==============================================================
 
 API_FIELD_MAP = {
-    "All fields":           "all",
-    "Title":                "ti",
-    "Author":               "au",
-    "Abstract":             "abs",
-    "Comment":              "co",
-    "Journal reference":    "jr",
-    "Subject category":     "cat",
-    "Report number":        "rn",
-    "arXiv identifier":     "id"
+    "All fields": "all",
+    "Title": "ti",
+    "Author": "au",
+    "Abstract": "abs",
+    "Comment": "co",
+    "Journal reference": "jr",
+    "Subject category": "cat",
+    "Report number": "rn",
+    "arXiv identifier": "id",
 }
 
 SORT_BY_MAP = {
-    "Relevance":            "relevance",
-    "Last updated date":    "lastUpdatedDate",
-    "Submission date":      "submittedDate"
+    "Relevance": "relevance",
+    "Last updated date": "lastUpdatedDate",
+    "Submission date": "submittedDate",
 }
 
 SORT_ORDER_MAP = {
-    "Descending (newest/most relevant first)":  "descending",
-    "Ascending (oldest first)":                 "ascending"
+    "Descending (newest/most relevant first)": "descending",
+    "Ascending (oldest first)": "ascending",
 }
 
 
@@ -60,7 +59,7 @@ def _api_query_with_filters(
         "start": start,
         "max_results": max_results,
         "sortBy": SORT_BY_MAP[sort_by],
-        "sortOrder": SORT_ORDER_MAP[sort_order]
+        "sortOrder": SORT_ORDER_MAP[sort_order],
     }
     qry_str = urllib.parse.urlencode(params)
     return f"http://export.arxiv.org/api/query?{qry_str}"
@@ -77,8 +76,10 @@ def _parse_api_results(url: str, max_results: int = 10) -> list[dict]:
             "summary": entry.summary,
             "authors": [a.name for a in entry.authors],
             "url": entry.id,
-            "pdf_url": next((l.href for l in entry.links if l.type == "application/pdf"), None),
-            "published": entry.published
+            "pdf_url": next(
+                (l.href for l in entry.links if l.type == "application/pdf"), None
+            ),
+            "published": entry.published,
         }
         for entry in feed.entries
     ]
@@ -181,7 +182,7 @@ def _parse_llm_query_to_json(llm_out: str) -> dict:
 
         field, value = pair
         if field not in valid_fields:
-            field = "All fields" # Fallback to 'All fields' option rather than crash
+            field = "All fields"  # Fallback to 'All fields' option rather than crash
 
         clean_clauses.append((field, str(value)))
 
@@ -199,7 +200,7 @@ def _parse_llm_query_to_json(llm_out: str) -> dict:
         "sort_by": data["sort_by"],
         "sort_order": data["sort_order"],
         "max_results": int(data.get("max_results"), 10),
-        "start": int(data.get("start", 0))
+        "start": int(data.get("start", 0)),
     }
 
 
@@ -207,7 +208,10 @@ def _parse_llm_query_to_json(llm_out: str) -> dict:
 # LLM QUERY API
 # ==============================================================
 
-def llm_search_arxiv(model:str, contxt: list[dict], prompt: str) -> tuple[list[dict], int, int] | None:
+
+def llm_search_arxiv(
+    model: str, contxt: list[dict], prompt: str
+) -> tuple[list[dict], int, int] | None:
     """User text -> LLM JSON -> validate args -> arXiv API call."""
     response = response_with_new_sys_prompt_and_context(
         model=model, sys_prompt=INSTRUCT, prompt=prompt, contxt=contxt

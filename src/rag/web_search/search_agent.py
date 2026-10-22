@@ -5,21 +5,23 @@ from src.config import prompts
 from src.config import web_search
 
 from src.agent import llm
-from src.rag.web_search.query_search_engine.query_manager import search_or_not, generate_query
+from src.rag.web_search.query_search_engine.query_manager import (
+    search_or_not,
+    generate_query,
+)
 from src.rag.web_search.web_scraping import llm_search_arxiv, clean_website_name
 from src.logger import app_logger
 from src.rag.web_search.web_crawling.firewall import validate_url, SSRFError
 from src.rag.web_search.search_logs import SearchLogs
 
-
 app_log = app_logger(f"{__name__}.app")
 
 
-MODEL                   = models.MODEL
-SEARCH_OR_NOT_PROMPT    = prompts.SEARCH_OR_NOT_PROMPT
-QUERY_PROMPT            = prompts.QUERY_PROMPT
-SEARCH_ENG              = web_search.SEARCH_ENG
-MAX_RESULTS             = web_search.MAX_RESULTS
+MODEL = models.MODEL
+SEARCH_OR_NOT_PROMPT = prompts.SEARCH_OR_NOT_PROMPT
+QUERY_PROMPT = prompts.QUERY_PROMPT
+SEARCH_ENG = web_search.SEARCH_ENG
+MAX_RESULTS = web_search.MAX_RESULTS
 
 AVA_WEBS = """You choose exactly one website name from a fixed list. Follow these rules exactly.
 
@@ -45,21 +47,18 @@ None
 
 
 class SearchAgent:
-    def __init__(
-        self,
-        conn,
-        sess_name: str | None = None
-    ):
-        self.sess_name  = sess_name
-        self.model      = MODEL
-        self.s_client   = SearchLogs(conn=conn, sess_name=self.sess_name)
-
+    def __init__(self, conn, sess_name: str | None = None):
+        self.sess_name = sess_name
+        self.model = MODEL
+        self.s_client = SearchLogs(conn=conn, sess_name=self.sess_name)
 
     # ============================================================
     # REQUIRES SEARCH ENGINE
     # ============================================================
 
-    def _get_surface_content(self, qry: str, max_results: int = MAX_RESULTS) -> list[dict] | None:
+    def _get_surface_content(
+        self, qry: str, max_results: int = MAX_RESULTS
+    ) -> list[dict] | None:
         """Get url, title and snippet from query results."""
         params = {"q": qry, "format": "json", "language": "en", "categories": "general"}
 
@@ -79,22 +78,16 @@ class SearchAgent:
             results = response.json().get("results", [])
             print(results)
             return [
-                {
-                    "url": r["url"],
-                    "title": r["title"],
-                    "snippet": r.get("content", "")
-                } for r in results[:max_results]
+                {"url": r["url"], "title": r["title"], "snippet": r.get("content", "")}
+                for r in results[:max_results]
             ]
 
         except Exception as e:
             print(f"Search failed: {e}")
             return
 
-
     def query_surface_content(
-        self,
-        contxt: list[dict],
-        prompt: str
+        self, contxt: list[dict], prompt: str
     ) -> tuple[list[dict], int, int] | None:
         """
         Search web, outputing custom max results and
@@ -110,12 +103,13 @@ class SearchAgent:
             return surf_cont, p_tkns, o_tkns
         return
 
-
     # ============================================================
     # SCRAPING KNOWN WEBSITES
     # ============================================================
 
-    def model_decide_website_to_scrape(self, msgs: list[dict], prompt: str) -> tuple[str, int, int] | None:
+    def model_decide_website_to_scrape(
+        self, msgs: list[dict], prompt: str
+    ) -> tuple[str, int, int] | None:
         """Call model to decide which know website to scrape."""
         # Pass to suitable known website
         web_response = llm.response_with_new_sys_prompt_and_context(

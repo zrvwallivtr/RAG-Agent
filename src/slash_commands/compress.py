@@ -3,13 +3,11 @@ from typing import Any, Callable
 
 from src.config.config_toml import MODEL
 
-from src.libs.constants import (
-    COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN, GenericEventHook
-)
+from src.libs.constants import COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN
 from src.libs.custom_dataclasses import AgentHooks
+from src.libs.constants import CompressionResult
 
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.agent.chat_session_logs.compression import CompressionResult
 from src.rag.knowledge_base import DocumentKnowledgeBase
 
 from src.logger import app_logger
@@ -62,7 +60,7 @@ class SlashCompress:
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
-        hooks: AgentHooks | None = None
+        hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
         '/compress' with added prompt to instructe the model
@@ -79,7 +77,7 @@ class SlashCompress:
             unfmt_prompt=unfmt_prompt,
             attchmnt_dict=attchmnt_dict,
             cmp_method="instruct",
-            hooks=hooks
+            hooks=hooks,
         )
 
         if not result:
@@ -90,7 +88,6 @@ class SlashCompress:
             self.doc_kw_bs.store_attachments(attchmnt_dict)
 
         return result
-
 
     def run_compress(
         self,

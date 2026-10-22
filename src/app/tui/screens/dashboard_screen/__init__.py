@@ -1,3 +1,3 @@
-from .dashboard_screen import DashboardScreen
+from .main_module import DashboardScreen
 
 __all__ = ["DashboardScreen"]

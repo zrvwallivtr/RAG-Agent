@@ -22,11 +22,13 @@ class BaseScreen(Screen):
     def compose_command_bar(self):
         """
         Shared command bar for every screen:
-            row 1: ruler (location)
+            row 1: status bar - screen status text (left) + ruler (right)
             row 2: command input (mode as placeholder) + pending-key display
         """
         with Vertical(id="bottom-bar"):
-            yield Static("", id="ruler")
+            with Horizontal(id="status-row"):
+                yield Static("", id="status-left")
+                yield Static("", id="ruler")
             with Horizontal(id="cmd-row"):
                 yield Input(id="cmd-input", select_on_focus=False)
                 yield Static("", id="showcmd")
@@ -130,7 +132,7 @@ class BaseScreen(Screen):
             showcmd = self.query_one("#showcmd", Static)
         except NoMatches:
             return
-        
+
         cmd_input.placeholder = self.mode_text()
         text = ruler_text()
         ruler.update(text)

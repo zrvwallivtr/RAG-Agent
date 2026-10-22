@@ -15,20 +15,18 @@ def show_command_message(screen, msg: str, duration: float = 3.0) -> None:
     cmd_input = screen.query_one("#cmd-input", Input)
 
     screen.is_displaying_message = True
-
     cmd_input.value = msg
-
     screen.set_focus(None)
 
-    screen.set_timer(duration, screen._clear_command_bar)
+    screen.set_timer(duration, lambda: _clear_command_bar(screen))
 
 
 def reset_command_bar(screen) -> None:
-        """Empty the bar and drop focus."""
-        cmd_input = screen.query_one("#cmd-input", Input)
-        screen.is_displaying_message = False
-        cmd_input.value = ""
-        screen.set_focus(None)
+    """Empty the bar and drop focus."""
+    cmd_input = screen.query_one("#cmd-input", Input)
+    screen.is_displaying_message = False
+    cmd_input.value = ""
+    screen.set_focus(None)
 
 
 def showcmd_text() -> str:

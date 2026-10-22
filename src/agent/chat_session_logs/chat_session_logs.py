@@ -28,10 +28,10 @@ class ChatSessionLogs:
     def __init__(self, conn, sess_name: str | None = None):
         self.conn = conn
 
-        self.model      = MODEL
+        self.model = MODEL
         self.sys_prompt = SYS_PROMPT
         self.cmp_prompt = COMPRESS_PROMPT
-        self.sess_name  = sess_name.strip() if sess_name else "default_session"
+        self.sess_name = sess_name.strip() if sess_name else "default_session"
 
         self.local_tknizr = LocalTokenizer(model=self.model)
 
@@ -41,28 +41,25 @@ class ChatSessionLogs:
         self.write_chat_sess = WriteChatSessions(
             conn=self.conn,
             sess_name=self.sess_name,
-            sys_prompt_tkns=self._system_prompt_tokens
+            sys_prompt_tkns=self._system_prompt_tokens,
         )
         self.lookup_chat_sess = LookupChatSessions(
             conn=self.conn,
             sess_name=self.sess_name,
-            sys_prompt_tkns=self._system_prompt_tokens
+            sys_prompt_tkns=self._system_prompt_tokens,
         )
 
         # Chat log classes
         self.read_chat_logs = ReadChatLogs(
             conn=self.conn,
             lookup_chat_sess=self.lookup_chat_sess,
-            sys_prompt=self.sys_prompt
+            sys_prompt=self.sys_prompt,
         )
         self.write_chat_logs = WriteChatLogs(
-            conn=self.conn,
-            lookup_chat_sess=self.lookup_chat_sess
+            conn=self.conn, lookup_chat_sess=self.lookup_chat_sess
         )
 
-        self.compression = Compression(
-            self, write_chat_logs=self.write_chat_logs
-        )
+        self.compression = Compression(self, write_chat_logs=self.write_chat_logs)
 
     def _system_prompt_tokens(self) -> int:
         global _sys_prompt_tkns
@@ -94,8 +91,8 @@ class ChatSessionLogs:
 
     # --- Write to chat sessions -----------------------------------
 
-    def create_session(self):
-        return self.write_chat_sess.create()
+    def create_session(self, hooks: AgentHooks | None = None):
+        return self.write_chat_sess.create(hooks)
 
     def update_session_used_tokens(self):
         msgs = self.get_active_conversations()
@@ -124,8 +121,15 @@ class ChatSessionLogs:
 
     # --- Write to chat logs ---------------------------------------
 
-    def add_conversation_turn(self, *args, **kwargs,):
-        return self.write_chat_logs.add_turn(*args, **kwargs,)
+    def add_conversation_turn(
+        self,
+        *args,
+        **kwargs,
+    ):
+        return self.write_chat_logs.add_turn(
+            *args,
+            **kwargs,
+        )
 
     def clear_session_chat_logs(self):
         return self.write_chat_logs.clear_session_logs()
@@ -161,6 +165,4 @@ class ChatSessionLogs:
     def auto_compress_active_conversations(
         self, unfmt_prompt: str, hooks: AgentHooks | None = None
     ):
-        return self.compression.auto_compress(
-            unfmt_prompt=unfmt_prompt, hooks=hooks
-        )
+        return self.compression.auto_compress(unfmt_prompt=unfmt_prompt, hooks=hooks)

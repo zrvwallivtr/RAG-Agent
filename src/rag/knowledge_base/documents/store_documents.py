@@ -15,7 +15,7 @@ from src.libs.custom_dataclasses import AgentHooks
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
 from src.agent.tokenizers import LocalTokenizer
-from src.rag.file_parser import FileParser
+from src.rag.file_reader import FileReader
 from src.logger import app_logger
 
 app_log = app_logger(f"{__name__}.app")
@@ -38,13 +38,13 @@ class StoreDocuments:
         self,
         conn,
         chat_sess_logs: ChatSessionLogs,
-        file_parser: FileParser,
-        query_docs: QueryDocuments
+        file_reader: FileReader,
+        query_docs: QueryDocuments,
     ):
         self._conn = conn
 
         self.chat_sess_logs = chat_sess_logs
-        self.file_parser = file_parser
+        self.file_parser = file_reader
         self.query_docs = query_docs
 
         self.local_tknizr = LocalTokenizer(MODEL)
@@ -60,14 +60,12 @@ class StoreDocuments:
         """
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT content, embeddings, embed_tokens
                 FROM knowledge_base
                 WHERE content_hash = %s
                 LIMIT 1
-                """
-            ),
+                """),
             params=(new_hash,),
         )
         if row is None:
@@ -90,23 +88,18 @@ class StoreDocuments:
     ) -> None:
         """Upload a document to knowledge base."""
         metadata = _document_metadata(
-            doc_name=doc_name,
-            chnk_idx=chnk_idx,
-            mime=mime,
-            size=size
+            doc_name=doc_name, chnk_idx=chnk_idx, mime=mime, size=size
         )
 
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 INSERT INTO knowledge_base 
                     (session_id, type, embeddings, embed_tokens, content,
                     prompt_tokens, content_hash, expires_at, metadata)
                 VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-                """
-            ),
+                """),
             params=(
                 self.chat_sess_logs.get_session_id(),
                 "document",
@@ -121,9 +114,9 @@ class StoreDocuments:
         )
 
         if row:
-            info_str = (
-                "Added document '%s' to session '%s' knowledge base"
-                % (doc_name, self.chat_sess_logs.sess_name)
+            info_str = "Added document '%s' to session '%s' knowledge base" % (
+                doc_name,
+                self.chat_sess_logs.sess_name,
             )
             app_log.info(info_str)
             if hooks and hooks.on_stat_change:
@@ -137,7 +130,7 @@ class StoreDocuments:
         path: Path,
         cont: str | None,
         format: str | None,
-        hooks: AgentHooks | None = None
+        hooks: AgentHooks | None = None,
     ) -> int | None:
         """
         Uses langchain text splitters for file format accordingly,
@@ -158,6 +151,7 @@ class StoreDocuments:
 
         # Langchain text splitters
         from src.rag.splitters import txt_spltr, md_spltr
+
         if format == "txt":
             chnks = txt_spltr.split_text(cont)
         if format == "md":
@@ -176,7 +170,7 @@ class StoreDocuments:
                 app_log.debug(
                     "Document already exists in session '%s' knowledge base."
                     " Skipping re-embed",
-                    self.chat_sess_logs.sess_name
+                    self.chat_sess_logs.sess_name,
                 )
                 chnk_cont, embdings, embed_tkns = doc_chnk
                 prompt_tkns = self.local_tknizr.count_string_tokens(chnk_cont)
@@ -197,8 +191,7 @@ class StoreDocuments:
             # Skip chunks that failed
             if not embdings:
                 app_log.warning(
-                    "Error occur in embedding chunk in '%s'. Skipping chunk",
-                    path
+                    "Error occur in embedding chunk in '%s'. Skipping chunk", path
                 )
                 continue
 

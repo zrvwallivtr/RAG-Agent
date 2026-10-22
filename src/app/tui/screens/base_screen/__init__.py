@@ -1,3 +1,3 @@
-from .base_screen import BaseScreen
+from .main_module import BaseScreen
 
 __all__ = ["BaseScreen"]

@@ -25,8 +25,16 @@ class AttachmentsDialogScreen(ModalScreen[None]):
             if self.paths:
                 for path in self.paths:
                     with Horizontal(classes="attachment-modal-list"):
-                        yield Button("x", id=f"delete-{clean_id_string(path)}", classes="remove-attachment")
-                        yield Static(str(path), id=clean_id_string(path), classes="attachment-name")
+                        yield Button(
+                            "x",
+                            id=f"delete-{clean_id_string(path)}",
+                            classes="remove-attachment",
+                        )
+                        yield Static(
+                            str(path),
+                            id=clean_id_string(path),
+                            classes="attachment-name",
+                        )
             else:
                 yield Static("[dim]No pending attachments[/]")
 
@@ -34,14 +42,16 @@ class AttachmentsDialogScreen(ModalScreen[None]):
         if event.key == "escape":
             event.prevent_default()
             event.stop()
-            
-            self.dismiss(self.paths) # Return updated paths list on dismiss
+
+            self.dismiss(self.paths)  # Return updated paths list on dismiss
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id and event.button.id.startswith("delete-"):
             target_clean_id = event.button.id.removeprefix("delete-")
 
-            self.paths = [path for path in self.paths if clean_id_string(path) != target_clean_id]
+            self.paths = [
+                path for path in self.paths if clean_id_string(path) != target_clean_id
+            ]
 
             # Remove the row container
             if event.button.parent:

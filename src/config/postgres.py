@@ -13,9 +13,5 @@ HOST = os.getenv("PGDB_HOST")
 PORT = os.getenv("PGDB_PORT")
 
 CONN = psycopg2.connect(
-    dbname=DBNAME,
-    user=USER,
-    password=PASSWORD,
-    host=HOST,
-    port=PORT
+    dbname=DBNAME, user=USER, password=PASSWORD, host=HOST, port=PORT
 )

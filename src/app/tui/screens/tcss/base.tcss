@@ -1,9 +1,9 @@
 /* --- Theme --------------------------------------------------------------- */
 
-$color-primary: cyan;
+$color-primary: #a0d0d5;
 $color-status-bg: #04142a;
 $color-status-fg: #2a7f9e;
-$color-app-bg: ansi_default;
+$color-app-bg: #12181d;
 
 
 /* --- App background ------------------------------------------------------ */
@@ -21,8 +21,22 @@ BaseScreen {
     height: auto;
 }
 
-#ruler {
+#status-row {
     width: 100%;
+    height: 1;
+    background: $color-status-bg;
+}
+
+#status-left {
+    width: 1fr;
+    height: 1;
+    padding: 0 1;
+    background: $color-status-bg;
+    color: $color-status-fg;
+}
+
+#ruler {
+    width: 19;
     height: 1;
     padding: 0 1;
     background: $color-status-bg;

@@ -11,6 +11,6 @@ def hash_string(string: str) -> str:
 
 
 def clean_id_string(any: Any):
-    clean_str = re.sub(r'[^a-zA-Z0-9]', '-', str(any)).strip('-')
-    clean_str = re.sub(r'-+', '-', clean_str)
+    clean_str = re.sub(r"[^a-zA-Z0-9]", "-", str(any)).strip("-")
+    clean_str = re.sub(r"-+", "-", clean_str)
     return f"path-{clean_str}"

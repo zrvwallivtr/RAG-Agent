@@ -26,26 +26,21 @@ def _delete_chat_session(
     try:
         row = execute(
             conn=CONN,
-            sql=(
-                """
+            sql=("""
                 DELETE FROM chat_sessions
                 WHERE session_id = %s;
-                """
-            ),
-            params=(sess_id,)
+                """),
+            params=(sess_id,),
         )
         info_str = (
             "Session '%s' chat logs and all related contents "
-            "has been deleted from the database"
+            "has been deleted from the database" % sess_name
         )
         app_log.info(info_str)
         if hooks and hooks.on_stat_change:
             hooks.on_stat_change(info_str)
     except Exception as e:
-        err_msg = Exception(
-            "Failed to delete session '%s': %s"
-            % (sess_name, e)
-        )
+        err_msg = Exception("Failed to delete session '%s': %s" % (sess_name, e))
         app_log.warning(err_msg)
         if hooks and hooks.on_error:
             hooks.on_error(err_msg)

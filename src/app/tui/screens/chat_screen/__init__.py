@@ -1,3 +1,3 @@
-from .chat_screen import ChatScreen
+from .main_module import ChatScreen
 
 __all__ = ["ChatScreen"]

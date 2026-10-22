@@ -1,14 +1,16 @@
 /* --- Theme --------------------------------------------------------------- */
 
-$color-primary: cyan;
+$color-primary: #a0d0d5;
 $color-highlight: yellow;
 $color-on-primary: black;
+$color-background: #12181d;
 
 
 /* --- Screen -------------------------------------------------------------- */
 
 DashboardScreen {
     padding: 0;
+    background: $color-background;
 }
 
 #sessions-section {

@@ -58,6 +58,7 @@ def calculate_nth_index(n: int, total: int) -> int | None:
 
 # --- Vertical Scroll behaviour -----------------------------------------------
 
+
 def _bottom_is_under_viewport_top(
     component: Widget,
     vert_scroll: VerticalScroll,
@@ -114,10 +115,7 @@ def calculate_jump_vertical_sroll_component(
         focused_wid = screen.app.focused
         if focused_wid is not None:
             for i, component in enumerate(components):
-                if (
-                    focused_wid is component 
-                    or component in focused_wid.ancestors
-                ):
+                if focused_wid is component or component in focused_wid.ancestors:
                     curr_idx = i
                     found = True
                     break
@@ -129,10 +127,8 @@ def calculate_jump_vertical_sroll_component(
                 curr_idx = i
                 break
         else:
-            curr_idx = len(components) - 1  
+            curr_idx = len(components) - 1
 
     # Compute target index using safe boundary clamping
-    target_idx = calculate_jump_index(
-        curr_idx, len(components), direction, count
-    )
+    target_idx = calculate_jump_index(curr_idx, len(components), direction, count)
     return components[target_idx]

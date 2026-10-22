@@ -37,7 +37,7 @@ class ToolCallsMetadata:
             mime_type, _ = mimetypes.guess_type(attchmnt)
             attchmnts_dict[attchmnt.name] = {
                 "mime_type": mime_type,
-                "size_bytes": attchmnt.stat().st_size if attchmnt.exists() else 0
+                "size_bytes": attchmnt.stat().st_size if attchmnt.exists() else 0,
             }
         app_log.debug("Added attachments metadata into the database")
         return attchmnts_dict
@@ -83,7 +83,7 @@ class ToolCallsMetadata:
     @staticmethod
     def _compress_tool_call(
         unfmt_prompt: str | None = None,
-        method: Literal["default", "instruct", "auto"] | None = None
+        method: Literal["default", "instruct", "auto"] | None = None,
     ) -> dict | None:
         """
         Returns the dictionary for storing metadata for the '/compress' slash command.
@@ -100,9 +100,8 @@ class ToolCallsMetadata:
         if method is None:
             return
 
-        app_log.info(
-            "Added '/compress' too call metadata into the database: '%s' method",
-            method
+        app_log.debug(
+            "Added '/compress' too call metadata into the database: '%s' method", method
         )
         return {
             "unformatted_prompt": unfmt_prompt,
@@ -134,13 +133,19 @@ class ToolCallsMetadata:
         tool_entries = {}
 
         if attchmnts:
-            tool_entries["attachments"] = ToolCallsMetadata._attachments_tool_call(attchmnts)
+            tool_entries["attachments"] = ToolCallsMetadata._attachments_tool_call(
+                attchmnts
+            )
 
         if unfmt_mem_prompt:
-            tool_entries["memorise"] = ToolCallsMetadata._memories_tool_call(unfmt_mem_prompt)
+            tool_entries["memorise"] = ToolCallsMetadata._memories_tool_call(
+                unfmt_mem_prompt
+            )
 
         if unfmt_recall_prompt:
-            tool_entries["recall"] = ToolCallsMetadata._recall_tool_call(unfmt_recall_prompt)
+            tool_entries["recall"] = ToolCallsMetadata._recall_tool_call(
+                unfmt_recall_prompt
+            )
 
         if cmp_method is not None:
             tool_entries["compress"] = ToolCallsMetadata._compress_tool_call(

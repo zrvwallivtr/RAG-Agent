@@ -2,7 +2,7 @@ from psycopg2.errors import UniqueViolation
 
 from rich import box
 from rich.panel import Panel
-from rich.align import Align 
+from rich.align import Align
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -14,7 +14,12 @@ from textual.events import Key
 from src.config.postgres import CONN
 from src.config.config_toml import MODEL, EMBED_MODEL, FALLBACK_TOKENIZER
 
-from .fuzzy_search import fuzzy_search_behaviour, load_sessions, show_session_list, sessions
+from .fuzzy_search import (
+    fuzzy_search_behaviour,
+    load_sessions,
+    show_session_list,
+    sessions,
+)
 from .tokenizers import get_tknizr_list
 from .status_widgets import update_model_status_section, update_tokenizer_status_section
 from .session_selector import (
@@ -27,7 +32,7 @@ from .session_selector import (
     create_new_session,
     show_delete_session_input,
     confirm_and_delete_session,
-    show_session_search_input
+    show_session_search_input,
 )
 
 from src.agent.models import ollama
@@ -36,7 +41,11 @@ from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
 MODEL_ROLES = ["chat_model", "embedding_model"]
-SESSION_INPUT_IDS = {"session-search-input", "new-session-input", "delete-session-input"}
+SESSION_INPUT_IDS = {
+    "session-search-input",
+    "new-session-input",
+    "delete-session-input",
+}
 
 
 def app_icon() -> str:
@@ -71,28 +80,16 @@ class DashboardScreen(BaseScreen):
 
             with Vertical(id="app-config", classes="box"):
                 # Models
-                yield Static(
-                    id="model-section-title", classes="models-section"
-                )
+                yield Static(id="model-section-title", classes="models-section")
                 with Horizontal(id="model-section-list"):
-                    yield Static(
-                        id="model-type-list", classes="model-list"
-                    )
-                    yield Static(
-                        id="selected-model-list", classes="model-list"
-                    )
+                    yield Static(id="model-type-list", classes="model-list")
+                    yield Static(id="selected-model-list", classes="model-list")
 
                 # Tokenizers
-                yield Static(
-                    id="tokenizer-section-title", classes="tokenizer-section"
-                )
+                yield Static(id="tokenizer-section-title", classes="tokenizer-section")
                 with Horizontal(id="tokenizer-section-list"):
-                    yield Static(
-                        id="fallback-tokenizer", classes="tokenizer-list"
-                    )
-                    yield Static(
-                        id="selected-tokenizer", classes="tokenizer-list"
-                    )
+                    yield Static(id="fallback-tokenizer", classes="tokenizer-list")
+                    yield Static(id="selected-tokenizer", classes="tokenizer-list")
 
         with Vertical(id="sessions-section"):
             # Sessions title
@@ -126,19 +123,19 @@ class DashboardScreen(BaseScreen):
                 id="session-search-input",
                 placeholder="Search session name...",
                 classes="hidden",
-                select_on_focus=False
+                select_on_focus=False,
             )
             yield Input(
                 id="new-session-input",
                 placeholder="New session name...",
                 classes="hidden",
-                select_on_focus=False
+                select_on_focus=False,
             )
             yield Input(
                 id="delete-session-input",
                 placeholder="Delete session name...",
                 classes="hidden",
-                select_on_focus=False
+                select_on_focus=False,
             )
 
             # Sessions list
@@ -291,14 +288,17 @@ class DashboardScreen(BaseScreen):
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
-                sess_list.focus() # Go to session list
+                sess_list.focus()  # Go to session list
 
             # If focus is in session list but no option is highlighted
             elif self.focused == sess_list and sess_list.highlighted is None:
                 _focus_first_button_in_bar(wid=sess_act_bar)
 
             # If focus is in option list and option is highlighted
-            elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
+            elif (
+                isinstance(self.focused, OptionList)
+                and self.focused.highlighted is not None
+            ):
                 event.prevent_default()
                 event.stop()
                 self.focused.action_cursor_up()
@@ -308,21 +308,26 @@ class DashboardScreen(BaseScreen):
 
             # If focus is in session action bar
             if self.focused and sess_act_bar in self.focused.ancestors:
-                sess_list.focus() # Go to session list
+                sess_list.focus()  # Go to session list
 
             # If focus is in session list but no option is highlighted
             elif self.focused == sess_list and sess_list.highlighted is None:
                 _focus_first_button_in_bar(wid=sess_act_bar)
 
             # If focus is in option list and option is highlighted
-            elif isinstance(self.focused, OptionList) and self.focused.highlighted is not None:
+            elif (
+                isinstance(self.focused, OptionList)
+                and self.focused.highlighted is not None
+            ):
                 event.prevent_default()
                 event.stop()
                 self.focused.action_cursor_down()
 
         elif event.key == "enter":
             # If focus is on the session list or in session list
-            if self.focused and (self.focused == sess_list or sess_list in self.focused.ancestors):
+            if self.focused and (
+                self.focused == sess_list or sess_list in self.focused.ancestors
+            ):
                 # If no option is highlighted
                 if sess_list.highlighted is None:
                     event.prevent_default()

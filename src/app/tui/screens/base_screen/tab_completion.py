@@ -29,7 +29,7 @@ def tab_completion(screen, cmd_input: Input, event: Key):
     # Check if it's an attach command
     if val.startswith(":a ") or val.startswith(":attach "):
         prefix = ":a " if val.startswith(":a ") else ":attach "
-        partial_path = val[len(prefix):].strip()
+        partial_path = val[len(prefix) :].strip()
 
         # Resolve directory and search term
         # Support partial paths like subfolders or simple filenames
@@ -48,10 +48,9 @@ def tab_completion(screen, cmd_input: Input, event: Key):
 
         if base_dir.exists() and base_dir.is_dir():
             # Find matching files/folders inside UPLOAD_DIR
-            matches = (
-                [str(p.relative_to(_start_directory()))
-                for p in base_dir.glob(pattern)]
-            )
+            matches = [
+                str(p.relative_to(_start_directory())) for p in base_dir.glob(pattern)
+            ]
 
             if len(matches) == 1:
                 # Exact single match: auto-complete it

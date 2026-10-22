@@ -1,3 +1,5 @@
-from .main_module import Expert
+from .expert import Expert
+from .documents import ExpertDocuments
+from .sessions import SessionExperts
 
-__all__ = ["Expert"]
+__all__ = ["Expert", "ExpertDocuments", "SessionExperts"]

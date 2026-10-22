@@ -3,6 +3,7 @@ from typing import Callable
 from .write_chat_sessions import WriteChatSessions
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
+from src.libs.custom_dataclasses import AgentHooks
 
 from src import logger
 
@@ -16,7 +17,9 @@ class LookupChatSessions:
         self._conn = conn
 
         self.sess_name = sess_name
-        self.write_chat_sess = WriteChatSessions(conn=self._conn, sess_name=self.sess_name, sys_prompt_tkns=sys_prompt_tkns)
+        self.write_chat_sess = WriteChatSessions(
+            conn=self._conn, sess_name=self.sess_name, sys_prompt_tkns=sys_prompt_tkns
+        )
 
         self._sess_id: str | None = None
 
@@ -35,15 +38,14 @@ class LookupChatSessions:
         if self._sess_id:
             return self._sess_id  # Cached, no query
 
-        app_log.debug("Fetching session id for session '%s'", self.sess_name)
         row = fetch_one(
             conn=self._conn,
             sql="SELECT session_id FROM chat_sessions WHERE LOWER(session_name) = LOWER(%s);",
-            params=(self.sess_name,)
+            params=(self.sess_name,),
         )
 
         if not row:
-            app_log.info("Session id for session '%s' not found", self.sess_name)
+            app_log.warning("Session id for session '%s' not found", self.sess_name)
             return None
 
         self._sess_id = str(row[0])  # Cache it
@@ -57,14 +59,14 @@ class LookupChatSessions:
         USE WHEN:
         - Saving data that needs a session_id foreign key (add_conversation_turn).
         - The session may not exist yet.
-        
+
         NEVER USE IN:
         - Read-only paths, listing or delete.
         """
         sess_id = self.get_id()
         if not sess_id:
             sess_id = self.write_chat_sess.create()
-            self._sess_id = sess_id # Cache newly created
+            self._sess_id = sess_id  # Cache newly created
         return sess_id
 
     def forget_id(self) -> None:
@@ -96,33 +98,35 @@ class LookupChatSessions:
         return str(row[0])
 
     def get_data(self, sess_name: str | None = None) -> tuple[str, str, int] | None:
-        name = sess_name if sess_name else self.sess_name  # Specified session name (optional)
+        name = (
+            sess_name if sess_name else self.sess_name
+        )  # Specified session name (optional)
         row = fetch_one(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT session_id, created_at, session_used_tokens
                 FROM chat_sessions
                 WHERE session_name = %s;
-                """
-            ),
+                """),
             params=(name,),
         )
 
         if not row:
             app_log.warning("Session data for session name '%s' not found", name)
             return None
-        return str(row[0]), str(row[1]), int(row[2])  # session id, created at, session used tokens
+        return (
+            str(row[0]),
+            str(row[1]),
+            int(row[2]),
+        )  # session id, created at, session used tokens
 
     def get_all_metadata(self) -> dict | None:
         rows = fetch_all(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT session_id, session_name, created_at
                 FROM chat_sessions;
-                """
-            ),
+                """),
         )
 
         if not rows:

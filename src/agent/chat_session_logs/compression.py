@@ -11,11 +11,9 @@ from .write_chat_logs import WriteChatLogs
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import (
     CompressionResult,
-    GenericEventHook,
     ModelResult,
-    COMPRESS_CMD,
     DEFAULT_PROMPT,
-    COMPRESS_METHOD
+    COMPRESS_METHOD,
 )
 from src.libs.helpers.format_context_helper import build_prompt
 
@@ -33,9 +31,7 @@ class Compression:
     """Summarise a session's active conversation turns with model."""
 
     def __init__(
-        self,
-        chat_sess_logs: "ChatSessionLogs",
-        write_chat_logs: WriteChatLogs
+        self, chat_sess_logs: "ChatSessionLogs", write_chat_logs: WriteChatLogs
     ):
         self._chat_sess_logs = chat_sess_logs
         self._write_chat_logs = write_chat_logs
@@ -71,7 +67,7 @@ class Compression:
         cmp_method: COMPRESS_METHOD,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         hooks: AgentHooks | None = None,
-    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+    ) -> CompressionResult | None:
         """
         The main compression function. The model generates summary, update
         previous conversation metadata and add the new response to the
@@ -82,9 +78,7 @@ class Compression:
         cmp_hooks = hooks
         if is_auto and hooks and hooks.on_cmp_start and hooks.on_cmp_tkn:
             hooks.on_cmp_start()
-            cmp_hooks = replace(
-                hooks, on_tkn=hooks.on_cmp_tkn, on_first_tkn=None
-            )
+            cmp_hooks = replace(hooks, on_tkn=hooks.on_cmp_tkn, on_first_tkn=None)
 
         if hooks and hooks.on_loading:
             hooks.on_loading(
@@ -113,7 +107,7 @@ class Compression:
             state="external",
             cmp_method=cmp_method,
             p_tkns=p_tkns,
-            o_tkns=o_tkns
+            o_tkns=o_tkns,
         )
         self._chat_sess_logs.update_session_used_tokens()
 
@@ -135,7 +129,7 @@ class Compression:
             unfmt_prompt=unfmt_prompt,
             cmp_method=cmp_method,
             attchmnt_dict=attchmnt_dict,
-            hooks=hooks
+            hooks=hooks,
         )
 
     def auto_compress(
@@ -144,17 +138,20 @@ class Compression:
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """Auto compress session, triggered when session token count reached pre-set limit."""
-        app_log.info(
+        app_log.debug(
             "Auto chat compression was triggered for session '%s'",
-            self._chat_sess_logs.sess_name
+            self._chat_sess_logs.sess_name,
         )
         result = self.compress(
             clean_prompt=DEFAULT_PROMPT,
             unfmt_prompt=unfmt_prompt,
             cmp_method="auto",
-            hooks=hooks
+            hooks=hooks,
         )
         if not result:
             return
-        app_log.info("Compression completed. Continuing session")
+
+        if hooks and hooks.on_stat_change:
+            info_msg = "Compression completed. Continuing session..."
+            hooks.on_stat_change(info_msg)
         return result

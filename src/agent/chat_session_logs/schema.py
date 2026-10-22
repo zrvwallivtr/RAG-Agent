@@ -1,6 +1,7 @@
 import threading
 
 from src.libs.helpers.database_helpers import init_database
+from src.libs.custom_dataclasses import AgentHooks
 
 from src import logger
 
@@ -17,13 +18,11 @@ _STATEMENTS = (
         session_used_tokens INTEGER NOT NULL DEFAULT 0
     );
     """,
-
     # Schema migration: Add missing column if table already existed
     # """
     # ALTER TABLE chat_sessions
     # ADD COLUMN IF NOT EXISTS session_used_tokens INTEGER NOT NULL DEFAULT 0;
     # """,
-
     """
     CREATE TABLE IF NOT EXISTS chat_logs (
         id                  BIGSERIAL PRIMARY KEY,
@@ -38,17 +37,14 @@ _STATEMENTS = (
         metadata            JSONB DEFAULT '{}'::jsonb
     );
     """,
-
     """
     CREATE INDEX IF NOT EXISTS idx_chat_logs_session_id
     ON chat_logs (session_id);
     """,
-
     """
     CREATE INDEX IF NOT EXISTS idx_chat_logs_session_created
     ON chat_logs (session_id, created_at);
     """,
-
     """
     CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at
     ON chat_logs (created_at DESC);
@@ -56,7 +52,7 @@ _STATEMENTS = (
 )
 
 
-def ensure_schema(conn) -> None:
+def ensure_schema(conn, hooks: AgentHooks | None = None) -> None:
     """
     Create the chat log tables and indexes if missing.
 
@@ -68,7 +64,8 @@ def ensure_schema(conn) -> None:
     if _schema_ready:
         return
 
-    app_log.debug("Initialising chat tables and indexes")
+    if hooks and hooks.on_loading:
+        hooks.on_loading("Initialising chat tables and indexes...")
     init_database(conn=conn, stmts=_STATEMENTS)
 
     _schema_ready = True

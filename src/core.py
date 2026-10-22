@@ -7,9 +7,11 @@ from src.config.config_toml import MODEL, TOKEN_RESERVE
 from src.libs.helpers.format_context_helper import build_prompt
 from src.libs.helpers.slash_commands_helpers import detect_cmd
 from src.libs.custom_dataclasses import AgentHooks
+from src.libs.constants import CompressionResult
 
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
+from src.rag.expert import Expert, SessionExperts
 from src.slash_commands import SlashCompress
 from src.slash_commands.compress import COMPRESS_CMD
 from src.agent.models.llm import user_message, model_response
@@ -27,15 +29,12 @@ class Agent:
         self,
         sess_name: str | None = None,
     ):
-        self.sess_name = sess_name
-        self.conn      = CONN
+        self.conn = CONN
 
-        self.chat_sess_logs = ChatSessionLogs(
-            conn=self.conn, sess_name=self.sess_name
-        )
-        self.kw_bs = KnowledgeBase(
-            conn=self.conn, chat_sess_logs=self.chat_sess_logs
-        )
+        self.sess_name = sess_name
+
+        self.chat_sess_logs = ChatSessionLogs(conn=self.conn, sess_name=self.sess_name)
+        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
         self.doc_kw_bs = DocumentKnowledgeBase(
             conn=self.conn, chat_sess_logs=self.chat_sess_logs
         )
@@ -45,8 +44,19 @@ class Agent:
             conn=self.conn, chat_logs=self.chat_sess_logs
         )
 
+    @property
+    def exp_list(self) -> list[str]:
+        """Names of the expert enabled in this session (read on each use)."""
+        return list(
+            SessionExperts.all_expert_data_from_session(self.conn, self.sess_name)
+        )
+
     def _is_over_budget(
-        self, msgs: list[dict], prompt: str, reserve: int
+        self,
+        msgs: list[dict],
+        prompt: str,
+        reserve: int,
+        hooks: AgentHooks | None = None,
     ) -> bool:
         """
         True if the history plus the new prompt plus the reply reserve would
@@ -94,7 +104,7 @@ class Agent:
         is_attchmnt: bool,
         paths: list[Path] | None,
         hooks: AgentHooks | None = None,
-    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+    ) -> CompressionResult | None:
         """Route to slash command for '/memorise', '/recall' and '/compress'."""
         if cmd == COMPRESS_CMD:
             app_log.debug("'%s' command triggered", cmd)
@@ -111,8 +121,9 @@ class Agent:
         self, prompt: str, is_auto_doc_rtve: bool
     ) -> tuple[str, int, list[float], bool]:
         """
-        Return embeddings for user prompt for memory and document content retrieval
-        features, if no embedding failed turn off related featurs.
+        Return embeddings for user prompt for document and
+        previously attaached content retrieval features,
+        if no embedding failed turn off related featurs.
         """
         embed_response = embedding_content(prompt)
 
@@ -126,9 +137,20 @@ class Agent:
             )
             prompt_embdings = [0.0]
             prompt_tkns = 0
-            is_auto_doc_rtve = False # Turn off auto document chunk retrieve
+            is_auto_doc_rtve = False  # Turn off auto document chunk retrieve
 
         return prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve
+
+    def _query_experts(self, prompt: str) -> list[dict] | None:
+        """
+        Query every expert enabled in this session. Returns the closest
+        chunks across them, best first, or None if none are enabled.
+        """
+        if not self.exp_list:
+            return None
+        return Expert.query_multiple_experts(
+            conn=CONN, prompt=prompt, exp_list=self.exp_list
+        )
 
     def _combine_context(
         self,
@@ -136,11 +158,16 @@ class Agent:
         prompt_embdings: list[float],
         is_auto_doc_rtve: bool,
         is_attchmnt: bool,
-        paths: list[Path] | None = None
+        paths: list[Path] | None = None,
     ) -> tuple[str, dict] | tuple[str, None]:
+        # Expert document chunks (only if experts are enabled in this session)
+        exp_chunks = self._query_experts(prompt)
+
         # Auto retrieve relevant session documents
         doc_list = self.doc_kw_bs.toggle_auto_retrieve_sess_docs(
-            is_auto_doc_rtve=is_auto_doc_rtve, prompt=prompt, prompt_embdings=prompt_embdings
+            is_auto_doc_rtve=is_auto_doc_rtve,
+            prompt=prompt,
+            prompt_embdings=prompt_embdings,
         )
 
         # Uploaded attachments (optional)
@@ -150,7 +177,10 @@ class Agent:
 
         # All context combined (won't be saved to chat history)
         cmbind_prompt = build_prompt(
-            prompt=prompt, doc_list=doc_list, attchmnt_dict=attchmnt_dict
+            prompt=prompt,
+            exp_chunks=exp_chunks,
+            doc_list=doc_list,
+            attchmnt_dict=attchmnt_dict,
         )
 
         if attchmnt_dict:
@@ -161,6 +191,7 @@ class Agent:
         self,
         prompt: str,
         paths: list[Path] | None = None,
+        enabled_exp: list[str] | None = None,
         is_auto_doc_rtve: bool = True,
         is_attchmnt: bool = False,
         hooks: AgentHooks | None = None,
@@ -181,9 +212,7 @@ class Agent:
             # Run budget check and auto compress only when slash command is
             # not '/compress' as it is already a session compression tool call.
             if cmd != COMPRESS_CMD:
-                msgs = self._compress_if_over_budget(
-                    clean_prompt, hooks=hooks
-                )
+                msgs = self._compress_if_over_budget(clean_prompt, hooks=hooks)
 
             return self._route_to_slash_command(
                 unfmt_prompt=prompt,
@@ -195,10 +224,9 @@ class Agent:
                 hooks=hooks,
             )
 
-        prompt_tkns, prompt_tkns, prompt_embdings, is_auto_doc_rtve = (
+        prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve = (
             self._embedding_content_retrieval_controller(
-                prompt=prompt,
-                is_auto_doc_rtve=is_auto_doc_rtve
+                prompt=prompt, is_auto_doc_rtve=is_auto_doc_rtve
             )
         )
 
@@ -234,7 +262,7 @@ class Agent:
             state="external",
             attchmnts=paths,
             p_tkns=total_p_tkns,
-            o_tkns=total_o_tkns
+            o_tkns=total_o_tkns,
         )
 
         self.chat_sess_logs.update_session_used_tokens()

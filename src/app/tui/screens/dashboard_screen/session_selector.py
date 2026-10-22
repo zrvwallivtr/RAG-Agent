@@ -14,6 +14,7 @@ def go_to_session(screen, sess_name: str) -> None:
     """Go to specified chat session screen."""
     # screen.notify(f"Opening session: {sess_name}")
     from src.app.tui.screens.chat_screen import ChatScreen
+
     screen.app.push_screen(ChatScreen(sess_name=sess_name))
 
 
@@ -68,12 +69,13 @@ def show_sessions(screen) -> None:
 
 # --- Search session ---------------------------------------------
 
+
 def show_session_search_input(screen) -> None:
     """
     Consist of the search input bar and available sessions list.
     Session list will be updated according to the search bar.
     """
-    screen.in_sess_search = True # User is searching sessions
+    screen.in_sess_search = True  # User is searching sessions
 
     # Session option list
     sess_list = screen.query_one("#session-list", OptionList)
@@ -95,12 +97,13 @@ def show_session_search_input(screen) -> None:
 
 # --- Create new session -----------------------------------------
 
+
 def show_new_session_input(screen) -> None:
     """
     Consist of the input bar for naming the new session.
     Show existing session list with fuzzy search on.
     """
-    screen.in_new_sess_input = True # User is entering session name
+    screen.in_new_sess_input = True  # User is entering session name
     sess_list = screen.query_one("#session-list", OptionList)
     show_session_list(sess_list=sess_list)
 
@@ -130,6 +133,7 @@ def create_new_session(screen, sess_name: str) -> None:
         return
 
     from src.agent.chat_session_logs import ChatSessionLogs
+
     chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=clean_name)
 
     try:
@@ -147,12 +151,13 @@ def create_new_session(screen, sess_name: str) -> None:
 
 # --- Delete session ---------------------------------------------
 
+
 def show_delete_session_input(screen) -> None:
     """
     Consist of the input bar for available sessions.
     Show existing session list with fuzzy search on.
     """
-    screen.in_del_sess_input = True # User is entering session name
+    screen.in_del_sess_input = True  # User is entering session name
 
     # Existing session list
     sess_list = screen.query_one("#session-list", OptionList)
@@ -186,7 +191,7 @@ def confirm_and_delete_session(screen, sess_name: str) -> None:
         screen.notify("Session name cannot be empty.", severity="error")
         return
 
-    from src.app.tui.screens.confirmation_popup_screen import ConfirmationPopupScreen
+    from src.app.tui.screens.confirmation_dialog_screen import ConfirmationDialogScreen
 
     def handle_confirmation(is_confirm: bool | None) -> None:
         if is_confirm:
@@ -196,6 +201,6 @@ def confirm_and_delete_session(screen, sess_name: str) -> None:
     positive = "Proceed"
     negative = "Cancel"
     screen.app.push_screen(
-        ConfirmationPopupScreen(title=title, positive=positive, negative=negative),
-        callback=handle_confirmation
+        ConfirmationDialogScreen(title=title, positive=positive, negative=negative),
+        callback=handle_confirmation,
     )

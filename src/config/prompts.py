@@ -38,46 +38,49 @@ def _prioritise_custom_prompt(
 
 
 # System prompt directories
-SYS_PROMPT_DIR     = PROMPT_DIR / "system"
+SYS_PROMPT_DIR = PROMPT_DIR / "system"
 CUS_SYS_PROMPT_DIR = CUS_PROMPT_DIR / "system"
 
 # Memory prompt directories
-MEM_PROMPT_DIR     = PROMPT_DIR / "memory"
+MEM_PROMPT_DIR = PROMPT_DIR / "memory"
 CUS_MEM_PROMPT_DIR = CUS_PROMPT_DIR / "memory"
 
 # Compression prompt directories
-COMPRESS_PROMPT_DIR     = PROMPT_DIR / "chat_compression"
+COMPRESS_PROMPT_DIR = PROMPT_DIR / "chat_compression"
 CUS_COMPRESS_PROMPT_DIR = CUS_PROMPT_DIR / "chat_compression"
 
+# Expert prompt directories
+EXPERT_PROMPT_DIR = PROMPT_DIR / "expert"
+CUS_EXPERT_PROMPT_DIR = CUS_PROMPT_DIR / "expert"
 
-# Base agent system prompt
+# --- Base agent system prompt ------------------------------------------------
 
 SYS_PROMPT_PATH, SYS_PROMPT = _prioritise_custom_prompt(
     filename="standard",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_SYS_PROMPT_DIR,
-    default_prompt_dir=SYS_PROMPT_DIR
+    default_prompt_dir=SYS_PROMPT_DIR,
 )
 
 
-# Compression agent system prompt
+# --- Compression agent system prompt -----------------------------------------
 
 COMPRESS_PROMPT_PATH, COMPRESS_PROMPT = _prioritise_custom_prompt(
     filename="instructions",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_COMPRESS_PROMPT_DIR,
-    default_prompt_dir=COMPRESS_PROMPT_DIR
+    default_prompt_dir=COMPRESS_PROMPT_DIR,
 )
 
 
-# Memory agent system prompts
+# --- Memory agent system prompts ---------------------------------------------
 
 # Auto memory extraction
 MEM_PROMPT_PATH, MEM_PROMPT = _prioritise_custom_prompt(
     filename="memory_agent",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
-    default_prompt_dir=MEM_PROMPT_DIR
+    default_prompt_dir=MEM_PROMPT_DIR,
 )
 
 # Manual memory extraction
@@ -85,7 +88,7 @@ MEM_MANUAL_PROMPT_PATH, MEM_MANUAL_PROMPT = _prioritise_custom_prompt(
     filename="manual_memory_extraction",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
-    default_prompt_dir=MEM_PROMPT_DIR
+    default_prompt_dir=MEM_PROMPT_DIR,
 )
 
 # Interpret retrieved memory entries
@@ -93,5 +96,15 @@ MEM_RECALL_INTERPRET_PATH, MEM_RECALL_INTERPRET_PROMPT = _prioritise_custom_prom
     filename="memory_recall_interpreter",
     config_file=CONFIG_FILE,
     custom_prompt_dir=CUS_MEM_PROMPT_DIR,
-    default_prompt_dir=MEM_PROMPT_DIR
+    default_prompt_dir=MEM_PROMPT_DIR,
+)
+
+
+# --- Expert system prompt ----------------------------------------------------
+
+DOC_DES_PROMPT_PATH, DOC_DES_PROMPT = _prioritise_custom_prompt(
+    filename="document_description",
+    config_file=CONFIG_FILE,
+    custom_prompt_dir=CUS_EXPERT_PROMPT_DIR,
+    default_prompt_dir=EXPERT_PROMPT_DIR,
 )

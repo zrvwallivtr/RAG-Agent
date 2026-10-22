@@ -21,7 +21,9 @@ def _is_model_installed(model: str) -> bool:
     return False
 
 
-def _ollama_pull_via_docker(model: str, vol_name: str = "agent_app_ollama_models") -> bool:
+def _ollama_pull_via_docker(
+    model: str, vol_name: str = "agent_app_ollama_models"
+) -> bool:
     """
     Pull model using temporary Docker container with internet access,
     writing into the same volume the isolated ollama service mounts.
@@ -30,16 +32,21 @@ def _ollama_pull_via_docker(model: str, vol_name: str = "agent_app_ollama_models
     try:
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", f"{vol_name}:/root/.ollama",
-                "--dns", "1.1.1.1",
-                "--entrypoint", "sh",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{vol_name}:/root/.ollama",
+                "--dns",
+                "1.1.1.1",
+                "--entrypoint",
+                "sh",
                 "ollama/ollama",
                 "-c",
-                f"ollama serve & sleep 2 && ollama pull {model}"
+                f"ollama serve & sleep 2 && ollama pull {model}",
             ],
             check=True,
-            capture_output=False
+            capture_output=False,
         )
         app_log.info("Model '%s' has been installed", model)
         return result.returncode == 0

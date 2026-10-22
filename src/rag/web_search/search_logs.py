@@ -6,40 +6,29 @@ from src.config import postgres
 
 from src.agent.chat_logs import ChatLogs
 
-
-DBNAME      = postgres.DBNAME
-USER        = postgres.USER
-PASSWORD    = postgres.PASSWORD
-HOST        = postgres.HOST
-PORT        = postgres.PORT
+DBNAME = postgres.DBNAME
+USER = postgres.USER
+PASSWORD = postgres.PASSWORD
+HOST = postgres.HOST
+PORT = postgres.PORT
 
 
 class SearchLogs:
-    def __init__(
-        self,
-        conn,
-        sess_name: str | None = None
-    ):
-        self.conn   = psycopg2.connect(
-            dbname=DBNAME,
-            user=USER,
-            password=PASSWORD,
-            host=HOST,
-            port=PORT
+    def __init__(self, conn, sess_name: str | None = None):
+        self.conn = psycopg2.connect(
+            dbname=DBNAME, user=USER, password=PASSWORD, host=HOST, port=PORT
         )
-        self.cur    = self.conn.cursor()
+        self.cur = self.conn.cursor()
 
         self.sess_name = sess_name
 
-        self.chat_logs = ChatLogs(conn = conn, sess_name=self.sess_name)
+        self.chat_logs = ChatLogs(conn=conn, sess_name=self.sess_name)
 
         self._init_search_logs_db()
 
-
     def _init_search_logs_db(self):
         """Create search logs table if missing."""
-        self.cur.execute(
-            """
+        self.cur.execute("""
             CREATE TABLE IF NOT EXISTS search_logs (
                 id BIGSERIAL PRIMARY KEY,
                 session_id VARCHAR(255) NOT NULL,
@@ -49,10 +38,8 @@ class SearchLogs:
                 title TEXT NOT NULL,
                 snippet TEXT NOT NULL
             );
-            """
-        )
+            """)
         self.conn.commit()
-
 
     def add_search_logs(self, qry: str, results: list[dict]):
         """Add query to search logs."""
@@ -66,10 +53,9 @@ class SearchLogs:
                 INSERT INTO search_logs (session_id, query, url, title, snippet)
                 VALUES (%s, %s, %s, %s, %s);
                 """,
-                (self.chat_logs.get_sess_id(), qry, url, title, snippet)
+                (self.chat_logs.get_sess_id(), qry, url, title, snippet),
             )
             self.conn.commit()
-
 
     def clear_sess_search_logs(self) -> str:
         """Clear all session related search logs."""
@@ -78,7 +64,7 @@ class SearchLogs:
             DELETE FROM search_logs
             WHERE session_id = %s;
             """,
-            (self.chat_logs.get_sess_id,)
+            (self.chat_logs.get_sess_id,),
         )
         del_count = self.cur.rowcount
         self.conn.commit()

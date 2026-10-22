@@ -1,3 +1,3 @@
-from .main_module import ChatSessionLogs
+from .chat_session_logs import ChatSessionLogs
 
 __all__ = ["ChatSessionLogs"]

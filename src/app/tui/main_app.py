@@ -10,9 +10,15 @@ from src.app.tui.screens.chat_screen import ChatScreen
 
 
 class MainApp(App):
+    """Entry point for the TUI."""
+
     BINDINGS = [
         ("escape", "escape_handler"),
     ]
+
+    def __init__(self, sess_name: str | None = None):
+        super().__init__()
+        self.sess_name = sess_name
 
     def compose(self):
         """Returns nothing."""
@@ -20,7 +26,10 @@ class MainApp(App):
 
     def on_mount(self) -> None:
         """Show menu screen on startup."""
-        self.push_screen(DashboardScreen())
+        if self.sess_name:
+            self.push_screen(ChatScreen(sess_name=self.sess_name))
+        else:
+            self.push_screen(DashboardScreen())
 
     def action_escape_handler(self) -> None:
         """All scenarios for when the escape button is pressed."""

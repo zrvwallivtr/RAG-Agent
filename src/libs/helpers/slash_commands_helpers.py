@@ -8,9 +8,9 @@ def detect_cmd(prompt: str) -> tuple[str | None, str]:
     question_trimmed = prompt.strip()
 
     if question_trimmed.startswith(f"/"):
-        parts           = question_trimmed.split(" ", 1)
-        cmd             = parts[0]
-        cleaned_text    = parts[1].strip() if len(parts) > 1 else ""
+        parts = question_trimmed.split(" ", 1)
+        cmd = parts[0]
+        cleaned_text = parts[1].strip() if len(parts) > 1 else ""
         app_log.debug("Command detected: %s", cmd)
         return cmd, cleaned_text
 

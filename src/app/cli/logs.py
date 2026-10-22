@@ -37,6 +37,7 @@ def structured_app_log(path: Path = APP_LOG_FILE) -> None:
             )
             safe_print(fmtted_line)
 
+
 def structured_prompt_log(path: Path = PROMPT_LOG_FILE) -> None:
     """Print structured prompt logs to the terminal."""
     with open(path, "r", encoding="utf-8") as f:

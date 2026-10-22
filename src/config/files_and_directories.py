@@ -13,20 +13,24 @@ from pathlib import Path
 APP_NAME = "agent"
 
 # Static assets
-MAIN_DIR        = Path(sys._MEIPASS) if hasattr(sys, "_MEIPASS") else Path(__file__).resolve().parent.parent.parent
-PROMPT_DIR      = MAIN_DIR / "src" / "prompts"
-DEFAULT_CONFIG  = MAIN_DIR / "config.toml"
+MAIN_DIR = (
+    Path(sys._MEIPASS)
+    if hasattr(sys, "_MEIPASS")
+    else Path(__file__).resolve().parent.parent.parent
+)
+PROMPT_DIR = MAIN_DIR / "src" / "prompts"
+DEFAULT_CONFIG = MAIN_DIR / "config.toml"
 
 # Application directory
-APP_DIR         = Path.home() / f".{APP_NAME}"
-CONFIG_FILE     = APP_DIR / "config.toml"
-UPLOAD_DIR      = APP_DIR / "uploads"
-ENV_PATH        = APP_DIR / ".env"
-APP_DATA_DIR    = APP_DIR / "data"
-CUS_PROMPT_DIR  = APP_DATA_DIR / "prompts"
-TOKENIZERS_DIR  = APP_DIR / "tokenizers"
-LOG_DIR         = APP_DIR / "logs"
-APP_LOG_FILE    = LOG_DIR / "app.log"
+APP_DIR = Path.home() / f".{APP_NAME}"
+CONFIG_FILE = APP_DIR / "config.toml"
+UPLOAD_DIR = APP_DIR / "uploads"
+ENV_PATH = APP_DIR / ".env"
+APP_DATA_DIR = APP_DIR / "data"
+CUS_PROMPT_DIR = APP_DATA_DIR / "prompts"
+TOKENIZERS_DIR = APP_DIR / "tokenizers"
+LOG_DIR = APP_DIR / "logs"
+APP_LOG_FILE = LOG_DIR / "app.log"
 PROMPT_LOG_FILE = LOG_DIR / "prompts.log"
 
 
@@ -40,11 +44,15 @@ def _create_app_directories(dir_list: list[Path]):
 # - Create app directories.
 # - Copy `config.toml` to app directory if not exist.
 
-_create_app_directories([APP_DIR, APP_DATA_DIR, CUS_PROMPT_DIR, TOKENIZERS_DIR, LOG_DIR])
+_create_app_directories(
+    [APP_DIR, APP_DATA_DIR, CUS_PROMPT_DIR, TOKENIZERS_DIR, LOG_DIR]
+)
 
 if not CONFIG_FILE.exists() and DEFAULT_CONFIG.exists():
-    shutil.copy(DEFAULT_CONFIG, CONFIG_FILE) # Copy default 'config.toml' to '~/.agent_app/'
+    shutil.copy(
+        DEFAULT_CONFIG, CONFIG_FILE
+    )  # Copy default 'config.toml' to '~/.agent_app/'
 elif not CONFIG_FILE.exists():
-    config_file = DEFAULT_CONFIG # Fallback to default
+    config_file = DEFAULT_CONFIG  # Fallback to default
 
 _cfg = tomllib.loads(CONFIG_FILE.read_text(encoding="utf-8"))

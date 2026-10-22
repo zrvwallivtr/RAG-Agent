@@ -8,13 +8,11 @@ class Attachments:
         self.pending_attchmnt.extend(paths)
         return f"{len(paths)} file(s) attached. {len(self.pending_attchmnt)} file(s) in total"
 
-
     def clear_pending_attachments(self) -> None:
         self.pending_attchmnt = []
 
-
     def attach_command(self, cmd: str, prefix: str) -> str:
-        paths = cmd[len(prefix):].strip()
+        paths = cmd[len(prefix) :].strip()
 
         if not paths:
             return "No file path(s) provided"

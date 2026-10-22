@@ -2,10 +2,9 @@ import ipaddress
 import socket
 from urllib.parse import urlparse
 
-
 # Public internet ranges only
 ALLOWED_NETWORKS = [
-    ipaddress.ip_network("0.0.0.0/0"), # Any public IPv4
+    ipaddress.ip_network("0.0.0.0/0"),  # Any public IPv4
 ]
 
 ALWAYS_BLOCKED = [
@@ -16,7 +15,7 @@ ALWAYS_BLOCKED = [
     ipaddress.ip_network("169.254.0.0/16"),
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("fc00::/7"),
-    ipaddress.ip_network("fe80::/10")
+    ipaddress.ip_network("fe80::/10"),
 ]
 
 ALLOWED_PROTOCOLS = {"https", "http"}
@@ -43,7 +42,9 @@ def validate_url(url: str) -> str:
 
     # Resolve DNS (looks up IP address)
     try:
-        addrinfo = socket.getaddrinfo(hostname, None) # family, type, proto, canonname, sockaddr
+        addrinfo = socket.getaddrinfo(
+            hostname, None
+        )  # family, type, proto, canonname, sockaddr
     except socket.gaierror as e:
         raise SSRFError(f"DNS resolution failed: {e}")
 

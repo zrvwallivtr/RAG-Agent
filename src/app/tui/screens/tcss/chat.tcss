@@ -1,20 +1,23 @@
 /* --- Theme --------------------------------------------------------------- */
 
-$color-primary: cyan;
+$color-primary: #a0d0d5;
 $color-primary-bright: lightcyan;
 $color-on-primary: #04142a;
-$color-surface: #04142a;
+$color-surface: #142831;
 $color-focus-border: $color-primary-bright;
 $color-focus-tint: $color-primary 10%;
 $color-transparent: transparent;
+$color-background: #12181d;
 
 
 /* --- Chat area ----------------------------------------------------------- */
 
 #chat-container {
+    height: 1fr;
     margin: 0 1;
     padding: 0 1;
     scrollbar-size: 0 0;
+    background: $color-background;
 }
 
 
@@ -90,41 +93,33 @@ MarkdownFence.code-selected {
 
 /* --- User section (status bar and prompt) -------------------------------- */
 
-#user-section {
-    height: auto;
+#prompt-row {
     width: 100%;
-    margin: 0 1;
-    padding: 0 1 1 1;
-    border: solid $color-primary;
-    color: $color-primary;
-}
-
-#sess-status {
     height: auto;
-    width: 100%;
-    padding: 0 1;
+    align-vertical: middle;
+    margin: 1;
 }
 
-.user-item {
-    width: auto;
+#prompt-prefix {
+    width: 2;
     height: auto;
-    padding: 1;
-    margin-right: 1;
     color: $color-primary;
-}
-
-#pending-attachments-counter:hover {
-    color: $color-primary-bright;
+    border-top: solid $color-primary;
+    border-bottom: solid $color-primary;
 }
 
 #stop-button {
+    width: auto;
+    border-top: solid $color-primary;
+    border-bottom: solid $color-primary;
     color: $color-primary;
+    background: transparent;
 }
 
 #stop-button:hover,
 #stop-button:focus {
-    color: $color-on-primary;
-    background: $color-primary-bright;
+    color: $color-primary-bright;
+    background: transparent;
 }
 
 #stop-button:disabled {
@@ -132,13 +127,19 @@ MarkdownFence.code-selected {
 }
 
 #prompt-input {
-    width: 100%;
+    width: 1fr;
     height: auto;
-    background: $color-surface;
+    border-top: solid $color-primary;
+    border-bottom: solid $color-primary;
+    background: transparent;
 }
 
-#prompt-input:focus {
-    border: solid $color-primary;
+#user-section {
+    height: auto;
+}
+
+#user-section:focus-within #prompt-prefix {
+    color: $color-primary-bright;
 }
 
 

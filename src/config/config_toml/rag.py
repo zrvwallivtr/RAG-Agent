@@ -1,16 +1,9 @@
 from src.config.files_and_directories import _cfg
 
-ENABLE_DOCLING  = (
-    _cfg.get("rag", {}).get("enable_docling")
-    or True
-)
+ENABLE_DOCLING = _cfg.get("rag", {}).get("enable_docling") or True
 
-RETRIEVE_DOC_ENTRY_LIMIT = (
-    _cfg.get("rag", {}).get("retrieve_entry_limit")
-    or 3
-)
+RETRIEVE_DOC_ENTRY_LIMIT = _cfg.get("rag", {}).get("retrieve_entry_limit") or 3
 
-MIN_SIMILARITY_SCORE = (
-    _cfg.get("rag", {}).get("min_similarity_score")
-    or 0.65
-)
+MIN_SIMILARITY_SCORE = _cfg.get("rag", {}).get("min_similarity_score") or 0.65
+
+CHUNKER_SAFETY_MARGIN = _cfg.get("rag", {}).get("chunker_safety_margin") or 0.8

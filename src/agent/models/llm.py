@@ -7,8 +7,8 @@ from src.libs.custom_dataclasses import AgentHooks
 from src.agent.models.ollama import ollama_clt
 from src.logger import app_logger, prompt_logger
 
-app_log     = app_logger(f"{__name__}.app")
-prompt_log  = prompt_logger(f"{__name__}.prompt")
+app_log = app_logger(f"{__name__}.app")
+prompt_log = prompt_logger(f"{__name__}.prompt")
 
 
 def system_prompt(content: str) -> dict:
@@ -27,9 +27,7 @@ def user_message(content: str) -> dict:
 
 
 def _build_messages(
-    sys_prompt: str,
-    msgs: list[dict] | None,
-    prompt: str | None
+    sys_prompt: str, msgs: list[dict] | None, prompt: str | None
 ) -> list[dict]:
     """System prompt (old system prompts removed) + msgs + new user prompt."""
     new_msgs = [system_prompt(sys_prompt)]
@@ -108,6 +106,7 @@ def _ignore_token(tkn: str) -> None:
 
 # Response methods
 
+
 def model_response(
     model: str,
     msgs: list[dict],
@@ -152,7 +151,8 @@ def model_response_with_new_system_prompt_and_context(
     except Exception as e:
         app_log.warning(
             "Model failed to generate response from the provided messages: %s",
-            e, exc_info=True
+            e,
+            exc_info=True,
         )
         warn_str = "Model failed to generate response from the provided messages"
         if hooks and hooks.on_stat_change:

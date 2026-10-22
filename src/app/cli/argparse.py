@@ -7,21 +7,30 @@ from src.config.postgres import CONN
 from src.config.files_and_directories import UPLOAD_DIR
 from src.config.config_toml import MODEL
 
-from .interface import init_logger
+from .create_parser import create_parser
+from .interface import init_logger, safe_print, print_cli_hooks
 from .tables import (
     installed_models_table,
     sessions_table,
     upload_documents_table,
+    session_enabled_experts,
 )
 from .logs import structured_app_log, structured_prompt_log
+from .expert import (
+    load_existing_expert,
+    show_all_experts_table,
+    show_expert_documents_table,
+    show_all_documents_table,
+)
 
 from src.libs.helpers.sessions_helpers import delete_session
+from src.libs.custom_dataclasses import AgentHooks
 
 from src.core import Agent
 from src.agent.models.ollama import ollama_pull_model, ollama_clt
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.rag.knowledge_base.documents import DocumentKnowledgeBase
-from src.rag.expert import Expert
+from src.rag.expert import Expert, ExpertDocuments, SessionExperts
 
 from src.app.tui.screens.dashboard_screen.session_selector import go_to_session
 from src.app.tui.screens.chat_screen import ChatScreen
@@ -29,195 +38,13 @@ from src.app.tui.screens.chat_screen import ChatScreen
 from src import logger
 
 
-def _create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        formatter_class=RichHelpFormatter, description="Local RAG agent"
-    )
-
-    # Promptting with not arguments
-    parser.add_argument("prompt", nargs="?", help="Prompt agent")
-
-    # Settings arguments
-    parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="Suppress non-essential output",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Show debug-level logs",
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable colored output",
-    )
-    parser.add_argument(
-        "--width",
-        type=int,
-        default=None,
-        help="Force console width (useful for non-TTY output)",
-    )
-
-    # Models arguments
-    parser.add_argument(
-        "--model",
-        "-m",
-        default=MODEL,
-        metavar=("MODEL_NAME"),
-        help=f"Select model (defualt: {MODEL})",
-    )
-    parser.add_argument(
-        "--list-models",
-        "-lm",
-        action="store_true",
-        help="List all installed ollama models",
-    )
-    parser.add_argument(
-        "--install-model",
-        metavar=("MODEL_NAME"),
-        help=f"Install specified model",
-    )
-    parser.add_argument(
-        "--install-tokenizer",
-        action="store_true",
-        help="Install tokenizers for current installed models",
-    )
-
-    # Session arguments
-    parser.add_argument(
-        "--session",
-        "-s",
-        default=None,
-        metavar=("SESSION_NAME"),
-        help="Continue a selected session",
-    )
-    parser.add_argument(
-        "--list-session",
-        "-ls",
-        action="store_true",
-        help="List all existing session",
-    )
-    parser.add_argument(
-        "--new-session",
-        default=None,
-        metavar=("SESSION_NAME"),
-        help="Create a new session and prompt agent (optional)",
-    )
-    parser.add_argument(
-        "--delete-default-session",
-        action="store_true",
-        help="Reset default session",
-    )
-    parser.add_argument(
-        "--delete-session",
-        default=None,
-        metavar=("SESSION_NAME"),
-        help="Delete a specified session",
-    )
-
-    # Attachments arguments
-    parser.add_argument(
-        "--attachments",
-        "-a",
-        nargs="+",
-        type=Path,
-        default=None,
-        metavar=("FILE_PATH"),
-        help=(
-            "Read specified attachments "
-            f"(It must be uploaded to {UPLOAD_DIR})"
-        ),
-    )
-    parser.add_argument(
-        "--list-attachments",
-        "-la",
-        action="store_true",
-        help="List all uploaded attachments in the database",
-    )
-
-    # Expert
-    parser.add_argument(
-        "--create-expert",
-        nargs="+",
-        default=None,
-        metavar=("EXPERT_NAME", "DESCRIPTION"),
-        help="Create an expert, with an optional description",
-    )
-    parser.add_argument(
-        "--delete-expert",
-        action="store_true",
-        help="Delete an expert (no documents will be deleted)",
-    )
-    parser.add_argument(
-        "--expert-upload",
-        nargs="+",
-        metavar=("DOCUMENT_PATH"),
-        help="Embed and chunk documents to database",
-    )
-    parser.add_argument(
-        "--expert-document-description",
-        nargs=1,
-        default=None,
-        metavar=("DOCUMENT_NAME"),
-        help="Call model to generate a description for the embedded document",
-    )
-    parser.add_argument(
-        "--expert-learn",
-        nargs="+",
-        metavar=("DOCUMENT_NAME"),
-        help="Link documents to expert",
-    )
-    parser.add_argument(
-        "--expert-forget",
-        nargs="+",
-        metavar=("DOCUMENT_NAME"),
-        help="Unlink documents to expert",
-    )
-    parser.add_argument(
-        "--expert-qualifications",
-        nargs=1,
-        default=None,
-        metavar=("EXPERT_NAME"),
-        help="Show all documents that is accessable by this expert",
-    )
-    parser.add_argument(
-        "--expert-all-documents",
-        action="store_true",
-        help="Sholl all expert documents across all experts",
-    )
-
-    # Show logs
-    parser.add_argument(
-        "--app-logs",
-        action="store_true",
-        help="Print out the application logs into the terminal",
-    )
-    parser.add_argument(
-        "--prompt-logs",
-        action="store_true",
-        help="Print out the prompt sent to the model into the terminal",
-    )
-
-    return parser
-
-
 def build_parser() -> None:
-    args = _create_parser().parse_args()
+    parser = create_parser()
+    args = parser.parse_args()
     init_logger(args)
     logger.set_verbose(verbose=args.verbose)
 
-    # --- Promptting ----------------------------------------------------------
-
-    # When prompt is provided
-    if args.prompt:
-        agent = Agent(sess_name=args.session)
-        answer = agent.ask(prompt=args.prompt)
-
-    # --- Models --------------------------------------------------------------
+    # --- Models / Tokenizer --------------------------------------------------
 
     # Install model
     if args.install_model:
@@ -233,9 +60,11 @@ def build_parser() -> None:
     # Install tokenizer
     if args.install_tokenizer:
         from src.agent.tokenizers import install_tokenizers
+
         install_tokenizers()
 
     # --- Session -------------------------------------------------------------
+    # General arguments for session features.
 
     # List available sessions
     if args.list_session:
@@ -247,7 +76,7 @@ def build_parser() -> None:
     # Create new session
     if args.new_session:
         chat_logs = ChatSessionLogs(conn=CONN, sess_name=args.new_session)
-        chat_logs.create_session()
+        chat_logs.create_session(print_cli_hooks())
 
         if not args.prompt:
             return
@@ -258,25 +87,27 @@ def build_parser() -> None:
 
     # Delete default session
     if args.delete_default_session:
-        delete_session()
+        delete_session(hooks=print_cli_hooks())
         return
 
     # Delete session
     if args.delete_session:
-        response = delete_session(args.delete_session)
+        response = delete_session(args.delete_session, hooks=print_cli_hooks())
         if response:
             print(response)
         return
 
-    # To session TUI (when --session is given but without prompt)
-    if args.session and not args.prompt:
-        # - require session name
-        # - Show the session in the tui
-        go_to_session(ChatScreen, sess_name=args.session)
+    # Show all experts enabled in session
+    if args.session_experts:
+        exp_dict = SessionExperts.all_expert_data_from_session(
+            conn=CONN, sess_name=args.session_experts
+        )
+        session_enabled_experts(exp_dict)
+        return
 
     # To session TUI --show-conversations
     # - require session name, conversation count
-    # - Show the session in the tui while only showing set amount of 
+    # - Show the session in the tui while only showing set amount of
     #   conversation at start up
 
     # To session TUI --focus
@@ -285,77 +116,194 @@ def build_parser() -> None:
     #   at a time (One user and assistant message box each)
 
     # --- Attachments ---------------------------------------------------------
+    # Attaching files for additional context.
 
     # Attach file(s)
     if args.attachments:
         if not args.prompt:
-            print("Error: Prompt required")
+            safe_print("Error: Prompt required")
             return
 
         agent = Agent(sess_name=args.session)
-        answer = agent.ask(
-            prompt=args.prompt, is_attchmnt=True, paths=args.attachments
-        )
+        answer = agent.ask(prompt=args.prompt, is_attchmnt=True, paths=args.attachments)
         return
 
     # List all uploaded attachment(s) in session
     if args.list_attachments:
-        chat_sess_logs = ChatSessionLogs(
-            conn=CONN, sess_name=args.session
-        )
-        doc_kw_bs = DocumentKnowledgeBase(
-            conn=CONN, chat_sess_logs=chat_sess_logs
-        )
+        chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=args.session)
+        doc_kw_bs = DocumentKnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
 
         rows = doc_kw_bs.query_docs.all_documents_metadata()
-        print(
-            upload_documents_table(rows)
-            if rows else "No documents uploaded."
-        )
+        print(upload_documents_table(rows) if rows else "No documents uploaded.")
         return
 
     # --- Expert --------------------------------------------------------------
+    # Arguments for the expert feature and document processing for the expert.
 
     # Create expert
     if args.create_expert:
+        if len(args.create_expert) > 2:
+            parser.error(
+                "--create-expert takes EXPERT_NAME and an optional "
+                "DESCRIPTION (quote the description)"
+            )
+
         exp_name, des = (args.create_expert + [None])[:2]
+        if Expert.exists(CONN, exp_name):
+            print("Expert '%s' already exists" % exp_name)
+            return
         Expert(conn=CONN, exp_name=exp_name, des=des)
         return
 
-    # Delete expert
-    # - require expert name
-    # - Delete expert WITHOUT DELETING ANY DOCUMENTS
+    # Delete expert (No documents will be deleted)
+    if args.delete_expert:
+        exp = load_existing_expert(args.delete_expert)
+        if exp:
+            exp.delete_expert()
+            print("Expert '%s' has been deleted from the database" % args.delete_expert)
+            return
 
-    # ALL Experts
-    # - Show all created experts
+        print("Deletion failed: Expert '%s' does not exists")
+        return
 
-    # Expert documents
-    # - Show all embedded documents across ALL experts in the database
+    # Show all created experts
+    if args.all_experts:
+        exp_dict = Expert.all_experts_data(conn=CONN)
+        show_all_experts_table(exp_dict)
+        return
 
-    # Expert learn
-    # - require expert name, document paths
-    # - store document into the database, and link the document to the expert
+    # Link experts to session
+    if args.enable_session_expert:
+        if len(args.enable_session_expert) < 2:
+            parser.error(
+                "--enable-session-expert needs SESSION_NAME and "
+                "at least one EXPERT_NAME"
+            )
 
-    # Expert description
-    # - require document name
-    # - model read document that was uploaded to the database and generate a
-    #   summary description that accurately describe the entire document,
-    #   allowing better retrieval
+        sess_name, *exp_list = args.enable_session_expert
+        for exp_name in [*exp_list]:
+            sess_exp = SessionExperts(conn=CONN, sess_name=sess_name, exp_name=exp_name)
+            is_linked = sess_exp.link_expert_to_session(sess_name)
+            if not is_linked:
+                print(
+                    "Error: Failed to enable expert '%s' for session '%s'",
+                    exp_name,
+                    sess_name,
+                )
+        return
 
-    # Expert forget
-    # - require expert name, document name that is in the database
-    # - unlink the document and expert in the database table,
-    #   WITHOUT REMOVING THE DOCUMENT
+    # Unlink experts from session
+    if args.disable_session_expert:
+        if len(args.disable_session_expert) < 2:
+            parser.error(
+                "--disable-session-expert needs SESSION_NAME and "
+                "at least one EXPERT_NAME"
+            )
 
-    # Expert qualifications
-    # - require expert name
-    # - Show all documents that is linked to the expert
+        sess_name, *exp_list = args.disable_session_expert
+        for exp_name in [*exp_list]:
+            sess_exp = SessionExperts(conn=CONN, sess_name=sess_name, exp_name=exp_name)
+            is_unlinked = sess_exp.unlink_expert_from_session(sess_name)
+            if not is_unlinked:
+                print(
+                    "Error: Failed to disable expert '%s' for session '%s'",
+                    exp_name,
+                    sess_name,
+                )
+        return
 
-    # Expert link
-    # - require expert name, document name in the database
-    # - Link an already embedded document from the database to the expert
+    # Upload document for an expert
+    if args.expert_uploads:
+        if len(args.expert_uploads) < 2:
+            parser.error(
+                "--expert-uploads needs EXPERT_NAME and " "at least one DOCUMENT_PATH"
+            )
+
+        exp_name, *paths = args.expert_uploads
+
+        results = {}
+        for p in paths:
+            path = Path(p).expanduser()
+            if not path.is_file():
+                print("Error: '%s' is not a file. Skipping" % p)
+                continue
+            exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
+            out = exp_doc.chunk_document_to_database(path)
+            if not out:
+                print(
+                    "Error: Nothing was stored for '%s'. "
+                    "Run --app-logs to see why" % p
+                )
+                continue
+
+            for title, (doc_id, status) in out.items():
+                if status == "added":
+                    print("Embedded and stored '%s' (document id %d)" % (title, doc_id))
+                elif status == "linked":
+                    print(
+                        "'%s' was already embedded (id %d). Linked to '%s', "
+                        "nothing re-embeedded" % (title, doc_id, exp_name)
+                    )
+                else:
+                    print(
+                        "'%s' (id %d) is already linked to '%s'. "
+                        "There is nothing to do" % (title, doc_id, exp_name)
+                    )
+        return
+
+    # Generate document description
+    if args.expert_document_description:
+        try:
+            ExpertDocuments.generate_document_description(
+                CONN, args.expert_document_description
+            )
+            print(
+                "Description for the document '%s' has been generated"
+                % args.expert_document_description
+            )
+        except ValueError as e:
+            print("Error: %s" % e)
+        return
+
+    # Link the document to the expert
+    if args.expert_learn:
+        if len(args.expert_learn) < 2:
+            parser.error(
+                "--expert-learn needs EXPERT_NAME and " "at least one DOCUMENT_NAME"
+            )
+        exp_name, *doc_names = args.expert_learn
+        exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
+        results = exp_doc.link_multiple_documents(doc_names)
+        return
+
+    # Unlink the document and the expert
+    if args.expert_forget:
+        if len(args.expert_forget) < 2:
+            parser.error(
+                "--expert-forget needs EXPERT_NAME and " "at least one DOCUMENT_NAME"
+            )
+        exp_name, *doc_names = args.expert_forget
+        exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
+        results = exp_doc.unlink_multiple_documents(doc_names)
+        return
+
+    # Show all documents that is linked to the expert
+    if args.expert_qualifications:
+        exp_name = args.expert_qualifications
+        exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
+        doc_dict = exp_doc.all_documents_data_from_self()
+        show_expert_documents_table(doc_dict)
+        return
+
+    # All documents for every experts
+    if args.expert_all_documents:
+        doc_dict = ExpertDocuments.all_documents_data_across_experts(CONN)
+        show_all_documents_table(doc_dict)
+        return
 
     # --- Logs ----------------------------------------------------------------
+    # App logs, for general application logs and show prompt logs, to see the
+    # formatted content the model actually reads.
 
     # App logs
     if args.app_logs:
@@ -366,10 +314,38 @@ def build_parser() -> None:
     if args.prompt_logs:
         return
 
-    # --- TUI -----------------------------------------------------------------
+    # --- CLI interaction with the agent --------------------------------------
+    # By adding a prompt and session name (optional), to directly interact
+    # with the agent in the CLI environment.
+    #
+    # See TUI section for when session name is given without prompt attached.
 
-    # Start TUI (No arguments and question)
-    if not args.prompt and not any([args.attachments]):
+    # When prompt is provided
+    if args.prompt:
+        agent = Agent(sess_name=args.session)
+        answer = agent.ask(prompt=args.prompt)
+
+    # --- TUI -----------------------------------------------------------------
+    # Activate by not adding any prompt.
+    #
+    # Go to the dashboard if no arguments is added, by adding the session
+    # argument it will go directly to the chat session in the TUI.
+
+    if not args.prompt and not args.attachments:
+        tar_sess = None
+
+        if args.session:
+            # Check if session name is valid
+            tar_sess = args.session[0].strip("[]'")
+            chat_logs = ChatSessionLogs(conn=CONN)
+            sess_dict = chat_logs.get_all_existing_session_metadata() or {}
+            names = [d["session_name"] for d in sess_dict.values()]
+            if tar_sess not in names:
+                print("Error: Session '%s' not found" % tar_sess)
+                return
+
+        # Start TUI with the optional arguments
         from src.app.tui.main_app import MainApp
-        MainApp().run()
+
+        MainApp(sess_name=tar_sess).run()
         return

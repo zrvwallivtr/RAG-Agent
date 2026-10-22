@@ -1,5 +1,8 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter, Language
-
+from langchain_text_splitters import (
+    RecursiveCharacterTextSplitter,
+    MarkdownHeaderTextSplitter,
+    Language,
+)
 
 txt_spltr = RecursiveCharacterTextSplitter(
     chunk_size=400,
@@ -11,12 +14,10 @@ txt_spltr = RecursiveCharacterTextSplitter(
         ".",
         ",",
         "",
-    ]
+    ],
 )
 
 
-md_spltr = MarkdownHeaderTextSplitter([
-    ("#", "Header 1"),
-    ("##", "Header 2"),
-    ("###", "Header 3")
-])
+md_spltr = MarkdownHeaderTextSplitter(
+    [("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")]
+)

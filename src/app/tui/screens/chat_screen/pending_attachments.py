@@ -13,21 +13,16 @@ from src.config.files_and_directories import UPLOAD_DIR
 from src.config.config_toml import ENABLE_PATH_SAFETY
 
 from src.app.tui.screens.attachments_dialog_screen import AttachmentsDialogScreen
+from src.app.tui.screens.base_screen.command_bar import show_command_message
 
 
 def _add_pending_attachments(screen, paths: list[Path]) -> None:
-    """
-    Appends paths to the pending attachment list, update the
-    number of attachments in the attachment indicator widget
-    in the user section and show command message for action
-    feedback."""
     screen.pending_attchmnt.extend(paths)
-    screen.query_one("#pending-attachments-counter", Static).update(
-        f"Attachment ({len(screen.pending_attchmnt)} pending)"
-    )
-    screen.show_command_message(
+    screen.refresh_status()
+    show_command_message(
+        screen,
         f"{len(paths)} file(s) attached. "
-        f"{len(screen.pending_attchmnt)} file(s) in total"
+        f"{len(screen.pending_attchmnt)} file(s) in total",
     )
 
 
@@ -42,7 +37,7 @@ def _complete_path_helper(path: str) -> Path:
 
 
 def _separate_existing_path_from_not_exist(
-    all_paths: list[str] | None
+    all_paths: list[str] | None,
 ) -> tuple[list, list | None] | None:
     """
     Filter all paths into two list to separate found and not
@@ -68,19 +63,19 @@ def process_add_pending_attachments(screen, cmd: str, prefix: str) -> None:
     """
     Retrieve all provided path(s) in the user input command;
     display message for: zero given file path, invalid syntax,
-    not found path. Add all found files to the pending 
+    not found path. Add all found files to the pending
     attachment list.
     """
-    paths = cmd[len(prefix):].strip()
+    paths = cmd[len(prefix) :].strip()
     if not paths:
-        screen.show_command_message("No file path(s) provided")
+        show_command_message(screen, "No file path(s) provided")
         return
 
     # Process paths to string
     try:
         all_paths = shlex.split(paths)
     except ValueError as e:
-        screen.show_command_message(f"Invalid path syntax: {e}")
+        show_command_message(screen, f"Invalid path syntax: {e}")
         return
 
     # Filtering paths
@@ -89,8 +84,8 @@ def process_add_pending_attachments(screen, cmd: str, prefix: str) -> None:
         return
     found, missing = filtered
     if missing:
-        screen.show_command_message(
-            f"{len(missing)} file(s) not found: {', '.join(missing)}"
+        show_command_message(
+            screen, f"{len(missing)} file(s) not found: {', '.join(missing)}"
         )
         return
 
@@ -99,31 +94,18 @@ def process_add_pending_attachments(screen, cmd: str, prefix: str) -> None:
 
 
 def reset_pending_attachment_widget(screen) -> None:
-    """
-    Clear pending attachment path list, reset attachment
-    count in the attachment indicator widget.
-
-    ONLY call this when there is an update on the pending attachment count:
-    - User has sent the prompt to the agent.
-    - User has deleted attachment(s).
-    """
     screen.pending_attchmnt = []
-    screen.query_one("#pending-attachments-counter", Static).update(
-        f"Attachments ({len(screen.pending_attchmnt)} pending)"
-    )
+    screen.refresh_status()
 
 
 def to_attachments_popup(screen) -> None:
     """Pushes the manage attachments popup screen to the front."""
+
     def _on_manage_attachments_close(updated_paths: list[Path] | None) -> None:
         if updated_paths is not None:
             screen.pending_attchmnt = updated_paths
-            screen.query_one("#pending-attachments-counter", Static).update(
-                f"Attachments ({len(screen.pending_attchmnt)} pending)"
-            )
+            screen.refresh_status()
 
     screen.app.push_screen(
-        AttachmentsDialogScreen(screen.pending_attchmnt),
-        _on_manage_attachments_close
+        AttachmentsDialogScreen(screen.pending_attchmnt), _on_manage_attachments_close
     )
-    return

@@ -4,6 +4,7 @@ from pathlib import Path
 from textual import work
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, VerticalScroll
+from textual.css.query import NoMatches
 from textual.widgets import Static, Input, Markdown, Button
 from textual.events import Key
 
@@ -24,24 +25,24 @@ from .chat_container import (
     scroll_code_block,
     scroll_code_block_edge,
 )
-from .ruler import (
+from .status_bar import (
     get_location_text,
-    mode_text,
     showcmd_text,
+    session_status_text,
 )
 from .pending_attachments import to_attachments_popup, process_add_pending_attachments
 from .token_counter import (
-    create_session_used_tokens_widget,
+    set_tokens_text,
     refresh_session_token_cache,
     debounced_token_count,
-    static_update_session_used_tokens_widget
+    static_update_session_used_tokens_widget,
 )
-from .interface import request_stop
 
-from src.core import Agent 
+from src.core import Agent
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
+from src.app.tui.screens.base_screen.command_bar import show_command_message
 from src.app.tui.movement_helpers import pending_key_is_digit_counter
 
 
@@ -49,6 +50,10 @@ class ChatScreen(BaseScreen):
     """Chat screen interface managing prompt inputs, session metrics, and chat threads."""
 
     CSS_PATH = ["../tcss/base.tcss", "../tcss/chat.tcss"]
+
+    BINDINGS = [
+        ("ctrl+c", "stop_agent_response"),
+    ]
 
     def __init__(self, sess_name: str | None):
         super().__init__()
@@ -59,6 +64,7 @@ class ChatScreen(BaseScreen):
 
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None
+        self.tokens_text: str = ""
         self.pending_attchmnt: list[Path] = []
         self.stop_event = threading.Event()
 
@@ -82,19 +88,15 @@ class ChatScreen(BaseScreen):
             # User section
             with Vertical(id="user-section", classes="user-box"):
                 # User bar widgets
-                with Horizontal(id="sess-status", classes="user-bar"):
-                    # Pending attachment indicator
-                    yield Static(
-                        "Attachments (0 pending)",
-                        id="pending-attachments-counter",
-                        classes="user-item"
-                    )
+                with Horizontal(id="prompt-row"):
+                    yield Static(">", id="prompt-prefix")
 
-                    # Tokens counter
-                    yield Static(
-                        create_session_used_tokens_widget(self),
-                        id="tokens-counter",
-                        classes="user-item"
+                    # Prompt input bar
+                    yield Input(
+                        placeholder="Write a message...",
+                        id="prompt-input",
+                        select_on_focus=False,
+                        compact=True,
                     )
 
                     # Button for stop model response
@@ -103,15 +105,7 @@ class ChatScreen(BaseScreen):
                         id="stop-button",
                         classes="hidden",
                         compact=True,
-                        flat=True,
                     )
-
-                # Prompt input bar
-                yield Input(
-                    placeholder="Write a message...",
-                    id="prompt-input",
-                    select_on_focus=False
-                )
 
         yield from self.compose_command_bar()
 
@@ -131,7 +125,7 @@ class ChatScreen(BaseScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "stop-button":
-            request_stop(self)
+            self.request_stop()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "prompt-input" or self._awaiting_response:
@@ -153,7 +147,7 @@ class ChatScreen(BaseScreen):
         self._awaiting_response = True
         if getattr(self, "_token_timer", None):
             self._token_timer.stop()
-        self.query_one("#tokens-counter", Static).update(f"Token count loading...")
+        set_tokens_text(self, "Estimating tokens used...")
 
         # Update widget to show stop button widget
         self.stop_event.clear()
@@ -168,11 +162,9 @@ class ChatScreen(BaseScreen):
         chat_container.scroll_end(animate=False)
         self.query_one("#prompt-input", Input).clear()
 
-        # Prepare Markdown widget and assistant container 
+        # Prepare Markdown widget and assistant container
         md_widget = Markdown("")
-        assist_msg_box = create_assistant_message_box(
-            cont_widget=md_widget, tol_tkns=0
-        )
+        assist_msg_box = create_assistant_message_box(cont_widget=md_widget, tol_tkns=0)
 
         # Trigger worker thread
         run_fetch_agent_response(
@@ -181,7 +173,7 @@ class ChatScreen(BaseScreen):
             md_widget=md_widget,
             user_msg_box=user_msg_box,
             chat_container=chat_container,
-            assist_msg_box=assist_msg_box
+            assist_msg_box=assist_msg_box,
         )
 
     def on_key(self, event: Key) -> None:
@@ -279,7 +271,7 @@ class ChatScreen(BaseScreen):
                     jump_code_blocks(self, direction, count)
                 # In normal mode
                 else:
-                    jump_messages(self,direction, count=count)
+                    jump_messages(self, direction, count=count)
 
             self.pending_key = None
 
@@ -308,7 +300,7 @@ class ChatScreen(BaseScreen):
 
             # In message mode
             if self.in_msg_mode:
-                jump_code_blocks(self, direction, 1)
+                jump_messages(self, direction, count=1)
             # In normal mode
             else:
                 jump_messages(self, direction, count=1)
@@ -376,11 +368,58 @@ class ChatScreen(BaseScreen):
     def _on_chat_scrolled(self) -> None:
         self.refresh_status()
 
+    # --- Cmd bar -------------------------------------------------------------
+
     def mode_text(self) -> str:
-        return mode_text(self)
+        if self.focused is self.query_one("#prompt-input", Input):
+            return "-- INSERT --"
+        if self.in_msg_mode:
+            return "-- CODE BLOCK --" if self.code_idx is not None else "-- MESSAGE --"
+        return ""
+
+    # --- Status bar ----------------------------------------------------------
 
     def ruler_text(self) -> str:
         return get_location_text(self)
 
     def showcmd_text(self) -> str:
         return showcmd_text(self)
+
+    def status_text(self) -> str:
+        return session_status_text(self)
+
+    def refresh_status(self) -> None:
+        """Redraw session status, mode, ruler and pending keys."""
+        try:
+            status_left = self.query_one("#status-left", Static)
+            cmd_input = self.query_one("#cmd-input", Input)
+            ruler = self.query_one("#ruler", Static)
+            showcmd = self.query_one("#showcmd", Static)
+        except NoMatches:
+            return
+
+        status_left.update(self.status_text())
+        cmd_input.placeholder = self.mode_text()
+        ruler.update(self.ruler_text())
+        showcmd.update(self.showcmd_text())
+
+    # --- Stop button ---------------------------------------------------------
+
+    def request_stop(self) -> None:
+        """
+        Sets stop flags and disables the stop button to prevent double-click
+        race conditions.
+
+        Only call when agent is generating/streaming response.
+        """
+        if not self._awaiting_response:
+            return
+        self.stop_event.set()
+        self.query_one("#stop-button", Button).disabled = True  # No double clicks
+        show_command_message(self, "Stopping agent response...")
+
+    def action_stop_agent_response(self) -> None:
+        prompt_input = self.query_one("#prompt-input", Input)
+
+        if prompt_input.has_focus:
+            self.request_stop()

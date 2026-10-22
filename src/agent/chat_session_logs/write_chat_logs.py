@@ -13,9 +13,9 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 # Filter parring for SQL for lookup chat history
 _HISTORY_FILTER_SQL = {
-    "compressed":     True,
+    "compressed": True,
     "not_compressed": False,
-    "all":            None,
+    "all": None,
 }
 
 
@@ -39,10 +39,10 @@ class WriteChatLogs:
         cmp_method: Literal["default", "instruct", "auto"] | None = None,
         # --- Token counts ---
         p_tkns: int = 0,
-        o_tkns: int = 0
+        o_tkns: int = 0,
     ) -> dict[str, dict[str, Any]]:
         """
-        Insert new conversation turn including metadata 
+        Insert new conversation turn including metadata
         into the specified session database table. Return
         the all tool calls metadata.
         """
@@ -51,17 +51,15 @@ class WriteChatLogs:
             unfmt_mem_prompt=unfmt_mem_prompt,
             unfmt_recall_prompt=unfmt_recall_prompt,
             unfmt_cmp_prompt=unfmt_cmp_prompt,
-            cmp_method=cmp_method
+            cmp_method=cmp_method,
         )
 
         execute(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 INSERT INTO chat_logs (session_id, prompt, response, state, total_prompt_tokens, total_output_tokens, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
-                """
-            ),
+                """),
             params=(
                 self._lookup_chat_sess.get_or_create_id(),
                 prompt,
@@ -70,21 +68,19 @@ class WriteChatLogs:
                 p_tkns,
                 o_tkns,
                 json.dumps(metadata or {}),
-            )
+            ),
         )
         return metadata
 
     def mark_active_as_compressed(self):
         execute(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 UPDATE chat_logs
                 SET is_compressed = TRUE
                 WHERE session_id = %s AND is_compressed = FALSE;
-                """
-            ),
-            params=(self._lookup_chat_sess.get_id(),)
+                """),
+            params=(self._lookup_chat_sess.get_id(),),
         )
 
     def clear_session_logs(self) -> bool:

@@ -1,6 +1,6 @@
 /* --- Theme --------------------------------------------------------------- */
 
-$color-primary: cyan;
+$color-primary: #a0d0d5;
 $color-primary-dim: darkcyan;
 $color-on-primary: black;
 $color-overlay: rgba(0, 0, 0, 0.6);

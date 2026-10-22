@@ -17,9 +17,7 @@ def get_location_text(screen) -> str:
     if screen.in_msg_mode and screen.focused_msg_box in boxes:
         current = screen.focused_msg_box
     else:
-        current = calculate_current_vertical_scroll_component(
-            screen, chat, boxes
-        )
+        current = calculate_current_vertical_scroll_component(screen, chat, boxes)
     msg_n = boxes.index(current) + 1
 
     block = "-"
@@ -39,16 +37,16 @@ def get_location_text(screen) -> str:
     return f"{msg_n},{block}".ljust(14) + pct.rjust(3)
 
 
-def mode_text(screen) -> str:
-    if screen.focused is screen.query_one("#prompt-input", Input):
-        return "-- INSERT --"
-    if screen.in_msg_mode:
-        return "-- CODE BLOCK --" if screen.code_idx is not None else "-- MESSAGE --"
-    return ""
-
-
 def showcmd_text(screen) -> str:
     key = screen.pending_key
     if key == "space":
-        return "<Spcae>"
+        return "<Space>"
     return key or ""
+
+
+def session_status_text(screen) -> str:
+    """Pending attachments and session token usage."""
+    parts = [f"Attachments ({len(screen.pending_attchmnt)} pending)"]
+    if screen.tokens_text:
+        parts.append(screen.tokens_text)
+    return "    ".join(parts)

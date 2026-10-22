@@ -6,6 +6,7 @@ module directly, all parser tools route through the 'file_parser' package.
 from pathlib import Path
 
 from src.libs.custom_dataclasses import AgentHooks
+from src.libs.constants import ParserResult
 
 from src.logger import app_logger
 
@@ -24,16 +25,13 @@ class DoclingParser:
             ".odt": self._read_odt,
             ".ods": self._read_ods,
             ".odp": self._read_odp,
-
             # Microsoft office
             ".docx": self._read_docx,
             ".xlsx": self._read_xlsx,
             ".pptx": self._read_pptx,
-
             # Data & configuration formats
             ".csv": self._read_csv,
             ".xml": self._read_xml,
-            
             # Text documents
             ".pdf": self._read_pdf,
             ".epub": self._read_epub,
@@ -45,36 +43,35 @@ class DoclingParser:
         """Lazy import docling converter."""
         if self.converter is None:
             from docling.document_converter import DocumentConverter
+
             self.converter = DocumentConverter()
         return self.converter
 
     def _docling_convert_to_md(
-        self,
-        path: Path,
-        hooks: AgentHooks | None = None
-    ) -> tuple[str, str] | None:
+        self, path: Path, hooks: AgentHooks | None = None
+    ) -> ParserResult | None:
         """Convert any file to markdown via docling."""
-        string = (
-            "Docling converting %s file '%s'..."
-            % (path.suffix.lstrip(".").upper(), path)
+        string = "Docling converting %s file '%s'..." % (
+            path.suffix.lstrip(".").upper(),
+            path,
         )
         if hooks and hooks.on_loading:
             hooks.on_loading(string)
         app_log.debug(string)
 
         try:
-            result = self.converter.convert(path)
+            result = self._get_converter().convert(path)
             app_log.info(
                 "%s file '%s' converted to MD format",
                 path.suffix.lstrip(".").upper(),
-                path
+                path,
             )
             return result.document.export_to_markdown(), "md"
 
         except Exception as e:
             err_string = Exception(
                 "Docling failed to convert %s file '%s': %s"
-                % (path.suffix.lstrip(".").upper, path, e)
+                % (path.suffix.lstrip(".").upper(), path, e)
             )
             if hooks and hooks.on_error:
                 hooks.on_error(err_string)
@@ -83,40 +80,38 @@ class DoclingParser:
 
     # --- Libreoffice ---------------------------------------------------------
 
-    def _read_odt(self, path: Path) -> tuple[str, str] | None:
+    def _read_odt(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-
-    def _read_ods(self, path: Path) -> tuple[str, str] | None:
+    def _read_ods(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-
-    def _read_odp(self, path: Path) -> tuple[str, str] | None:
+    def _read_odp(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
     # --- Microsoft office ----------------------------------------------------
 
-    def _read_docx(self, path: Path) -> tuple[str, str] | None:
+    def _read_docx(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-    def _read_xlsx(self, path: Path) -> tuple[str, str] | None:
+    def _read_xlsx(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-    def _read_pptx(self, path: Path) -> tuple[str, str] | None:
+    def _read_pptx(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
     # --- Data & configuration formats ----------------------------------------
 
-    def _read_csv(self, path: Path) -> tuple[str, str] | None:
+    def _read_csv(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-    def _read_xml(self, path: Path) -> tuple[str, str] | None:
+    def _read_xml(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
     # --- Text documents ------------------------------------------------------
 
-    def _read_pdf(self, path: Path) -> tuple[str, str] | None:
+    def _read_pdf(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)
 
-    def _read_epub(self, path: Path) -> tuple[str, str] | None:
+    def _read_epub(self, path: Path) -> ParserResult | None:
         return self._docling_convert_to_md(path)

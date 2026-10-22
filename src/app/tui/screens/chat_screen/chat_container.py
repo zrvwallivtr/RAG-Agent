@@ -52,6 +52,7 @@ def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
 
 # --- Chat container interface ------------------------------------------------
 
+
 def create_user_message_box(
     cont_widget: Static | Markdown,
     attchmnt_metadata: dict | None = None,
@@ -70,9 +71,9 @@ def create_user_message_box(
         for filename, a_metadata in attchmnt_metadata.items():
             size = a_metadata.get("size_bytes")
             fmt_size = format_size_bytes(size)
-            widgets.append(Static(
-                f"{filename} ({fmt_size})", classes="user-attachments"
-            ))
+            widgets.append(
+                Static(f"{filename} ({fmt_size})", classes="user-attachments")
+            )
 
     if slash_cmd_metadata:
         unfmt_prompt = slash_cmd_metadata.get("unformatted_prompt")
@@ -99,9 +100,7 @@ def create_assistant_message_box(
     )
 
     # Message token counts widget (Only reveal when the response is completed)
-    tkn_widget = Static(
-        f"{tol_tkns} token used", classes="msg-token-count"
-    )
+    tkn_widget = Static(f"{tol_tkns} tokens used", classes="msg-token-count")
     if hide_tkns:
         tkn_widget.add_class("hidden")
 
@@ -134,14 +133,10 @@ def load_chat_history(screen) -> None:
     auto_cmp_metadata: dict | None = None
 
     for msg in chat_hist:
-        (
-            role, cont, tol_tkns, attchmnt_metadata, slash_cmd_metadata
-        ) = _unpack_data(msg)
+        role, cont, tol_tkns, attchmnt_metadata, slash_cmd_metadata = _unpack_data(msg)
 
         if role == "user":
-            if (
-                slash_cmd_metadata and slash_cmd_metadata.get("method")
-            ) == "auto":
+            if (slash_cmd_metadata and slash_cmd_metadata.get("method")) == "auto":
                 auto_cmp_metadata = slash_cmd_metadata
                 continue
 
@@ -161,6 +156,7 @@ def load_chat_history(screen) -> None:
 
 
 # --- Message navigation ------------------------------------------------------
+
 
 def focus_current_message_box(screen) -> None:
     chat_container = screen.query_one("#chat-container", VerticalScroll)
@@ -191,13 +187,13 @@ def jump_messages(
     """
     chat_container = screen.query_one("#chat-container", VerticalScroll)
     msg_boxes = list(chat_container.query(".msg-box"))
-    
+
     target_box = calculate_jump_vertical_sroll_component(
         screen=screen,
         vert_scroll=chat_container,
         components=msg_boxes,
         direction=direction,
-        count=count
+        count=count,
     )
     if not target_box:
         return
@@ -220,6 +216,7 @@ def goto_message(screen, n: int) -> None:
 
 
 # --- Code block navigation (message mode) ------------------------------------
+
 
 def _get_code_blocks(screen) -> list[MarkdownFence]:
     box = screen.focused_msg_box
@@ -286,6 +283,7 @@ def go_to_code_block(screen, n: int | None = None) -> None:
 
 # --- Horizontal scrolling of the selected code block -------------------------
 
+
 def _selected_code_block(screen) -> MarkdownFence | None:
     blocks = _get_code_blocks(screen)
     if not blocks or screen.code_idx is None:
@@ -308,6 +306,4 @@ def scroll_code_block_edge(screen, edge: Literal["start", "end"]) -> None:
     block = _selected_code_block(screen)
     if block is None:
         return
-    block.scroll_to(
-        x=0 if edge == "start" else block.max_scroll_x, animate=False
-    )
+    block.scroll_to(x=0 if edge == "start" else block.max_scroll_x, animate=False)

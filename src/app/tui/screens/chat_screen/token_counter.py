@@ -1,24 +1,29 @@
 """Contains the functions for the session used token indicator."""
 
 from textual import work
-from textual.widgets import Static
 
 
-def create_session_used_tokens_widget(screen) -> str | None:
-    """
-    Returns session tokens used over the max token limit of the model.
-    """
-    if not screen.local_tknizr.model_max_tkns:
-        return
+def set_tokens_text(screen, text: str) -> None:
+    """Store the token text and redraw the status bar. Main thread only."""
+    screen.tokens_text = text
+    screen.refresh_status()
 
-    # Used tokens throughout the entire session chat history
-    used_tkns = screen.local_tknizr.count_history_tokens(
-        screen.chat_sess_logs.get_active_conversations()
-    )
-    if not used_tkns:
-        return
 
-    return f"{used_tkns}/{screen.local_tknizr.model_max_tkns} tokens"  # Widget string
+# def create_session_used_tokens_widget(screen) -> str | None:
+#     """
+#     Returns session tokens used over the max token limit of the model.
+#     """
+#     if not screen.local_tknizr.model_max_tkns:
+#         return
+#
+#     # Used tokens throughout the entire session chat history
+#     used_tkns = screen.local_tknizr.count_history_tokens(
+#         screen.chat_sess_logs.get_active_conversations()
+#     )
+#     if not used_tkns:
+#         return
+#
+#     return f"{used_tkns}/{screen.local_tknizr.model_max_tkns} tokens"  # Widget string
 
 
 def refresh_session_token_cache(screen) -> None:
@@ -38,10 +43,6 @@ def refresh_session_token_cache(screen) -> None:
 
 @work(exclusive=True, thread=True, group="token_count")
 def _session_used_tokens_and_prompt_tokens_count(screen, prompt: str):
-    """
-    Background worker that calculates total tokens combining history usage
-    and live prompt inputs.
-    """
     if screen._awaiting_response or not screen.local_tknizr.model_max_tkns:
         return
 
@@ -49,9 +50,11 @@ def _session_used_tokens_and_prompt_tokens_count(screen, prompt: str):
     curr_tkns = screen._cached_sess_tkns + pending_tkns
 
     screen.app.call_from_thread(
-        screen.query_one("#tokens-counter", Static).update,
-        f"{curr_tkns}/{screen.local_tknizr.model_max_tkns} tokens"
+        set_tokens_text,
+        screen,
+        f"{curr_tkns}/{screen.local_tknizr.model_max_tkns} session tokens",
     )
+
 
 def debounced_token_count(screen, prompt: str) -> None:
     """
@@ -67,17 +70,9 @@ def debounced_token_count(screen, prompt: str) -> None:
 
 
 def static_update_session_used_tokens_widget(screen) -> None:
-    """
-    Refreshes token caches and updates the UI token counter widget.
-
-    ONLY call this when:
-    - On mount.
-    - Model done responding.
-    """
     screen._awaiting_response = False
     refresh_session_token_cache(screen)  # Execute cache refresh on the main thread
-
-    # Update widget using cached value
-    screen.query_one("#tokens-counter", Static).update(
-        f"{screen._cached_sess_tkns}/{screen.local_tknizr.model_max_tkns} tokens"
+    set_tokens_text(
+        screen,
+        f"{screen._cached_sess_tkns}/{screen.local_tknizr.model_max_tkns} session tokens",
     )

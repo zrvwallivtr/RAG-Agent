@@ -10,25 +10,66 @@ from textual import work
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Markdown, Button
 
-from .interface import (
-    show_loading_indicator,
-    show_markdown_content,
-    show_information_in_command_bar
-)
 from .token_counter import static_update_session_used_tokens_widget
 from .pending_attachments import reset_pending_attachment_widget
 from .chat_container import create_assistant_message_box
-
 from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import COMPRESS_CMD
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import THINKING, RESPONSE_STOPPED, NO_RESPONSE
 
 from src.app.tui.screens.base_screen import BaseScreen
+from src.app.tui.screens.base_screen.command_bar import show_command_message
 from src.core import Agent
 
 
+def show_loading_indicator(
+    screen,
+    md_widget: Markdown,
+    info: str,
+    is_scroll_end: bool | None = None,
+    chat_container: VerticalScroll | None = None,
+):
+    """
+    Shown in the chat container, it replaces the assistant message box
+    for a custom loading indicator.
+
+    Only call before the token starts streaming.
+    """
+
+    def _update():
+        if md_widget.is_attached:
+            md_widget.update(info)
+            if is_scroll_end and chat_container is not None:
+                chat_container.scroll_end(animate=False)
+
+    screen.app.call_from_thread(_update)
+
+
+def show_markdown_content(
+    screen, md_widget: Markdown, full_text, chat_container: VerticalScroll
+):
+    """
+    Update the assistant message box to show model response.
+
+    Only call on/after the first token is streamed.
+    """
+
+    def _update():
+        md_widget.update(full_text)
+        if chat_container is not None:
+            chat_container.scroll_end(animate=False)
+
+    screen.app.call_from_thread(_update)
+
+
+def show_information_in_command_bar(screen, info: str):
+    """Show infromation on the command bar with custom string."""
+    screen.app.call_from_thread(show_command_message, screen, info)
+
+
 # --- Chat container ----------------------------------------------------------
+
 
 def _update_user_message_box(
     screen, attchmnt_metadata: dict | None, user_msg_box: Vertical
@@ -58,6 +99,7 @@ def _update_assistant_message_box(screen, tkn_wid: Static, msg_tol_tkns: int):
 
     Only call after the assistant message is completed.
     """
+
     def _reveal_token_count_widget() -> None:
         tkn_wid.update(f"{msg_tol_tkns} tokens used")
         tkn_wid.remove_class("hidden")
@@ -67,6 +109,7 @@ def _update_assistant_message_box(screen, tkn_wid: Static, msg_tol_tkns: int):
 
 # --- Stream behaviours -------------------------------------------------------
 
+
 def _fetch_agent_response(
     screen,
     prompt: str,
@@ -75,7 +118,7 @@ def _fetch_agent_response(
     chat_container: VerticalScroll,
     assist_msg_box: tuple[Vertical, Static],
     pending_attchmnt: list[Path],
-    agent: Agent
+    agent: Agent,
 ) -> None:
     """
     Stream agent response in Markdown format into the assistant message box.
@@ -96,9 +139,7 @@ def _fetch_agent_response(
     screen.app.call_from_thread(_mount_initial_assistant_box)
 
     # Loading indicator while waiting for first token
-    show_loading_indicator(
-        screen=screen, md_widget=md_widget, info=THINKING
-    )
+    show_loading_indicator(screen=screen, md_widget=md_widget, info=THINKING)
 
     full_text = ""
     first_tkn_received = False
@@ -131,16 +172,14 @@ def _fetch_agent_response(
                 screen=screen,
                 md_widget=md_widget,
                 full_text=full_text,
-                chat_container=chat_container
+                chat_container=chat_container,
             )
 
         return True
 
     def on_loading(info: str) -> None:
         """Updates loading indicator status text."""
-        show_loading_indicator(
-            screen=screen, md_widget=md_widget, info=info
-        )
+        show_loading_indicator(screen=screen, md_widget=md_widget, info=info)
 
     def on_stat_change(msg: str) -> None:
         """Show UI notification on status updates."""
@@ -149,7 +188,7 @@ def _fetch_agent_response(
 
     def on_error(err: Exception) -> None:
         """Show UI notification when error occurs."""
-        err_str = ("Error: %s" % err)
+        err_str = "Error: %s" % err
         show_information_in_command_bar(screen, err_str)
         # screen.app.call_from_thread(
         #     screen.notify, f"Error: {err}", severity="error"
@@ -295,6 +334,7 @@ def _fetch_agent_response(
 
 # --- Related widgets ---------------------------------------------------------
 
+
 def _finish_response_ui(screen) -> None:
     """
     Updates session token cache and hides the stop response button.
@@ -307,6 +347,7 @@ def _finish_response_ui(screen) -> None:
 
 # --- Process -----------------------------------------------------------------
 
+
 @work(exclusive=True, thread=True)
 def run_fetch_agent_response(
     screen,
@@ -314,7 +355,7 @@ def run_fetch_agent_response(
     md_widget: Markdown,
     user_msg_box: Vertical,
     chat_container: VerticalScroll,
-    assist_msg_box: tuple[Vertical, Static]
+    assist_msg_box: tuple[Vertical, Static],
 ):
     """Worker thread entrypoint for async agent queries."""
     try:
@@ -326,11 +367,9 @@ def run_fetch_agent_response(
             chat_container=chat_container,
             assist_msg_box=assist_msg_box,
             pending_attchmnt=screen.pending_attchmnt,
-            agent=screen.agent
+            agent=screen.agent,
         )
 
     # End: Response completed
     finally:
         screen.app.call_from_thread(_finish_response_ui, screen)
-
-

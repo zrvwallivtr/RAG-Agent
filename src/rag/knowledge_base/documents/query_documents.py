@@ -2,10 +2,7 @@ import mimetypes
 from pathlib import Path
 from typing import Any
 
-from src.config.config_toml import (
-    RETRIEVE_DOC_ENTRY_LIMIT,
-    MIN_SIMILARITY_SCORE
-)
+from src.config.config_toml import RETRIEVE_DOC_ENTRY_LIMIT, MIN_SIMILARITY_SCORE
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 
@@ -15,15 +12,13 @@ from src.logger import app_logger
 app_log = app_logger(f"{__name__}.app")
 
 # Cosine distance
-_SEAR_SQL = (
-    """
+_SEAR_SQL = """
     SELECT content, metadata, 1 - (embeddings <=> %s) AS cosine_similarity
     FROM knowledge_base
     WHERE 1 - (embeddings <=> %s) >= %s
     ORDER BY embeddings <=> %s ASC
     LIMIT %s;
     """
-)
 
 
 class QueryDocuments:
@@ -37,22 +32,20 @@ class QueryDocuments:
         """Return a list of all uploaded documents data in the database."""
         rows = fetch_all(
             conn=self._conn,
-            sql=(
-                """
+            sql=("""
                 SELECT created_at, metadata
                 FROM knowledge_base
                 WHERE session_id = %s AND type = %s
                     AND (metadata->>'document_chunk_index')::int = 0
-                """
-            ),
-            params=(self.chat_sess_logs.get_session_id(), "document")
+                """),
+            params=(self.chat_sess_logs.get_session_id(), "document"),
         )
 
         if not rows:
             app_log.debug(
                 "Failed to retrieve any documents metadata: "
                 "Session '%s' knowledge base is empty",
-                self.chat_sess_logs.sess_name
+                self.chat_sess_logs.sess_name,
             )
         return rows
 
@@ -89,16 +82,18 @@ class QueryDocuments:
                 min_sim_score,
                 str(qry_embdings),
                 RETRIEVE_DOC_ENTRY_LIMIT,
-            )
+            ),
         )
 
         if rows:
             for cont, metadata, score in rows:
-                kw_dict.append({
-                    "document_name": metadata.get("document_name", "Unknown"),
-                    "content": cont,
-                    "similarity": score
-                })
+                kw_dict.append(
+                    {
+                        "document_name": metadata.get("document_name", "Unknown"),
+                        "content": cont,
+                        "similarity": score,
+                    }
+                )
             return kw_dict
         else:
             app_log.debug(
