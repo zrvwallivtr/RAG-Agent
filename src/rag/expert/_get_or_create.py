@@ -4,6 +4,7 @@ __init__().
 """
 
 from src.libs.helpers.database_helpers import fetch_one
+from src.libs.custom_dataclasses import AgentHooks
 
 from src import logger
 
@@ -25,7 +26,9 @@ def get_expert_id_from_name(conn, exp_name: str) -> int | None:
         return int(row[0])
 
 
-def get_or_create_expert(conn, exp_name: str, des: str | None) -> int:
+def get_or_create_expert(
+    conn, exp_name: str, des: str | None, hooks: AgentHooks | None = None
+) -> int:
     """
     Return the expert's id, creating the expert if it doesn't exist yet.
 
@@ -49,5 +52,8 @@ def get_or_create_expert(conn, exp_name: str, des: str | None) -> int:
     if row is None:
         raise RuntimeError("Failed to create expert '%s': no id returned" % exp_name)
 
-    app_log.info("New expert '%s' created", exp_name)
+    info_msg = "New expert '%s' created" % exp_name
+    app_log.info(info_msg)
+    if hooks and hooks.on_stat_change:
+        hooks.on_stat_change(info_msg)
     return int(row[0])

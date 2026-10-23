@@ -37,6 +37,7 @@ _link_schema_ready = False
 
 # Core tables: no dependency on chat sessions
 _STATEMENTS = (
+    # pgvector extension
     """CREATE EXTENSION IF NOT EXISTS VECTOR;""",
     # Experts table:
     #
@@ -193,7 +194,7 @@ def ensure_link_schema(conn, hooks: AgentHooks | None = None) -> None:
     ensure_chat_schema(conn)
 
     if hooks and hooks.on_loading:
-        hooks.on_loading("Initialising session_experts link table")
+        hooks.on_loading("Initialising session_experts link table...")
 
     init_database(conn=conn, stmts=_LINK_STATEMENTS)
 

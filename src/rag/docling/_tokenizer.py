@@ -26,6 +26,6 @@ def docling_tokenizer(
             return self.max_tkns
 
         def get_tokenizer(self) -> Any:
-            return self.local_tknizr
+            return self.count_tokens
 
     return _DoclingTokenizer(local_tknizr=local_tknizr, max_tkns=max_tkns)

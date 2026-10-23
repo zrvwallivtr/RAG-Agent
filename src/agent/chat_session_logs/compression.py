@@ -80,6 +80,7 @@ class Compression:
             hooks.on_cmp_start()
             cmp_hooks = replace(hooks, on_tkn=hooks.on_cmp_tkn, on_first_tkn=None)
 
+        # Message depends on if compression is triggered automatically
         if hooks and hooks.on_loading:
             hooks.on_loading(
                 "Compressing due to token limit reached..."

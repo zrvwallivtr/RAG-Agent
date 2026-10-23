@@ -141,7 +141,7 @@ def show_all_documents_table(doc_dict: dict[int, dict[str, Any]]) -> None:
         table.add_row(
             trimmed_date(str(doc_dict[doc]["created_at"])),
             str(doc_dict[doc]["type"]),
-            str(doc_dict[doc]["experts"]),
+            str(", ".join(doc_dict[doc]["experts"])),
             str(doc_dict[doc]["title"]),
         )
 

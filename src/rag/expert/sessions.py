@@ -84,8 +84,6 @@ class SessionExperts:
     ):
         self.conn = conn
 
-        self.hooks = hooks
-
         self.sess_id = sess_id or _find_session_id_from_name(
             conn=self.conn, sess_name=sess_name
         )
@@ -93,8 +91,8 @@ class SessionExperts:
         self.exp_id = exp_id or get_expert_id_from_name(self.conn, exp_name)
         if self.exp_id is None:
             err_msg = "Expert '%s' does not exist in the database" % exp_name
-            if self.hooks and self.hooks.on_stat_change:
-                self.hooks.on_stat_change(err_msg)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(err_msg)
             raise ValueError(err_msg)
 
         ensure_link_schema(self.conn)
@@ -189,7 +187,7 @@ class SessionExperts:
 
     @staticmethod
     def all_expert_data_from_session(
-        conn, sess_name: str | None
+        conn, sess_name: str | None = None
     ) -> dict[str, dict[str, Any]]:
         """
         Return the experts with relevant data enabled in a session,

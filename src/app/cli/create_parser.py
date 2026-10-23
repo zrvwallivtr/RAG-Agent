@@ -135,7 +135,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Delete an expert (no documents will be deleted)",
     )
     parser.add_argument(
-        "--all-experts",
+        "--list-experts",
         action="store_true",
         help="Show all available experts",
     )
@@ -152,13 +152,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="Select and disable experts in the specified session",
     )
     parser.add_argument(
-        "--expert-uploads",
+        "--upload-to-expert",
         nargs="+",
         metavar=("EXPERT_NAME", "DOCUMENT_PATH"),
         help="Embed documents and link them to an expert",
     )
     parser.add_argument(
-        "--expert-document-description",
+        "--generate-expert-doc-des",
         default=None,
         metavar=("DOCUMENT_NAME"),
         help="Call model to generate a description for the embedded document",
@@ -182,9 +182,9 @@ def create_parser() -> argparse.ArgumentParser:
         help="Show all documents that are accessable by this expert",
     )
     parser.add_argument(
-        "--expert-all-documents",
+        "--all-expert-documents",
         action="store_true",
-        help="Show all expert documents across all experts",
+        help="Show all documents across all experts",
     )
 
     # Show logs

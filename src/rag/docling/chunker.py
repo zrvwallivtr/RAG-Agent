@@ -15,6 +15,8 @@ from src.config.config_toml import (
 
 from ._tokenizer import docling_tokenizer
 
+from src.libs.custom_dataclasses import AgentHooks
+
 from src.agent.tokenizers import LocalTokenizer
 from src import logger
 
@@ -50,7 +52,9 @@ class DoclingChunker:
             )
         return self._chunker
 
-    def _parse_to_docling_document(self, cont: str):
+    def _parse_to_docling_document(
+        self, cont: str, hooks: AgentHooks | None = None
+    ) -> None:
         """Turn content into a DoclingDocument for the HybridChunker."""
         from docling.datamodel.base_models import DocumentStream
         from docling.document_converter import DocumentConverter
@@ -61,12 +65,15 @@ class DoclingChunker:
         stream = DocumentStream(
             name="document.md", stream=BytesIO(cont.encode("utf-8"))
         )
+
+        if hooks and hooks.on_loading:
+            hooks.on_loading("Docling chunking content...")
         return self._converter.convert(stream).document
 
-    def chunking(self, cont) -> list[dict]:
+    def chunking(self, cont, hooks: AgentHooks | None = None) -> list[dict]:
         """Chunk DoclingDocument into [{"text"}]."""
         chunker = self._get_chunker()
-        doc = self._parse_to_docling_document(cont) if isinstance(cont, str) else cont
+        doc = self._parse_to_docling_document(cont, hooks=hooks) if isinstance(cont, str) else cont
 
         chunks = []
         for chunk in chunker.chunk(dl_doc=doc):

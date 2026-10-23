@@ -68,12 +68,13 @@ class Expert:
         conn,
         exp_name: str,
         des: str | None = None,
+        hooks: AgentHooks | None = None,
     ):
         self.conn = conn
         self.exp_name = exp_name
 
         ensure_schema(self.conn)
-        self.exp_id = get_or_create_expert(self.conn, self.exp_name, des)
+        self.exp_id = get_or_create_expert(self.conn, self.exp_name, des, hooks=hooks)
 
         self.qry_exp = QueryExpert(conn=self.conn)
         self.exp_doc = ExpertDocuments(

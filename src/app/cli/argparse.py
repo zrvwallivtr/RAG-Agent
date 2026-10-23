@@ -99,9 +99,7 @@ def build_parser() -> None:
 
     # Show all experts enabled in session
     if args.session_experts:
-        exp_dict = SessionExperts.all_expert_data_from_session(
-            conn=CONN, sess_name=args.session_experts
-        )
+        exp_dict = SessionExperts.all_expert_data_from_session(conn=CONN)
         session_enabled_experts(exp_dict)
         return
 
@@ -125,7 +123,12 @@ def build_parser() -> None:
             return
 
         agent = Agent(sess_name=args.session)
-        answer = agent.ask(prompt=args.prompt, is_attchmnt=True, paths=args.attachments)
+        answer = agent.ask(
+            prompt=args.prompt,
+            is_attchmnt=True,
+            paths=args.attachments,
+            hooks=print_cli_hooks(),
+        )
         return
 
     # List all uploaded attachment(s) in session
@@ -134,7 +137,7 @@ def build_parser() -> None:
         doc_kw_bs = DocumentKnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
 
         rows = doc_kw_bs.query_docs.all_documents_metadata()
-        print(upload_documents_table(rows) if rows else "No documents uploaded.")
+        safe_print(upload_documents_table(rows) if rows else "No documents uploaded.")
         return
 
     # --- Expert --------------------------------------------------------------
@@ -150,9 +153,9 @@ def build_parser() -> None:
 
         exp_name, des = (args.create_expert + [None])[:2]
         if Expert.exists(CONN, exp_name):
-            print("Expert '%s' already exists" % exp_name)
+            safe_print("Expert '%s' already exists" % exp_name)
             return
-        Expert(conn=CONN, exp_name=exp_name, des=des)
+        Expert(conn=CONN, exp_name=exp_name, des=des, hooks=print_cli_hooks())
         return
 
     # Delete expert (No documents will be deleted)
@@ -160,14 +163,14 @@ def build_parser() -> None:
         exp = load_existing_expert(args.delete_expert)
         if exp:
             exp.delete_expert()
-            print("Expert '%s' has been deleted from the database" % args.delete_expert)
+            safe_print("Expert '%s' has been deleted" % args.delete_expert)
             return
 
-        print("Deletion failed: Expert '%s' does not exists")
+        safe_print("Deletion failed: Expert '%s' does not exists" % args.delete_expert)
         return
 
     # Show all created experts
-    if args.all_experts:
+    if args.list_experts:
         exp_dict = Expert.all_experts_data(conn=CONN)
         show_all_experts_table(exp_dict)
         return
@@ -185,11 +188,14 @@ def build_parser() -> None:
             sess_exp = SessionExperts(conn=CONN, sess_name=sess_name, exp_name=exp_name)
             is_linked = sess_exp.link_expert_to_session(sess_name)
             if not is_linked:
-                print(
-                    "Error: Failed to enable expert '%s' for session '%s'",
-                    exp_name,
-                    sess_name,
+                safe_print(
+                    "Error: Failed to enable expert '%s' for session '%s'"
+                    % (exp_name, sess_name)
                 )
+                return
+            safe_print(
+                "Expert '%s' has been enabled for session '%s'" % (exp_name, sess_name)
+            )
         return
 
     # Unlink experts from session
@@ -205,18 +211,21 @@ def build_parser() -> None:
             sess_exp = SessionExperts(conn=CONN, sess_name=sess_name, exp_name=exp_name)
             is_unlinked = sess_exp.unlink_expert_from_session(sess_name)
             if not is_unlinked:
-                print(
-                    "Error: Failed to disable expert '%s' for session '%s'",
-                    exp_name,
-                    sess_name,
+                safe_print(
+                    "Error: Failed to disable expert '%s' for session '%s'"
+                    % (exp_name, sess_name)
                 )
+                return
+            safe_print(
+                "Expert '%s' has been disabled for session '%s'" % (exp_name, sess_name)
+            )
         return
 
     # Upload document for an expert
-    if args.expert_uploads:
+    if args.upload_to_expert:
         if len(args.expert_uploads) < 2:
             parser.error(
-                "--expert-uploads needs EXPERT_NAME and " "at least one DOCUMENT_PATH"
+                "--expert-uploads needs EXPERT_NAME and at least one DOCUMENT_PATH"
             )
 
         exp_name, *paths = args.expert_uploads
@@ -228,9 +237,9 @@ def build_parser() -> None:
                 print("Error: '%s' is not a file. Skipping" % p)
                 continue
             exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
-            out = exp_doc.chunk_document_to_database(path)
+            out = exp_doc.chunk_document_to_database(path, hooks=print_cli_hooks())
             if not out:
-                print(
+                safe_print(
                     "Error: Nothing was stored for '%s'. "
                     "Run --app-logs to see why" % p
                 )
@@ -238,24 +247,26 @@ def build_parser() -> None:
 
             for title, (doc_id, status) in out.items():
                 if status == "added":
-                    print("Embedded and stored '%s' (document id %d)" % (title, doc_id))
+                    safe_print(
+                        "Embedded and stored '%s' (document id %d)" % (title, doc_id)
+                    )
                 elif status == "linked":
-                    print(
+                    safe_print(
                         "'%s' was already embedded (id %d). Linked to '%s', "
                         "nothing re-embeedded" % (title, doc_id, exp_name)
                     )
                 else:
-                    print(
+                    safe_print(
                         "'%s' (id %d) is already linked to '%s'. "
                         "There is nothing to do" % (title, doc_id, exp_name)
                     )
         return
 
     # Generate document description
-    if args.expert_document_description:
+    if args.generate_expert_doc_des:
         try:
             ExpertDocuments.generate_document_description(
-                CONN, args.expert_document_description
+                CONN, args.expert_document_description, hooks=print_cli_hooks()
             )
             print(
                 "Description for the document '%s' has been generated"
@@ -273,7 +284,7 @@ def build_parser() -> None:
             )
         exp_name, *doc_names = args.expert_learn
         exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
-        results = exp_doc.link_multiple_documents(doc_names)
+        results = exp_doc.link_multiple_documents(doc_names, hooks=print_cli_hooks())
         return
 
     # Unlink the document and the expert
@@ -284,7 +295,7 @@ def build_parser() -> None:
             )
         exp_name, *doc_names = args.expert_forget
         exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
-        results = exp_doc.unlink_multiple_documents(doc_names)
+        results = exp_doc.unlink_multiple_documents(doc_names, hooks=print_cli_hooks())
         return
 
     # Show all documents that is linked to the expert
@@ -296,7 +307,7 @@ def build_parser() -> None:
         return
 
     # All documents for every experts
-    if args.expert_all_documents:
+    if args.all_expert_documents:
         doc_dict = ExpertDocuments.all_documents_data_across_experts(CONN)
         show_all_documents_table(doc_dict)
         return
@@ -322,8 +333,9 @@ def build_parser() -> None:
 
     # When prompt is provided
     if args.prompt:
-        agent = Agent(sess_name=args.session)
-        answer = agent.ask(prompt=args.prompt)
+        agent = Agent(sess_name=str(args.session[0]))
+        answer = agent.ask(prompt=args.prompt, hooks=print_cli_hooks())
+        return
 
     # --- TUI -----------------------------------------------------------------
     # Activate by not adding any prompt.

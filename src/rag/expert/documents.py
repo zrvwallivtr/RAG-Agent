@@ -122,9 +122,10 @@ class ExpertDocuments:
     expert reuses the existing chunks and embeddings instead of embedding it
     again.
 
-    self.conn:     Connection to postgres.
-    self.exp_name: Existing expert name.
-    self.exp_id:   Optional, specify only from Expert's self.exp_id.
+    self.conn:         Connection to postgres.
+    self.exp_name:     Existing expert name.
+    self.exp_id:       Optional, specify only from Expert's self.exp_id.
+    self.local_tknizr: LLM token managements.
     """
 
     def __init__(
@@ -296,33 +297,6 @@ class ExpertDocuments:
             commit=False,
         )
 
-    def _store_documents(
-        self,
-        doc_dict: dict[str, dict[Any, Any]],
-        hooks: AgentHooks | None = None,
-    ) -> dict[str, tuple[int, StoreStatus]]:
-        """
-        Store every document in the dictionary (see
-        _format_to_document_dictionary for its structure) and link it to this
-        expert.
-
-        Returns {title: (document id, status)}.
-        """
-        results = {}
-
-        for title, data in doc_dict.items():
-            results[title] = self._add_entire_document_to_expert(
-                title=title,
-                doc_type=data["doc_type"],
-                cont_hash=data["cont_hash"],
-                cont=data["cont"],
-                chunks=data["chunks"],
-                path=data["path"],
-                metadata=data["metadata"],
-                hooks=hooks,
-            )
-        return results
-
     def _add_entire_document_to_expert(
         self,
         *,
@@ -352,13 +326,15 @@ class ExpertDocuments:
         existing = self._get_document_id_by_hash(cont_hash)
         if existing is not None:
             status = self._link_existing(existing)
-            app_log.info(
-                "Document '%s' already stored (id %d): %s expert '%s'",
+            info_msg = "Document '%s' already stored (id %d): %s expert '%s'" % (
                 title,
                 existing,
                 status.replace("_", " "),
                 self.exp_name,
             )
+            app_log.info(info_msg)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(info_msg)
             return existing, status
 
         # Embed before opening the transaction, so it isn't held open during
@@ -386,10 +362,42 @@ class ExpertDocuments:
                 raise RuntimeError("Document '%s' vanished during insert." % title)
             return existing, self._link_existing(existing)
 
-        app_log.info(
-            "Added '%s' (%d chunks) to expert '%s'", title, len(chunks), self.exp_name
+        info_msg = "Added '%s' (%d chunks) to expert '%s'" % (
+            title,
+            len(chunks),
+            self.exp_name,
         )
+        app_log.info(info_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_msg)
         return doc_id, "added"
+
+    def _store_documents(
+        self,
+        doc_dict: dict[str, dict[Any, Any]],
+        hooks: AgentHooks | None = None,
+    ) -> dict[str, tuple[int, StoreStatus]]:
+        """
+        Store every document in the dictionary (see
+        _format_to_document_dictionary for its structure) and link it to this
+        expert.
+
+        Returns {title: (document id, status)}.
+        """
+        results = {}
+
+        for title, data in doc_dict.items():
+            results[title] = self._add_entire_document_to_expert(
+                title=title,
+                doc_type=data["doc_type"],
+                cont_hash=data["cont_hash"],
+                cont=data["cont"],
+                chunks=data["chunks"],
+                path=data["path"],
+                metadata=data["metadata"],
+                hooks=hooks,
+            )
+        return results
 
     @staticmethod
     def find_document_id(conn, doc: str | int) -> int:
@@ -526,12 +534,20 @@ class ExpertDocuments:
                 """),
             params=(des, doc_id),
         )
-        app_log.info("Document '%s' description generated", title)
+        info_msg = "Document '%s' description has been generated" % title
+        app_log.info(info_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_msg)
         return des
 
     # --- Link / unlink -------------------------------------------------------
 
-    def link_document(self, doc_id: int, embed_model: str = EMBED_MODEL) -> bool:
+    def link_document(
+        self,
+        doc_id: int,
+        embed_model: str = EMBED_MODEL,
+        hooks: AgentHooks | None = None,
+    ) -> bool:
         """
         Link an ALREADY STORED DOCUMENT to this expert.
 
@@ -556,16 +572,19 @@ class ExpertDocuments:
             raise ValueError("Document id %d does not exist." % doc_id)
 
         if row[0] != embed_model:
-            app_log.warning(
+            warn_msg = (
                 "Document id %d was embedded with '%s' but the current model "
-                "is '%s'. It won't appear in searches until re-embedded.",
-                doc_id,
-                row[0],
-                embed_model,
+                "is '%s'. It won't appear in searches until re-embedded."
+                % (doc_id, row[0], embed_model)
             )
+            app_log.warning(warn_msg)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(warn_msg)
         return self._link(doc_id)
 
-    def link_multiple_documents(self, doc_names: list[str]) -> dict[str, str]:
+    def link_multiple_documents(
+        self, doc_names: list[str], hooks: AgentHooks | None = None
+    ) -> dict[str, str]:
         """
         Link already stored documents (titles or ids) to this expert.
         Returns {name: "linked" | "already_linked" | "failed: <reason>"}.
@@ -578,9 +597,14 @@ class ExpertDocuments:
                 )
             except ValueError as e:
                 # Skip this document if failed
-                app_log.warning(
-                    "Cannot link '%s' to expert '%s': %s", name, self.exp_name, e
+                warn_msg = "Cannot link '%s' to expert '%s': %s" % (
+                    name,
+                    self.exp_name,
+                    e,
                 )
+                app_log.warning(warn_msg)
+                if hooks and hooks.on_stat_change:
+                    hooks.on_stat_change(warn_msg)
                 results[name] = f"failed: {e}"
                 continue
 
@@ -607,7 +631,9 @@ class ExpertDocuments:
             > 0
         )
 
-    def unlink_multiple_documents(self, doc_names: list[str]) -> dict[str, str]:
+    def unlink_multiple_documents(
+        self, doc_names: list[str], hooks: AgentHooks | None = None
+    ) -> dict[str, str]:
         """
         Unlink documents (titles or ids) from this expert. The documents
         themselves are NOT deleted.
@@ -621,9 +647,14 @@ class ExpertDocuments:
                 )
             except ValueError as e:
                 # Skip this document if failed
-                app_log.warning(
-                    "Cannot link '%s' to expert '%s': %s", name, self.exp_name, e
+                warn_str = "Cannot link '%s' to expert '%s': %s" % (
+                    name,
+                    self.exp_name,
+                    e,
                 )
+                app_log.warning(warn_str)
+                if hooks and hooks.on_stat_change:
+                    hooks.on_stat_change(warn_str)
                 results[name] = f"failed: {e}"
                 continue
 
@@ -649,7 +680,7 @@ class ExpertDocuments:
             return None
         cont, _ = out
 
-        chunks = DoclingChunker().chunking(cont)
+        chunks = DoclingChunker().chunking(cont, hooks=hooks)
         if not chunks:
             app_log.warning("No chunks produced from '%s'. Skipping", path)
             return None
