@@ -26,6 +26,7 @@ app_log = logger.app_logger(f"{__name__}.app")
 class DoclingChunker:
     def __init__(
         self,
+        emb_tknizr: LocalTokenizer,
         max_tkns: int = DOCLING_CHUNK_TKNS,
     ):
         """
@@ -35,7 +36,7 @@ class DoclingChunker:
         if max_tkns < 1:
             raise ValueError("max_tkns must be at least 1.")
 
-        self.local_tknizr = LocalTokenizer(EMBED_MODEL)
+        self.emb_tknizr = emb_tknizr
         self.max_tkns = max_tkns
 
         self._chunker = None
@@ -47,7 +48,7 @@ class DoclingChunker:
             from docling.chunking import HybridChunker
 
             self._chunker = HybridChunker(
-                tokenizer=docling_tokenizer(self.local_tknizr, self.max_tkns),
+                tokenizer=docling_tokenizer(self.emb_tknizr, self.max_tkns),
                 merge_peers=True,  # optional, defaults to True
             )
         return self._chunker
@@ -73,7 +74,11 @@ class DoclingChunker:
     def chunking(self, cont, hooks: AgentHooks | None = None) -> list[dict]:
         """Chunk DoclingDocument into [{"text"}]."""
         chunker = self._get_chunker()
-        doc = self._parse_to_docling_document(cont, hooks=hooks) if isinstance(cont, str) else cont
+        doc = (
+            self._parse_to_docling_document(cont, hooks=hooks)
+            if isinstance(cont, str)
+            else cont
+        )
 
         chunks = []
         for chunk in chunker.chunk(dl_doc=doc):

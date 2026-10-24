@@ -17,13 +17,9 @@ TokenCallback = Callable[[str], bool | None]
 EventCallback = Callable[[str], None]
 
 # Compression slash command
-COMPRESS_DB_ENTRY = "compress"
 COMPRESS_CMD = "/compress"
 DEFAULT_PROMPT = "Summarise all previous conversations."
-NO_PROMPT_WARN = (
-    "Command '/compress' aborted: Prompt must be provided if attachment is uploaded"
-)
-COMPRESS_METHOD = Literal["default", "instruct", "auto"]
+COMPRESS_METHODS = Literal["default", "instruct", "auto"]
 
 # Loading indicator status strings
 THINKING = "Thinking..."

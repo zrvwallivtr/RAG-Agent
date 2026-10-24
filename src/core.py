@@ -1,8 +1,10 @@
 from pathlib import Path
 from typing import Any
 
+from rag import file_reader
+from rag.docling import chunker
 from src.config.postgres import CONN
-from src.config.config_toml import MODEL, TOKEN_RESERVE
+from src.config.config_toml import MODEL, EMBED_MODEL, TOKEN_RESERVE
 
 from src.libs.helpers.format_context_helper import build_prompt
 from src.libs.helpers.slash_commands_helpers import detect_cmd
@@ -16,8 +18,11 @@ from src.slash_commands import SlashCompress
 from src.slash_commands.compress import COMPRESS_CMD
 from src.agent.models.llm import user_message, model_response
 from src.agent.models.embed import embedding_content
-
-from src.rag import KnowledgeBase, DocumentKnowledgeBase
+from src.rag.file_reader import FileReader
+from src.rag.attach_files import Attachments, QueryAttachments
+from src.rag.docling import DoclingChunker
+from src.rag.basic_parser import BasicParser
+from src.rag.docling import DoclingParser
 
 from src import logger
 
@@ -28,21 +33,122 @@ class Agent:
     def __init__(
         self,
         sess_name: str | None = None,
+        model: str = MODEL,
+        emb_model: str = EMBED_MODEL,
     ):
         self.conn = CONN
+        self.llm_tknizr = LocalTokenizer(model)
+        self.emb_tknizr = LocalTokenizer(emb_model)
+        self.file_reader = FileReader(
+            basic_parser=BasicParser(), docling_parser=DoclingParser()
+        )
+        self.chunker = DoclingChunker(emb_tknizr=self.emb_tknizr)
 
         self.sess_name = sess_name
 
-        self.chat_sess_logs = ChatSessionLogs(conn=self.conn, sess_name=self.sess_name)
-        self.kw_bs = KnowledgeBase(conn=self.conn, chat_sess_logs=self.chat_sess_logs)
-        self.doc_kw_bs = DocumentKnowledgeBase(
+        self.chat_sess_logs = ChatSessionLogs(
+            conn=self.conn, sess_name=self.sess_name, llm_tknizr=self.llm_tknizr
+        )
+        self.slash_compress = SlashCompress(
+            conn=self.conn,
+            chat_sess_logs=self.chat_sess_logs,
+            file_reader=self.file_reader,
+            chunker=self.chunker,
+        )
+        self.attchmnts = Attachments(
+            conn=self.conn,
+            chat_sess_logs=self.chat_sess_logs,
+            file_reader=self.file_reader,
+            chunker=self.chunker,
+        )
+        self.qry_attchmnts = QueryAttachments(
             conn=self.conn, chat_sess_logs=self.chat_sess_logs
         )
-        self.local_tknizr = LocalTokenizer(MODEL)
 
-        self.slash_compress = SlashCompress(
-            conn=self.conn, chat_logs=self.chat_sess_logs
+    def ask(
+        self,
+        prompt: str,
+        paths: list[Path] | None = None,
+        enabled_exp: list[str] | None = None,
+        is_auto_doc_rtve: bool = True,
+        is_attchmnt: bool = False,
+        hooks: AgentHooks | None = None,
+    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
+        """
+        Model decide what memories to read.
+        Manage tokens, compress session if needed.
+
+        Note:
+        - Only the user question and LLM response will be
+          stored into chat history.
+        """
+        msgs = self.chat_sess_logs.get_active_conversations()
+
+        # Slash commands
+        cmd, clean_prompt = detect_cmd(prompt)
+        if cmd:
+            # Run budget check and auto compress only when slash command is
+            # not '/compress' as it is already a session compression tool call.
+            if cmd != COMPRESS_CMD:
+                msgs = self._compress_if_over_budget(clean_prompt, hooks=hooks)
+
+            return self._route_to_slash_command(
+                unfmt_prompt=prompt,
+                clean_prompt=clean_prompt,
+                msgs=msgs,
+                cmd=cmd,
+                is_attchmnt=is_attchmnt,
+                paths=paths,
+                hooks=hooks,
+            )
+
+        prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve = (
+            self._embedding_content_retrieval_controller(
+                prompt=prompt, is_auto_doc_rtve=is_auto_doc_rtve
+            )
         )
+
+        # Combine all context, check token count and bundle them
+        # into messages for model to answer.
+        combine_prompt, attchmnt_dict = self._combine_context(
+            prompt=prompt,
+            prompt_embdings=prompt_embdings,
+            is_auto_doc_rtve=is_auto_doc_rtve,
+            is_attchmnt=is_attchmnt,
+            paths=paths,
+        )
+        msgs = self._compress_if_over_budget(combine_prompt, hooks=hooks)
+        msgs.append(user_message(combine_prompt))
+
+        # Model answer
+        response = model_response(model=MODEL, msgs=msgs, hooks=hooks)
+        if not response:
+            return
+        ans, p_tkns, o_tkns, is_stopped = response
+
+        if is_stopped is True:
+            return None
+
+        # Calculate total tokens
+        total_p_tkns = prompt_tkns + p_tkns
+        total_o_tkns = o_tkns
+
+        # Save messages to database
+        metadata = self.chat_sess_logs.add_conversation_turn(
+            prompt=prompt,
+            response=ans,
+            state="external",
+            attchmnts=paths,
+            p_tkns=total_p_tkns,
+            o_tkns=total_o_tkns,
+        )
+
+        self.chat_sess_logs.update_session_used_tokens()
+
+        # Store attachment(s)
+        if attchmnt_dict:
+            self.attchmnts.store_already_read_attachments(attchmnt_dict, hooks=hooks)
+        return ans, total_p_tkns, total_o_tkns, metadata
 
     @property
     def exp_list(self) -> list[str]:
@@ -62,7 +168,7 @@ class Agent:
         True if the history plus the new prompt plus the reply reserve would
         exceed the model's token limit.
         """
-        max_tkns = self.local_tknizr.model_max_tkns
+        max_tkns = self.llm_tknizr.model_max_tkns
         if not max_tkns:
             app_log.warning(
                 "Failed to load 'manage token budget feature': "
@@ -70,7 +176,7 @@ class Agent:
             )
             return False
 
-        hist_tkns = self.local_tknizr.count_history_tokens(msgs)
+        hist_tkns = self.llm_tknizr.count_history_tokens(msgs)
         if not hist_tkns:
             return False
 
@@ -164,110 +270,25 @@ class Agent:
         exp_chunks = self._query_experts(prompt)
 
         # Auto retrieve relevant session documents
-        doc_list = self.doc_kw_bs.toggle_auto_retrieve_sess_docs(
-            is_auto_doc_rtve=is_auto_doc_rtve,
-            prompt=prompt,
-            prompt_embdings=prompt_embdings,
-        )
+        retrieved_attchmnts = None
+        if is_auto_doc_rtve:
+            retrieved_attchmnts = self.qry_attchmnts.query_session_attachments(
+                prompt_embdings,
+            )
 
         # Uploaded attachments (optional)
-        attchmnt_dict = self.doc_kw_bs.get_attachments_content(
-            is_attchmnt=is_attchmnt, attch_paths=paths
-        )
+        attchmnt_dict = None
+        if is_attchmnt:
+            attchmnt_dict = self.file_reader.read_content(is_attchmnt, paths)
 
         # All context combined (won't be saved to chat history)
         cmbind_prompt = build_prompt(
             prompt=prompt,
             exp_chunks=exp_chunks,
-            doc_list=doc_list,
+            doc_list=retrieved_attchmnts,
             attchmnt_dict=attchmnt_dict,
         )
 
         if attchmnt_dict:
             return cmbind_prompt, attchmnt_dict
         return cmbind_prompt, None
-
-    def ask(
-        self,
-        prompt: str,
-        paths: list[Path] | None = None,
-        enabled_exp: list[str] | None = None,
-        is_auto_doc_rtve: bool = True,
-        is_attchmnt: bool = False,
-        hooks: AgentHooks | None = None,
-    ) -> tuple[str, int, int, dict[str, dict[str, Any]]] | None:
-        """
-        Model decide what memories to read.
-        Manage tokens, compress session if needed.
-
-        Note:
-        - Only the user question and LLM response will be
-          stored into chat history.
-        """
-        msgs = self.chat_sess_logs.get_active_conversations()
-
-        # Slash commands
-        cmd, clean_prompt = detect_cmd(prompt)
-        if cmd:
-            # Run budget check and auto compress only when slash command is
-            # not '/compress' as it is already a session compression tool call.
-            if cmd != COMPRESS_CMD:
-                msgs = self._compress_if_over_budget(clean_prompt, hooks=hooks)
-
-            return self._route_to_slash_command(
-                unfmt_prompt=prompt,
-                clean_prompt=clean_prompt,
-                msgs=msgs,
-                cmd=cmd,
-                is_attchmnt=is_attchmnt,
-                paths=paths,
-                hooks=hooks,
-            )
-
-        prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve = (
-            self._embedding_content_retrieval_controller(
-                prompt=prompt, is_auto_doc_rtve=is_auto_doc_rtve
-            )
-        )
-
-        # Combine all context, check token count and bundle them
-        # into messages for model to answer.
-        combine_prompt, attchmnt_dict = self._combine_context(
-            prompt=prompt,
-            prompt_embdings=prompt_embdings,
-            is_auto_doc_rtve=is_auto_doc_rtve,
-            is_attchmnt=is_attchmnt,
-            paths=paths,
-        )
-        msgs = self._compress_if_over_budget(combine_prompt, hooks=hooks)
-        msgs.append(user_message(combine_prompt))
-
-        # Model answer
-        response = model_response(model=MODEL, msgs=msgs, hooks=hooks)
-        if not response:
-            return
-        ans, p_tkns, o_tkns, is_stopped = response
-
-        if is_stopped is True:
-            return None
-
-        # Calculate total tokens
-        total_p_tkns = prompt_tkns + p_tkns
-        total_o_tkns = o_tkns
-
-        # Save messages to database
-        metadata = self.chat_sess_logs.add_conversation_turn(
-            prompt=prompt,
-            response=ans,
-            state="external",
-            attchmnts=paths,
-            p_tkns=total_p_tkns,
-            o_tkns=total_o_tkns,
-        )
-
-        self.chat_sess_logs.update_session_used_tokens()
-
-        # Store attachment(s)
-        if attchmnt_dict:
-            self.doc_kw_bs.store_attachments(attchmnt_dict)
-        return ans, total_p_tkns, total_o_tkns, metadata

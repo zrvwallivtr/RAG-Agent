@@ -676,7 +676,7 @@ class ExpertDocuments:
         """
         out = FileReader().read_document(path)
         if not out:
-            app_log.warning("Could not read '%s'. Skipping", path)
+            app_log.warning("Failed to read '%s'. Skipping", path)
             return None
         cont, _ = out
 

@@ -13,8 +13,6 @@ class ToolCallsMetadata:
     Called in 'add_turn()' in 'write_chat_logs.py'.
     """
 
-    # --- Attachments dictionaries ------------------------------
-
     @staticmethod
     def _attachments_tool_call(attchmnts: list[Path] | None) -> dict | None:
         """
@@ -41,8 +39,6 @@ class ToolCallsMetadata:
             }
         app_log.debug("Added attachments metadata into the database")
         return attchmnts_dict
-
-    # --- Slash commands metadata -------------------------------
 
     @staticmethod
     def _memories_tool_call(unfmt_prompt: str | None = None) -> dict[str, str] | None:
@@ -107,8 +103,6 @@ class ToolCallsMetadata:
             "unformatted_prompt": unfmt_prompt,
             "method": method,
         }
-
-    # --- All metadata dictionaries combined --------------------
 
     @staticmethod
     def all_tool_calls(

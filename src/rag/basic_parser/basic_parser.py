@@ -7,8 +7,6 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from bs4.builder import register_treebuilders_from
 
-from src.config.files_and_directories import UPLOAD_DIR
-
 from .office import parse_docx, parse_xlsx
 from .pdf import parse_pdf
 from .epub import parse_epub

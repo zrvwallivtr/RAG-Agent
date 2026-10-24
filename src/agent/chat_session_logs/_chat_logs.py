@@ -2,13 +2,14 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from .metadata import ToolCallsMetadata
-from .lookup_chat_sessions import LookupChatSessions
+from src.config.prompts import SYS_PROMPT
+
+from ._metadata import ToolCallsMetadata
+from ._chat_sessions import ChatSessions
 
 from src.agent.models import llm
 from src import logger
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
-from src.libs.constants import COMPRESS_DB_ENTRY
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -20,17 +21,87 @@ _HISTORY_FILTER_SQL = {
 }
 
 
-class ReadChatLogs:
+class ChatLogs:
     """All SQL for the 'chat_logs' table."""
 
-    def __init__(self, conn, lookup_chat_sess: LookupChatSessions, sys_prompt: str):
+    def __init__(self, conn, chat_sess: ChatSessions):
         self._conn = conn
-        self._lookup_chat_sess = lookup_chat_sess
-        self._sys_prompt = sys_prompt
+        self._chat_sess = chat_sess
 
-    # Read chat logs
+    def add_turn(
+        self,
+        prompt: str,
+        response: str,
+        state: Literal["external", "internal"],
+        # --- Tool calls ---
+        attchmnts: list[Path] | None = None,
+        unfmt_mem_prompt: str | None = None,
+        unfmt_recall_prompt: str | None = None,
+        unfmt_cmp_prompt: str | None = None,
+        cmp_method: Literal["default", "instruct", "auto"] | None = None,
+        # --- Token counts ---
+        p_tkns: int = 0,
+        o_tkns: int = 0,
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Insert new conversation turn including metadata
+        into the specified session database table. Return
+        the all tool calls metadata.
+        """
+        metadata = ToolCallsMetadata.all_tool_calls(
+            attchmnts=attchmnts,
+            unfmt_mem_prompt=unfmt_mem_prompt,
+            unfmt_recall_prompt=unfmt_recall_prompt,
+            unfmt_cmp_prompt=unfmt_cmp_prompt,
+            cmp_method=cmp_method,
+        )
 
-    def active_conversations(self) -> list[dict]:
+        execute(
+            conn=self._conn,
+            sql=("""
+                INSERT INTO chat_logs (session_id, prompt, response, state, total_prompt_tokens, total_output_tokens, metadata)
+                VALUES (%s, %s, %s, %s, %s, %s, %s);
+                """),
+            params=(
+                self._chat_sess.get_or_create_id(),
+                prompt,
+                response,
+                state,
+                p_tkns,
+                o_tkns,
+                json.dumps(metadata or {}),
+            ),
+        )
+        return metadata
+
+    def mark_active_as_compressed(self):
+        execute(
+            conn=self._conn,
+            sql=("""
+                UPDATE chat_logs
+                SET is_compressed = TRUE
+                WHERE session_id = %s AND is_compressed = FALSE;
+                """),
+            params=(self._chat_sess.get_id(),),
+        )
+
+    def clear_session_logs(self) -> bool:
+        """Delete all turns of this session. False if there was nothing to delete."""
+        deleted = execute(
+            conn=self._conn,
+            sql="DELETE FROM chat_logs WHERE session_id = %s;",
+            params=(self._chat_sess.get_id(),),
+        )
+
+        if deleted == 0:
+            app_log.warning(
+                "Failed to clear chat logs: Session '%s' does not exist or has no chat logs",
+                self._chat_sess.sess_name,
+            )
+            return False
+        return True
+
+    def active_conversations(self, sys_prompt: str = SYS_PROMPT) -> list[dict]:
         """
         Get all messages in a session with filter options.
         If session does not exists, return system prompt.
@@ -43,10 +114,10 @@ class ReadChatLogs:
                 WHERE session_id = %s AND state = 'external' AND is_compressed = FALSE
                 ORDER BY created_at ASC;
                 """),
-            params=(self._lookup_chat_sess.get_or_create_id(),),
+            params=(self._chat_sess.get_or_create_id(),),
         )
 
-        msgs = [{"role": "system", "content": self._sys_prompt}]
+        msgs = [{"role": "system", "content": sys_prompt}]
 
         for prompt, response in rows:
             msgs.append(llm.user_message(prompt))
@@ -80,7 +151,7 @@ class ReadChatLogs:
         rows = fetch_all(
             conn=self._conn,
             sql=sql,
-            params=(self._lookup_chat_sess.get_id(),),
+            params=(self._chat_sess.get_id(),),
         )
         if not rows:
             return None
@@ -94,8 +165,8 @@ class ReadChatLogs:
                 "attachments": metadata.get("attachments"),
             }
 
-            if COMPRESS_DB_ENTRY in metadata:
-                user_msg[COMPRESS_DB_ENTRY] = metadata[COMPRESS_DB_ENTRY]
+            if "compress" in metadata:
+                user_msg["compress"] = metadata["compress"]
 
             convs.append(user_msg)
             convs.append(
@@ -118,13 +189,13 @@ class ReadChatLogs:
                 ORDER BY created_at DESC
                 LIMIT 1;
                 """),
-            params=(self._lookup_chat_sess.get_or_create_id(),),
+            params=(self._chat_sess.get_or_create_id(),),
         )
 
         if not row:
             app_log.warning(
                 "No conversation turns found in session '%s'",
-                self._lookup_chat_sess.sess_name,
+                self._chat_sess.sess_name,
             )
             return None
         return [
@@ -137,7 +208,7 @@ class ReadChatLogs:
         Get all previous user/assistant conversation turns right
         before the latest external one.
         """
-        sess_id = self._lookup_chat_sess.get_or_create_id()
+        sess_id = self._chat_sess.get_or_create_id()
         rows = fetch_all(
             conn=self._conn,
             sql=("""
@@ -196,7 +267,7 @@ class ReadChatLogs:
         if not row:
             return None
 
-        sess_name = self._lookup_chat_sess.get_name(sess_id=str(row[0]))
+        sess_name = self._chat_sess.get_name(sess_id=str(row[0]))
         return (
             (sess_name, str(row[1])) if sess_name else None
         )  # Session name, created at

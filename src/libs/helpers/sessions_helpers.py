@@ -4,7 +4,8 @@ from src.libs.helpers.database_helpers import execute
 from src.libs.custom_dataclasses import AgentHooks
 
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.rag.knowledge_base import KnowledgeBase
+from src.rag.attach_files import Attachments
+from src.agent.tokenizers import LocalTokenizer
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
@@ -47,6 +48,7 @@ def _delete_chat_session(
 
 
 def delete_session(
+    llm_tknizr: LocalTokenizer,
     sess_name: str | None = None,
     hooks: AgentHooks | None = None,
 ) -> None:
@@ -54,10 +56,12 @@ def delete_session(
     Delete session related chat logs and database contents. If 'session'
     is not specified, delete default session related contents.
     """
-    chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=sess_name)
-    kw_bs = KnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
+    chat_sess_logs = ChatSessionLogs(
+        conn=CONN, sess_name=sess_name, llm_tknizr=llm_tknizr
+    )
+    attchmnts = Attachments(conn=CONN, chat_sess_logs=chat_sess_logs)
 
     chat_sess_logs.clear_session_chat_logs()
-    kw_bs.clear_sess_kw_bs()
+    attchmnts.clear_session_attachments()
 
     _delete_chat_session(chat_sess_logs, sess_name, hooks=hooks)

@@ -3,17 +3,17 @@ from pathlib import Path
 from dataclasses import replace
 
 from src.config.config_toml import MODEL
-from src.config.prompts import COMPRESS_PROMPT
+from src.config.prompts import COMPRESS_PROMPT, SYS_PROMPT
 
-from .metadata import ToolCallsMetadata
-from .write_chat_logs import WriteChatLogs
+from ._metadata import ToolCallsMetadata
+from ._chat_logs import ChatLogs
 
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import (
     CompressionResult,
     ModelResult,
     DEFAULT_PROMPT,
-    COMPRESS_METHOD,
+    COMPRESS_METHODS,
 )
 from src.libs.helpers.format_context_helper import build_prompt
 
@@ -22,7 +22,7 @@ from src.agent.models import llm
 from src import logger
 
 if TYPE_CHECKING:
-    from .main_module import ChatSessionLogs
+    from .chat_session_logs import ChatSessionLogs
 
 app_log = logger.app_logger(f"{__name__}.app")
 
@@ -31,16 +31,21 @@ class Compression:
     """Summarise a session's active conversation turns with model."""
 
     def __init__(
-        self, chat_sess_logs: "ChatSessionLogs", write_chat_logs: WriteChatLogs
+        self,
+        chat_sess_logs: "ChatSessionLogs",
+        chat_logs: ChatLogs,
+        llm_tknizr: LocalTokenizer,
     ):
         self._chat_sess_logs = chat_sess_logs
-        self._write_chat_logs = write_chat_logs
-        self.local_tknizr = LocalTokenizer(MODEL)
+        self._chat_logs = chat_logs
+        self.llm_tknizr = llm_tknizr
 
     def _model_compress_with_given_context(
         self,
         prompt: str,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
+        model: str = MODEL,
+        cmp_prompt: str = COMPRESS_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> ModelResult | None:
         """
@@ -53,8 +58,8 @@ class Compression:
             cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed"),
         )
         response = llm.model_response_with_new_system_prompt_and_context(
-            model=MODEL,
-            sys_prompt=COMPRESS_PROMPT,
+            model=model,
+            sys_prompt=cmp_prompt,
             prompt=cmbind_prompt,
             hooks=hooks,
         )
@@ -64,7 +69,7 @@ class Compression:
         self,
         clean_prompt: str,
         unfmt_prompt: str,
-        cmp_method: COMPRESS_METHOD,
+        cmp_method: COMPRESS_METHODS,
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
@@ -100,7 +105,7 @@ class Compression:
             return None
 
         # Update database
-        self._write_chat_logs.mark_active_as_compressed()
+        self._chat_logs.mark_active_as_compressed()
         metadata = self._chat_sess_logs.add_conversation_turn(
             prompt=clean_prompt,
             unfmt_cmp_prompt=unfmt_prompt,
@@ -117,25 +122,27 @@ class Compression:
 
         return smry, p_tkns, o_tkns, metadata
 
-    def compress_with_pre_written(
+    def compress_with_pre_written_prompt(
         self,
         unfmt_prompt: str,
         cmp_method: Literal["default", "auto"],
         attchmnt_dict: dict[Path, dict[str, str]] | None = None,
+        default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """Compress session using the pre-written prompt."""
         return self.compress(
-            clean_prompt=DEFAULT_PROMPT,
+            clean_prompt=default_prompt,
             unfmt_prompt=unfmt_prompt,
             cmp_method=cmp_method,
             attchmnt_dict=attchmnt_dict,
             hooks=hooks,
         )
 
-    def auto_compress(
+    def auto_compress_active_conversations(
         self,
         unfmt_prompt: str,
+        default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """Auto compress session, triggered when session token count reached pre-set limit."""
@@ -144,7 +151,7 @@ class Compression:
             self._chat_sess_logs.sess_name,
         )
         result = self.compress(
-            clean_prompt=DEFAULT_PROMPT,
+            clean_prompt=default_prompt,
             unfmt_prompt=unfmt_prompt,
             cmp_method="auto",
             hooks=hooks,

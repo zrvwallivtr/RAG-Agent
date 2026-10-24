@@ -45,6 +45,8 @@ from src.app.tui.screens.base_screen import BaseScreen
 from src.app.tui.screens.base_screen.command_bar import show_command_message
 from src.app.tui.movement_helpers import pending_key_is_digit_counter
 
+LLM_TKNIZR = LocalTokenizer(MODEL)
+
 
 class ChatScreen(BaseScreen):
     """Chat screen interface managing prompt inputs, session metrics, and chat threads."""
@@ -60,7 +62,7 @@ class ChatScreen(BaseScreen):
 
         self.agent = Agent(sess_name=sess_name)
         self.local_tknizr = LocalTokenizer(model=MODEL)
-        self.chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=sess_name)
+        self.chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=sess_name, llm_tknizr=LLM_TKNIZR)
 
         self.sess_name = sess_name or "Default session"
         self.pending_key: str | None = None

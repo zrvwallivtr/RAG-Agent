@@ -6,7 +6,7 @@ from src.agent.tokenizers import LocalTokenizer
 
 
 def docling_tokenizer(
-    local_tknizr: LocalTokenizer,
+    tknizr: LocalTokenizer,
     max_tkns: int,
 ):
     """
@@ -16,11 +16,11 @@ def docling_tokenizer(
     from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 
     class _DoclingTokenizer(BaseTokenizer):
-        local_tknizr: Any
+        tknizr: Any
         max_tkns: int
 
         def count_tokens(self, text: str) -> int:
-            return self.local_tknizr.count_or_estimate_tokens(text)
+            return self.tknizr.count_or_estimate_tokens(text)
 
         def get_max_tokens(self) -> int:
             return self.max_tkns
@@ -28,4 +28,4 @@ def docling_tokenizer(
         def get_tokenizer(self) -> Any:
             return self.count_tokens
 
-    return _DoclingTokenizer(local_tknizr=local_tknizr, max_tkns=max_tkns)
+    return _DoclingTokenizer(tknizr=tknizr, max_tkns=max_tkns)

@@ -27,46 +27,15 @@ class PathTraversalError(Exception):
     pass
 
 
-def _validate_path(path: Path, enable_path_safety: bool = ENABLE_PATH_SAFETY) -> Path:
-    """
-    If path safety is enabled:
-    This function resolves the given path and ensures it remains strictly
-    contained within the permitted upload directory.
-    """
-    if enable_path_safety:
-        info_str = "Path safety feature is enabled: Validating upload path '%s'" % (
-            path
-        )
-        app_log.debug(info_str)
-        resolved = path.resolve()
-
-        try:
-            resolved.relative_to(UPLOAD_DIR)
-        except ValueError:
-            raise PathTraversalError(
-                "Path '%s' resolves to '%s', "
-                "which is outside the allowed directory '%s'"
-                % (path, resolved, UPLOAD_DIR)
-            )
-
-        return resolved
-
-    info_str = (
-        "Path safety feature is disabled: Upload path '%s' validation skipped" % (path)
-    )
-    app_log.debug(info_str)
-    return path
-
-
 class FileReader:
     """
     Manages secure file path resolution, verification, and text extraction via
     Docling or basic parsers.
     """
 
-    def __init__(self):
-        self.basic_parser = BasicParser()
-        self.docling_prsrs = DoclingParser()
+    def __init__(self, basic_parser: BasicParser, docling_parser: DoclingParser):
+        self.basic_parser = basic_parser
+        self.docling_parser = docling_parser
 
     def _docling_parser_default(
         self, path: Path, safe_path: Path, ext: str, hooks: AgentHooks | None = None
@@ -82,7 +51,7 @@ class FileReader:
             if hooks and hooks.on_loading:
                 hooks.on_loading("Running Docling parser for '%s'..." % path)
 
-            parser = self.docling_prsrs.formats.get(ext, self.basic_parser.read_txt)
+            parser = self.docling_parser.formats.get(ext, self.basic_parser.read_txt)
             return parser(safe_path)
 
         # Basic parsers (fallback)
@@ -127,6 +96,7 @@ class FileReader:
     def read_document(
         self,
         path: Path,
+        enable_docling: bool = ENABLE_DOCLING,
         hooks: AgentHooks | None = None,
     ) -> ParserResult | None:
         """
@@ -144,7 +114,7 @@ class FileReader:
         ext = safe_path.suffix.lower()
 
         # Docling as parser by default, fallback to basic parser if failed
-        if ENABLE_DOCLING:
+        if enable_docling:
             return self._docling_parser_default(
                 path=path, safe_path=safe_path, ext=ext, hooks=hooks
             )
@@ -176,3 +146,38 @@ class FileReader:
             attchmnt_dict[path] = {"content": cont, "format": format}
 
         return attchmnt_dict
+
+
+def _validate_path(
+    path: Path,
+    upload_dir: Path = UPLOAD_DIR,
+    enable_path_safety: bool = ENABLE_PATH_SAFETY,
+) -> Path:
+    """
+    If path safety is enabled:
+    This function resolves the given path and ensures it remains strictly
+    contained within the permitted upload directory.
+    """
+    if enable_path_safety:
+        info_str = "Path safety feature is enabled: Validating upload path '%s'" % (
+            path
+        )
+        app_log.debug(info_str)
+        resolved = path.resolve()
+
+        try:
+            resolved.relative_to(upload_dir)
+        except ValueError:
+            raise PathTraversalError(
+                "Path '%s' resolves to '%s', "
+                "which is outside the allowed directory '%s'"
+                % (path, resolved, upload_dir)
+            )
+
+        return resolved
+
+    info_str = (
+        "Path safety feature is disabled: Upload path '%s' validation skipped" % (path)
+    )
+    app_log.debug(info_str)
+    return path

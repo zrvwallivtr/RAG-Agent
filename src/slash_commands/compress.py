@@ -1,14 +1,20 @@
 from pathlib import Path
 from typing import Any, Callable
 
+from agent import chat_session_logs
+from rag import file_reader
+from rag.docling import chunker
 from src.config.config_toml import MODEL
 
-from src.libs.constants import COMPRESS_CMD, DEFAULT_PROMPT, NO_PROMPT_WARN
+from src.libs.constants import COMPRESS_CMD
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import CompressionResult
 
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.rag.knowledge_base import DocumentKnowledgeBase
+
+from src.rag.attach_files import Attachments, QueryAttachments
+from src.rag.file_reader import FileReader
+from src.rag.docling import DoclingChunker
 
 from src.logger import app_logger
 
@@ -24,18 +30,27 @@ class SlashCompress:
     (is_compressed = TRUE). NOT INCLUDING the newly generated summary.
     """
 
-    def __init__(self, conn, chat_logs: ChatSessionLogs):
+    def __init__(self, conn, chat_sess_logs: ChatSessionLogs, file_reader: FileReader, chunker: DoclingChunker):
         self.conn = conn
-        self.chat_sess_logs = chat_logs
-        self.doc_kw_bs = DocumentKnowledgeBase(
-            conn=self.conn, chat_sess_logs=self.chat_sess_logs
+        self.chat_sess_logs = chat_sess_logs
+        self.attchmnts = Attachments(
+            conn=self.conn,
+            chat_sess_logs=self.chat_sess_logs,
+            file_reader=file_reader,
+            chunker=chunker,
         )
+        self.qry_attchmnts = QueryAttachments(
+            conn=self.conn,
+            chat_sess_logs=self.chat_sess_logs,
+        )
+        self.file_reader = file_reader
 
     def _default_compression(
         self,
         unfmt_prompt: str,
         is_attchmnt: bool,
         paths: list[Path] | None,
+        cmp_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
@@ -46,8 +61,12 @@ class SlashCompress:
         be displayed to notify user that the uploaded will be ignored.
         """
         if (is_attchmnt or paths) and hooks and hooks.on_stat_change:
-            app_log.warning(NO_PROMPT_WARN)
-            hooks.on_stat_change(NO_PROMPT_WARN)
+            warn_msg = (
+                "Command '%s' aborted: Prompt must be provided if attachment is uploaded"
+                % cmp_cmd
+            )
+            app_log.warning(warn_msg)
+            hooks.on_stat_change(warn_msg)
 
         result = self.chat_sess_logs.default_compress_active_conversations(
             unfmt_prompt, "default", hooks=hooks
@@ -66,9 +85,7 @@ class SlashCompress:
         '/compress' with added prompt to instructe the model
         what exactly to summaries.
         """
-        attchmnt_dict = self.doc_kw_bs.get_attachments_content(
-            is_attchmnt=is_attchmnt, attch_paths=paths
-        )
+        attchmnt_dict = self.file_reader.read_content(is_attchmnt, paths)
         if hooks and hooks.on_loading:
             hooks.on_loading("Compressing session...")
 
@@ -85,7 +102,7 @@ class SlashCompress:
 
         # Store attachments
         if attchmnt_dict:
-            self.doc_kw_bs.store_attachments(attchmnt_dict)
+            self.attchmnts.store_already_read_attachments(attchmnt_dict, hooks=hooks)
 
         return result
 

@@ -3,8 +3,6 @@ Attachments database for storing the uploaded files during a session, searchable
 via vector search.
 """
 
-import threading
-
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.helpers.database_helpers import fetch_one, init_database
 
@@ -17,7 +15,6 @@ from src import logger
 app_log = logger.app_logger(f"{__name__}.app")
 
 _schema_ready = False
-_link_schema_ready = False
 
 _STATEMENTS = (
     # pgvector extension
@@ -35,9 +32,9 @@ _STATEMENTS = (
         content         TEXT NOT NULL,          -- Parsed Markdown
         embedding_model VARCHAR(255) NOT NULL,
         session_id      UUID NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         uploaded_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        metadata        JSONB NOT NULL DEFAULT '{{}}'::jsonb
+        metadata        JSONB NOT NULL DEFAULT '{{}}'::jsonb,
+        UNIQUE (session_id, content_hash)
     );
     """,
     # Attachment chunks table:
@@ -48,7 +45,7 @@ _STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS attachment_chunks (
         id            BIGSERIAL PRIMARY KEY,
-        document_id   BIGINT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        attachment_id BIGINT NOT NULL REFERENCES attachments(id) ON DELETE CASCADE,
         chunk_index   INTEGER NOT NULL,
         embeddings    VECTOR({dimension}) NOT NULL,
         embed_tokens  INTEGER NOT NULL,
@@ -62,11 +59,6 @@ _STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS idx_att_chunks_embeddings
     ON attachment_chunks USING hnsw (embeddings vector_cosine_ops);
-    """,
-    # Index for session id and knowledge type lookups
-    """
-    CREATE INDEX IF NOT EXISTS idx_attachments_session_type
-    ON attachments (session_id);
     """,
 )
 
@@ -87,14 +79,23 @@ def _stored_dimension(conn) -> int | None:
     return int(row[0]) if row and row[0] > 0 else None
 
 
-def ensure_schema(conn, hooks: AgentHooks | None = None) -> None:
+def ensure_schema(
+    conn,
+    emb_model: str = EMBED_MODEL,
+    emb_model_dim: dict[str, int] = EMB_MODEL_DIMENSION,
+    hooks: AgentHooks | None = None,
+) -> None:
     """Create attachments tables. Requires session table."""
     global _schema_ready
     if _schema_ready:
         return
-    dim = EMB_MODEL_DIMENSION.get(EMBED_MODEL)
+    dim = emb_model_dim.get(emb_model)
     if dim is None:
         raise ValueError(f"Unknown embedding dimension for model '{EMBED_MODEL}'. ")
+
+    from src.agent.chat_session_logs.schema import ensure_schema as ensure_chat_schema
+
+    ensure_chat_schema(conn)
 
     if hooks and hooks.on_loading:
         hooks.on_loading("Initialising attachments table...")
@@ -111,7 +112,7 @@ def ensure_schema(conn, hooks: AgentHooks | None = None) -> None:
             "Embedding model '%s' produces %d-dimension vectores but "
             "attachment_chunks stores %d. Documents must be re-embedded before "
             "adding or searching.",
-            EMBED_MODEL,
+            emb_model,
             int(dim),
             existing,
         )

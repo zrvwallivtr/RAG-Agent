@@ -9,7 +9,6 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static, Markdown, Input
 from textual.widgets.markdown import MarkdownFence
 
-from src.libs.constants import COMPRESS_DB_ENTRY
 from src.libs.helpers.file_metadata_helpers import format_size_bytes
 from src.libs.constants import AUTO_COMPRESS_SUM_TITLE
 
@@ -43,7 +42,7 @@ def _unpack_data(msg: dict) -> tuple[str, str, int, Any, Any]:
 
     attchmnt_metadata = msg.get("attachments", {}) or None
 
-    slash_cmd_metadata = msg.get(COMPRESS_DB_ENTRY)
+    slash_cmd_metadata = msg.get("compress")
     if not isinstance(slash_cmd_metadata, dict):
         slash_cmd_metadata = None
 

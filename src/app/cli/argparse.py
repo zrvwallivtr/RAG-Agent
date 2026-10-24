@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from app.tui.screens.chat_screen.main_module import LLM_TKNIZR
 from rich_argparse import RichHelpFormatter
 
 from src.config.postgres import CONN
@@ -29,8 +30,9 @@ from src.libs.custom_dataclasses import AgentHooks
 from src.core import Agent
 from src.agent.models.ollama import ollama_pull_model, ollama_clt
 from src.agent.chat_session_logs import ChatSessionLogs
-from src.rag.knowledge_base.documents import DocumentKnowledgeBase
+from src.agent.tokenizers import LocalTokenizer
 from src.rag.expert import Expert, ExpertDocuments, SessionExperts
+from src.rag.attach_files import Attachments
 
 from src.app.tui.screens.dashboard_screen.session_selector import go_to_session
 from src.app.tui.screens.chat_screen import ChatScreen
@@ -68,14 +70,16 @@ def build_parser() -> None:
 
     # List available sessions
     if args.list_session:
-        chat_logs = ChatSessionLogs(conn=CONN)
+        chat_logs = ChatSessionLogs(conn=CONN, llm_tknizr=LocalTokenizer(MODEL))
         sess_dict = chat_logs.get_all_existing_session_metadata()
         sessions_table(sess_dict)
         return
 
     # Create new session
     if args.new_session:
-        chat_logs = ChatSessionLogs(conn=CONN, sess_name=args.new_session)
+        chat_logs = ChatSessionLogs(
+            conn=CONN, sess_name=args.new_session, llm_tknizr=LocalTokenizer(MODEL)
+        )
         chat_logs.create_session(print_cli_hooks())
 
         if not args.prompt:
@@ -87,12 +91,16 @@ def build_parser() -> None:
 
     # Delete default session
     if args.delete_default_session:
-        delete_session(hooks=print_cli_hooks())
+        delete_session(llm_tknizr=LLM_TKNIZR, hooks=print_cli_hooks())
         return
 
     # Delete session
     if args.delete_session:
-        response = delete_session(args.delete_session, hooks=print_cli_hooks())
+        response = delete_session(
+            sess_name=args.delete_session,
+            llm_tknizr=LLM_TKNIZR,
+            hooks=print_cli_hooks(),
+        )
         if response:
             print(response)
         return
@@ -133,10 +141,13 @@ def build_parser() -> None:
 
     # List all uploaded attachment(s) in session
     if args.list_attachments:
-        chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=args.session)
-        doc_kw_bs = DocumentKnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
+        chat_sess_logs = ChatSessionLogs(
+            conn=CONN, sess_name=args.session, llm_tknizr=LocalTokenizer(MODEL)
+        )
+        attchmnts = Attachments(conn=CONN, chat_sess_logs=chat_sess_logs)
+        # doc_kw_bs = DocumentKnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
 
-        rows = doc_kw_bs.query_docs.all_documents_metadata()
+        rows = attchmnts.all_attachments_data_from_session()
         safe_print(upload_documents_table(rows) if rows else "No documents uploaded.")
         return
 
@@ -349,7 +360,7 @@ def build_parser() -> None:
         if args.session:
             # Check if session name is valid
             tar_sess = args.session[0].strip("[]'")
-            chat_logs = ChatSessionLogs(conn=CONN)
+            chat_logs = ChatSessionLogs(conn=CONN, llm_tknizr=LocalTokenizer(MODEL))
             sess_dict = chat_logs.get_all_existing_session_metadata() or {}
             names = [d["session_name"] for d in sess_dict.values()]
             if tar_sess not in names:

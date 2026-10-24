@@ -1,7 +1,5 @@
 from typing import Callable
 
-from .write_chat_sessions import WriteChatSessions
-
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.custom_dataclasses import AgentHooks
 
@@ -10,20 +8,48 @@ from src import logger
 app_log = logger.app_logger(f"{__name__}.app")
 
 
-class LookupChatSessions:
+class ChatSessions:
     """All SQL for the 'chat_session' table."""
 
     def __init__(self, conn, sess_name: str, sys_prompt_tkns: Callable[[], int]):
         self._conn = conn
-
         self.sess_name = sess_name
-        self.write_chat_sess = WriteChatSessions(
-            conn=self._conn, sess_name=self.sess_name, sys_prompt_tkns=sys_prompt_tkns
+        self._sess_id: str | None = None
+        self._sys_prompt_tkns = (
+            sys_prompt_tkns  # Call only when a new session is created
         )
 
-        self._sess_id: str | None = None
+    def create(self, hooks: AgentHooks | None = None) -> str:
+        """Create session entry on the chat_sessions table and return its session id."""
+        row = fetch_one(
+            conn=self._conn,
+            sql=("""
+                INSERT INTO chat_sessions
+                (session_name, session_used_tokens) VALUES (%s, %s)
+                RETURNING session_id;
+                """),
+            params=(self.sess_name, self._sys_prompt_tkns()),
+        )
 
-    # Lookup chat sessions
+        if row is None:
+            raise RuntimeError("Failed to create session: Database return no ID.")
+
+        info_msg = "New session '%s' created" % self.sess_name
+        app_log.info(info_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_msg)
+        return str(row[0])
+
+    def update_used_tokens(self, sess_used_tkns: int) -> None:
+        execute(
+            conn=self._conn,
+            sql=("""
+                UPDATE chat_sessions
+                SET session_used_tokens = %s
+                WHERE LOWER(session_name) = LOWER(%s);
+                """),
+            params=(sess_used_tkns, self.sess_name),
+        )
 
     def get_id(self) -> str | None:
         """
@@ -65,7 +91,7 @@ class LookupChatSessions:
         """
         sess_id = self.get_id()
         if not sess_id:
-            sess_id = self.write_chat_sess.create()
+            sess_id = self.create()
             self._sess_id = sess_id  # Cache newly created
         return sess_id
 
@@ -137,3 +163,12 @@ class LookupChatSessions:
             str(r[0]): {"session_name": str(r[1]), "created_at": str(r[2])}
             for r in rows
         }
+
+    @staticmethod
+    def get_session_name_by_id(conn, id: str) -> str | None:
+        row = fetch_one(
+            conn=conn,
+            sql="SELECT session_name FROM chat_sessions WHERE session_id = %s;",
+            params=(id,),
+        )
+        return row[0]
