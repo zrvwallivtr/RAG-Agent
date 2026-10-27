@@ -17,6 +17,7 @@ agent [PROMPT] [OPTIONS]
 | `-ls`, `--list-session` | List all available sessions. |
 | `--delete-session SESSION_NAME` | Delete a session. |
 | `--delete-default-session` | Reset the default session. |
+| `--session-experts SESSION_NAME` | Show all the enabled experts in the session. |
 
 ## Attachments
 
@@ -24,6 +25,22 @@ agent [PROMPT] [OPTIONS]
 | --- | --- |
 | `-a`, `--attachments FILENAME...` | Attach one or more files to the prompt. A prompt is required, and all attached files must be in the upload directory. |
 | `-la`, `--list-attachments` | List all uploaded documents stored in the database. |
+
+## Experts
+
+| Flag | Description |
+| --- | --- |
+| `--create-expert EXPERT_NAME [DESCRIPTION]` | Create an expert, with an optional description. |
+| `--delete-expert EXPERT_NAME` | Delete an expert (no documents will be deleted). |
+| `--list-experts` | Show all the available experts. |
+| `--enable-session-expert SESSION_NAME EXPERT_NAME...` | Select and enable multiple experts in a session. |
+| `--disable-session-expert SESSION_NAME EXPERT_NAME...` | Select and disable multiple experts in a session. |
+| `--upload-to-expert EXPERT_NAME DOCUMENT_PATH` | Add documents to expert. |
+| `--generate-expert-doc-des DOCUMENT_TITLE` | Call model to generate a description for the embedded document in the database. |
+| `--expert-learn EXPERT_NAME DOCUMENT_TITLE` | Allow expert to have access to already embedded and stored documents in the database. |
+| `--expert-forget EXPERT_NAME DOCUMENT_TITLE` | Disallow expert to have access to already embedded and stored documents in the database.|
+| `--expert-qualifications` | Show all the documents that are accessible by the expert. |
+| `--all-expert-documents` | Show all documents that have been embedded and stored in the database. |
 
 ## Models and tokenizers
 
@@ -43,6 +60,13 @@ agent [PROMPT] [OPTIONS]
 | `--no-color` | Disable coloured output. |
 | `--width N` | Force the console width, useful for non-TTY output. |
 | `-h`, `--help` | Show help. |
+
+## logs
+
+| Flag | Description |
+| --- | --- |
+| `--app-logs` | |
+| `--prompt-logs` | |
 
 ## Examples
 

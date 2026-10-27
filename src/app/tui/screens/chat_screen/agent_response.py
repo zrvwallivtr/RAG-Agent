@@ -281,7 +281,6 @@ def _fetch_agent_response(
     result = agent.ask(
         prompt=prompt,
         paths=attchmnts,
-        is_attchmnt=bool(attchmnts),
         hooks=hooks,
     )
     screen.app.call_from_thread(setattr, assistant_box, "display", True)

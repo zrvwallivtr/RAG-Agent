@@ -43,7 +43,6 @@ class Compression:
     def _model_compress_with_given_context(
         self,
         prompt: str,
-        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         model: str = MODEL,
         cmp_prompt: str = COMPRESS_PROMPT,
         hooks: AgentHooks | None = None,
@@ -54,7 +53,6 @@ class Compression:
         """
         cmbind_prompt = build_prompt(
             prompt=prompt,
-            attchmnt_dict=attchmnt_dict,
             cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed"),
         )
         response = llm.model_response_with_new_system_prompt_and_context(
@@ -70,7 +68,6 @@ class Compression:
         clean_prompt: str,
         unfmt_prompt: str,
         cmp_method: COMPRESS_METHODS,
-        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
@@ -94,7 +91,7 @@ class Compression:
             )
 
         response = self._model_compress_with_given_context(
-            clean_prompt, attchmnt_dict, hooks=cmp_hooks
+            clean_prompt, hooks=cmp_hooks
         )
         if not response:
             return
@@ -126,7 +123,6 @@ class Compression:
         self,
         unfmt_prompt: str,
         cmp_method: Literal["default", "auto"],
-        attchmnt_dict: dict[Path, dict[str, str]] | None = None,
         default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
@@ -135,7 +131,6 @@ class Compression:
             clean_prompt=default_prompt,
             unfmt_prompt=unfmt_prompt,
             cmp_method=cmp_method,
-            attchmnt_dict=attchmnt_dict,
             hooks=hooks,
         )
 

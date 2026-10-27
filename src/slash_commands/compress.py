@@ -30,7 +30,13 @@ class SlashCompress:
     (is_compressed = TRUE). NOT INCLUDING the newly generated summary.
     """
 
-    def __init__(self, conn, chat_sess_logs: ChatSessionLogs, file_reader: FileReader, chunker: DoclingChunker):
+    def __init__(
+        self,
+        conn,
+        chat_sess_logs: ChatSessionLogs,
+        file_reader: FileReader,
+        chunker: DoclingChunker,
+    ):
         self.conn = conn
         self.chat_sess_logs = chat_sess_logs
         self.attchmnts = Attachments(
@@ -48,7 +54,6 @@ class SlashCompress:
     def _default_compression(
         self,
         unfmt_prompt: str,
-        is_attchmnt: bool,
         paths: list[Path] | None,
         cmp_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
@@ -60,9 +65,9 @@ class SlashCompress:
         This function does NOT support attachment uploads, a message will
         be displayed to notify user that the uploaded will be ignored.
         """
-        if (is_attchmnt or paths) and hooks and hooks.on_stat_change:
+        if paths and hooks and hooks.on_stat_change:
             warn_msg = (
-                "Command '%s' aborted: Prompt must be provided if attachment is uploaded"
+                "Attachments ignored: '%s' does not support attachments"
                 % cmp_cmd
             )
             app_log.warning(warn_msg)
@@ -77,40 +82,34 @@ class SlashCompress:
         self,
         clean_prompt: str,
         unfmt_prompt: str,
-        is_attchmnt: bool,
         paths: list[Path] | None,
+        cmp_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
         """
         '/compress' with added prompt to instructe the model
         what exactly to summaries.
         """
-        attchmnt_dict = self.file_reader.read_content(is_attchmnt, paths)
-        if hooks and hooks.on_loading:
-            hooks.on_loading("Compressing session...")
+        if paths and hooks and hooks.on_stat_change:
+            warn_msg = (
+                "Attachments ignored: '%s' does not support attachments"
+                % cmp_cmd
+            )
+            app_log.warning(warn_msg)
+            hooks.on_stat_change(warn_msg)
 
         result = self.chat_sess_logs.instruct_compress_active_conversations(
             clean_prompt=clean_prompt,
             unfmt_prompt=unfmt_prompt,
-            attchmnt_dict=attchmnt_dict,
             cmp_method="instruct",
             hooks=hooks,
         )
-
-        if not result:
-            return None
-
-        # Store attachments
-        if attchmnt_dict:
-            self.attchmnts.store_already_read_attachments(attchmnt_dict, hooks=hooks)
-
         return result
 
     def run_compress(
         self,
         clean_prompt: str,
         unfmt_prompt: str,
-        is_attchmnt: bool,
         paths: list[Path] | None,
         hooks: AgentHooks | None = None,
     ) -> CompressionResult | None:
@@ -128,7 +127,6 @@ class SlashCompress:
         """
         if not clean_prompt:
             return self._default_compression(
-                is_attchmnt=is_attchmnt,
                 paths=paths,
                 unfmt_prompt=unfmt_prompt,
                 hooks=hooks,
@@ -137,7 +135,6 @@ class SlashCompress:
         return self._instructed_compression(
             clean_prompt=clean_prompt,
             unfmt_prompt=unfmt_prompt,
-            is_attchmnt=is_attchmnt,
             paths=paths,
             hooks=hooks,
         )

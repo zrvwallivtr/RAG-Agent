@@ -20,7 +20,7 @@ Attached files are converted to plain text or Markdown, added to the current tur
 
 ## Safeguards
 
-- **Deduplication:** Content is hased (SHA-256) before embedding. Re-uploading identical content is detected and skipped.
+- **Deduplication:** Content is hashed (SHA-256) before embedding. Re-uploading identical content is detected and skipped.
 - **Path safety:** Document reads are resolved and validated against a fixed uploads directory to prevent path traversal.
 
 ## Parsing

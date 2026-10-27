@@ -37,10 +37,12 @@ from ._get_or_create import get_expert_id_from_name
 from ._schema import ensure_schema
 
 from src.rag.file_reader import FileReader
+from src.rag.basic_parser import BasicParser
+from src.rag.docling import DoclingParser
 from src.rag.docling import DoclingChunker
 from src.agent.models.llm import model_response_with_new_system_prompt_and_context
 from src.agent.models.embed import embedding_content
-from src.agent.tokenizers import LocalTokenizer
+from src.agent.tokenizers import LocalTokenizer, load_tokenizer
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
@@ -125,7 +127,7 @@ class ExpertDocuments:
     self.conn:         Connection to postgres.
     self.exp_name:     Existing expert name.
     self.exp_id:       Optional, specify only from Expert's self.exp_id.
-    self.local_tknizr: LLM token managements.
+    self.llm_tknizr: LLM token managements.
     """
 
     def __init__(
@@ -146,7 +148,8 @@ class ExpertDocuments:
                 self.hooks.on_stat_change(err_msg)
             raise ValueError(err_msg)
 
-        self.local_tknizr = LocalTokenizer(MODEL)
+        self.llm_tknizr = load_tokenizer(MODEL)
+        self.emb_tknizr = load_tokenizer(EMBED_MODEL)
 
     def _get_document_id_by_hash(self, cont_hash: str) -> int | None:
         row = fetch_one(
@@ -272,6 +275,9 @@ class ExpertDocuments:
 
         Does NOT commit: call inside transaction().
         """
+        if not self.llm_tknizr:
+            return None
+
         execute_many(
             conn=self.conn,
             sql=("""
@@ -287,7 +293,7 @@ class ExpertDocuments:
                     vec,
                     embed_tkns,
                     chunk["text"],
-                    self.local_tknizr.count_string_tokens(chunk["text"]) or 0,
+                    self.llm_tknizr.count_string_tokens(chunk["text"]) or 0,
                     json.dumps(chunk["metadata"]),
                 )
                 for i, (chunk, (vec, embed_tkns)) in enumerate(
@@ -491,6 +497,10 @@ class ExpertDocuments:
         nothing.
         - Raises ValueError if the document isn't found.
         """
+        local_tknizr = load_tokenizer(MODEL)
+        if not local_tknizr:
+            return None
+
         ensure_schema(conn)
         doc_id = ExpertDocuments.find_document_id(conn, doc_name)
         row = fetch_one(
@@ -504,7 +514,7 @@ class ExpertDocuments:
             hooks.on_loading("Generating description for document '%s'..." % title)
 
         # Keep the document in the model's context
-        max_tkns = LocalTokenizer(MODEL).model_max_tkns
+        max_tkns = local_tknizr.model_max_tkns
         max_chars = (
             max(2000, (max_tkns - EXPERT_RESERVE_TKNS - 500) * 3)
             if max_tkns
@@ -674,13 +684,21 @@ class ExpertDocuments:
         Returns {title: (document id, status)}, or None if the file could not
         be read, has no content, or has no readable metadata.
         """
-        out = FileReader().read_document(path)
+        if not self.emb_tknizr:
+            app_log.warning("Failed to chunk '%s': No tokenizers loaded", path)
+            return None
+
+        out = FileReader(
+            basic_parser=BasicParser(), docling_parser=DoclingParser()
+        ).read_document(path)
         if not out:
             app_log.warning("Failed to read '%s'. Skipping", path)
             return None
         cont, _ = out
 
-        chunks = DoclingChunker().chunking(cont, hooks=hooks)
+        chunks = DoclingChunker().chunking(
+            cont, hooks=hooks
+        )
         if not chunks:
             app_log.warning("No chunks produced from '%s'. Skipping", path)
             return None

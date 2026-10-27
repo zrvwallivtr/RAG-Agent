@@ -125,12 +125,9 @@ class FileReader:
         )
 
     def read_content(
-        self, is_attchmnt: bool, attch_paths: list[Path] | None
+        self, attch_paths: list[Path] | None
     ) -> dict[Path, dict[str, str]] | None:
         """Return content in attachment(s)."""
-        if not is_attchmnt:
-            return
-
         if not attch_paths:
             return
 

@@ -17,7 +17,7 @@ from ._tokenizer import docling_tokenizer
 
 from src.libs.custom_dataclasses import AgentHooks
 
-from src.agent.tokenizers import LocalTokenizer
+from src.agent.tokenizers import LocalTokenizer, load_tokenizer
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
@@ -26,17 +26,16 @@ app_log = logger.app_logger(f"{__name__}.app")
 class DoclingChunker:
     def __init__(
         self,
-        emb_tknizr: LocalTokenizer,
         max_tkns: int = DOCLING_CHUNK_TKNS,
     ):
         """
-        local_tknizr:   For the embedding model
+        emb_tknizr:   For the embedding model
         max_tkns:       Ceiling for a chunk, in tokens.
         """
         if max_tkns < 1:
             raise ValueError("max_tkns must be at least 1.")
 
-        self.emb_tknizr = emb_tknizr
+        self.emb_tknizr = load_tokenizer(EMBED_MODEL)
         self.max_tkns = max_tkns
 
         self._chunker = None

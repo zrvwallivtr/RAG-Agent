@@ -6,7 +6,7 @@ from rich_argparse import RichHelpFormatter
 
 from src.config.postgres import CONN
 from src.config.files_and_directories import UPLOAD_DIR
-from src.config.config_toml import MODEL
+from src.config.config_toml import MODEL, EMBED_MODEL
 
 from .create_parser import create_parser
 from .interface import init_logger, safe_print, print_cli_hooks
@@ -133,7 +133,6 @@ def build_parser() -> None:
         agent = Agent(sess_name=args.session)
         answer = agent.ask(
             prompt=args.prompt,
-            is_attchmnt=True,
             paths=args.attachments,
             hooks=print_cli_hooks(),
         )
@@ -247,7 +246,10 @@ def build_parser() -> None:
             if not path.is_file():
                 print("Error: '%s' is not a file. Skipping" % p)
                 continue
-            exp_doc = ExpertDocuments(conn=CONN, exp_name=exp_name)
+            exp_doc = ExpertDocuments(
+                conn=CONN,
+                exp_name=exp_name,
+            )
             out = exp_doc.chunk_document_to_database(path, hooks=print_cli_hooks())
             if not out:
                 safe_print(
@@ -277,7 +279,9 @@ def build_parser() -> None:
     if args.generate_expert_doc_des:
         try:
             ExpertDocuments.generate_document_description(
-                CONN, args.expert_document_description, hooks=print_cli_hooks()
+                CONN,
+                args.expert_document_description,
+                hooks=print_cli_hooks(),
             )
             print(
                 "Description for the document '%s' has been generated"

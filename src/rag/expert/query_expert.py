@@ -61,7 +61,7 @@ def expert_tkn_budget(
     """
     if not model_max:
         return None
-    free = model_max - used_tkns - prompt_tkns - EXPERT_RESERVE_TKNS
+    free = model_max - used_tkns - prompt_tkns - reply_reserve_tkns
     return max(0, int(free * share))
 
 

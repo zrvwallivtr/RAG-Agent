@@ -5,6 +5,7 @@ A local AI assistant featuring long-term memory, file context injection and auto
 - **CLI and TUI support:** Interact with the agent in the terminal with `agent "MESSAGE"` or enter full-screen terminal UI with `agent`.
 - **File context:** Attach PDFs, documents, spreadsheets, code and more. Parsed content is injected into the prompt and stored to the database for later retrieval by vector similarity.
 - **Sessions:** Named sessions with persistent chat logs and message token counts.
+- **Experts:** Named knowledge bases built from uploaded documents of choice. They exist independently of chat sessions and can be reused by any of them.
 - **Token management:** Live token counter and auto compression when the context window reaches its limit.
 - **Single local database:** Sessions, memories and embeddings all live in a local PostgreSQL database.
 
@@ -17,7 +18,7 @@ A local AI assistant featuring long-term memory, file context injection and auto
 - Docker with the compose plugin
 - Python 3.11 or newer
 
-Clone the repo by(No binary version is available yet.):
+Clone the repo by:
 ```
 git clone https://github.com/zrvwallivtr/RAG-Agent.git
 ```
@@ -55,6 +56,18 @@ agent -s SESSION_NAME "Write a message..."  # CLI: Continue from a named session
 agent                                       # TUI: Open the terminal UI
 ```
 
+### 5. Expert
+
+An expert is a named subject area. Its documents are chunked, embedded and searched by similarity, where the agent can answer from them.
+
+```sh
+agent --create-expert EXPERT_NAME                       # Create an expert
+agent --upload-to-expert /path/to/document              # Chunk, embed and add a document
+agent --list-experts                                    # List all created experts
+agent --enable-session-expert SESSION_NAME EXPERT_NAME  # Enable the expert for the session in-order to use it
+agent --delete-expert EXPERT_NAME                       # Delete the expert (No uploaded documents will be deleted)
+```
+
 Run `agent -h` for all flags. See the [CLI reference](./docs/CLI_REFERENCE.md) and [TUI reference](./docs/TUI_REFERENCE.md).
 
 ---
@@ -80,8 +93,8 @@ Attached files are converted to plain text or Markdown, injected into the curren
 **Token management:**
 Before each turn the agent estimates the size of the history plus the new prompt, with 1,000 tokens reserved for the reply. If that exceeds teh model's limit, older turns are summarised automatically. `/compress` does the same on demand. The auto compression requires a known token limit for the chat model, sess [Configuration](./docs/CONFIGURATION.md).
 
-**Web search:**
-Still in development. See [Web Search](./docs/WEB_SEARCH.md).
+**Experts:**
+An expert is a named set of documents. Each document is parsed with Docling, split into chunks (Docling's `HybridChunker`, sized with the embedding model's tokenizer), embedded and stored in pgvector.
 
 ---
 
@@ -97,12 +110,7 @@ ollama_host = "http://localhost:11434"
 model     = "ministral-3:3b"
 embedding = "nomic-embed-text"
 
-# Optional token limits
-# model_max_tokens      =
-# embedding_max_tokens  =
-
 fallback_tokenizer  = "gpt2"
-
 
 [file_reader]
 
@@ -116,10 +124,10 @@ Every option is described in the [configuration reference](./docs/CONFIGURATION.
 ---
 
 ## Document index
+
 For in-depth guides and system specifications, refer to the project docs:
 
 * [Document Processing](./docs/DOCUMENT_PROCESSING.md)
-* [Web Search Features](./docs/WEB_SEARCH.md)
 * [Full Configuration References](./docs/CONFIGURATION.md)
 * [Command Line Interface References](./docs/CLI_REFERENCE.md)
 * [Terminal User Interface References](./docs/TUI_REFERENCE.md)

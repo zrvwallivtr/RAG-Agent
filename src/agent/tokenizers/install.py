@@ -48,7 +48,7 @@ def _install_fallback_tokenizers(
         fb_tknizr.save(str(fb_tknizr_path))
         info_str = (
             "Model '%s' tokenizer has been installed and "
-            "saved to '%s' as fallback tokenizer" % (FALLBACK_TOKENIZER, fb_tknizr_path)
+            "saved to '%s' as fallback tokenizer" % (fb_tknizr, fb_tknizr_path)
         )
         app_log.info(info_str)
         if hooks and hooks.on_stat_change:
@@ -56,7 +56,7 @@ def _install_fallback_tokenizers(
     except Exception as e:
         err_msg = (
             "Failed to install model '%s' tokenizer as fallback tokenizer: "
-            "%s. Skipping" % (FALLBACK_TOKENIZER, e)
+            "%s. Skipping" % (fb_tknizr, e)
         )
         app_log.warning(err_msg)
         if hooks and hooks.on_stat_change:
@@ -67,12 +67,14 @@ def _install_tokenizer_from_huggingface(
     count: int,
     model_name: str,
     installed_models: list[str],
+    model_tknizr_dict: dict = MODEL_NAME_TO_HF_TOKENIZER,
+    tknizr_dir: Path = TOKENIZERS_DIR,
     hooks: AgentHooks | None = None,
 ) -> None:
     """Install tokenizers from huggingface model list."""
     base_name = model_name.split(":")[0]
-    hf_repo = MODEL_NAME_TO_HF_TOKENIZER.get(base_name)
-    tknizr_path = TOKENIZERS_DIR / f"{model_name}.json"
+    hf_repo = model_tknizr_dict.get(base_name)
+    tknizr_path = tknizr_dir / f"{model_name}.json"
 
     # Skip: Huggingface repo not found
     if hf_repo is None:
@@ -144,7 +146,7 @@ def install_tokenizers(hooks: AgentHooks | None = None) -> None:
         )
 
 
-def fetch_all_installed_tokenizers() -> list[dict]:
+def fetch_all_installed_tokenizers(tknizr_dir: Path = TOKENIZERS_DIR) -> list[dict]:
     """
     Return the name and modified time of all installed tokenizers
     in the tokenizer directory.
@@ -154,6 +156,6 @@ def fetch_all_installed_tokenizers() -> list[dict]:
             "name": file.stem,
             "modified_at": datetime.fromtimestamp(file.stat().st_mtime),
         }
-        for file in TOKENIZERS_DIR.iterdir()
+        for file in tknizr_dir.iterdir()
         if file.is_file()
     ]

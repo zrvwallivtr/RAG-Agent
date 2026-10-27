@@ -160,31 +160,37 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--generate-expert-doc-des",
         default=None,
-        metavar=("DOCUMENT_NAME"),
+        metavar=("DOCUMENT_TITLE"),
         help="Call model to generate a description for the embedded document",
     )
     parser.add_argument(
         "--expert-learn",
         nargs="+",
-        metavar=("EXPERT_NAME", "DOCUMENT_NAME"),
-        help="Link already embedded documents to an expert",
+        metavar=("EXPERT_NAME", "DOCUMENT_TITLE"),
+        help=(
+            "Allow expert to have access to already embedded and"
+            " stored documents in the database."
+        ),
     )
     parser.add_argument(
         "--expert-forget",
         nargs="+",
-        metavar=("EXPERT_NAME", "DOCUMENT_NAME"),
-        help="Unlink documents from an expert",
+        metavar=("EXPERT_NAME", "DOCUMENT_TITLE"),
+        help=(
+            "Disallow expert to have access to already embedded and "
+            "stored documents in the database."
+        ),
     )
     parser.add_argument(
         "--expert-qualifications",
         default=None,
         metavar=("EXPERT_NAME"),
-        help="Show all documents that are accessable by this expert",
+        help="Show all documents that are accessible by the expert",
     )
     parser.add_argument(
         "--all-expert-documents",
         action="store_true",
-        help="Show all documents across all experts",
+        help="Show all documents that have been embedded and stored in the database",
     )
 
     # Show logs

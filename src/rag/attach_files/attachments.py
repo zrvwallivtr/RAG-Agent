@@ -22,7 +22,7 @@ from src.libs.custom_dataclasses import AgentHooks
 from src.rag.docling import DoclingChunker
 from src.agent.chat_session_logs import ChatSessionLogs
 from src.agent.models.embed import embedding_content
-from src.agent.tokenizers import LocalTokenizer
+from src.agent.tokenizers import LocalTokenizer, load_tokenizer
 from src.rag.file_reader import FileReader
 from src.logger import app_logger
 
@@ -38,7 +38,7 @@ class Attachments:
     self.conn:           Connection to postgres.
     self.chat_sess_logs: Existing chat session log class.
     self.file_reader:    For reading uploaded files.
-    self.local_tknizr:   LLM token managements.
+    self.llm_tknizr:   LLM token managements.
     """
 
     def __init__(
@@ -47,7 +47,6 @@ class Attachments:
         chat_sess_logs: ChatSessionLogs,
         file_reader: FileReader | None = None,
         chunker: DoclingChunker | None = None,
-        tknizr=LocalTokenizer(MODEL),
     ):
         self.conn = conn
 
@@ -60,7 +59,7 @@ class Attachments:
 
         self.file_reader = file_reader
         self.chunker = chunker
-        self.local_tknizr = tknizr
+        self.llm_tknizr = load_tokenizer(MODEL)
 
     @staticmethod
     def attachment_id_by_title(conn, attchmnt_name: str | int) -> int | None:
@@ -304,6 +303,9 @@ class Attachments:
 
         Does NOT commit: call inside transaction().
         """
+        if not self.llm_tknizr:
+            return None
+
         execute_many(
             conn=self.conn,
             sql=("""
@@ -319,7 +321,7 @@ class Attachments:
                     vec,
                     embed_tkns,
                     chunk["text"],
-                    self.local_tknizr.count_string_tokens(chunk["text"]) or 0,
+                    self.llm_tknizr.count_string_tokens(chunk["text"]) or 0,
                     json.dumps(chunk["metadata"]),
                 )
                 for i, (chunk, (vec, embed_tkns)) in enumerate(

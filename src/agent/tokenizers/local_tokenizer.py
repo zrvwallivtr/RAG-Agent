@@ -18,56 +18,29 @@ from src.logger import app_logger
 app_log = app_logger(__name__)
 
 
-@lru_cache(maxsize=None)
-def _load_tokenizer(
-    model: str,
-) -> Tokenizer | None:
-    """Load local installed tokenizer."""
-    file = TOKENIZERS_DIR / f"{model}.json"
-
-    try:
-        # Load pre-installed tokenizer
-        return Tokenizer.from_file(str(file))
-
-    except Exception as e:
-        # Load pre-installed fallback tokenizer
-        try:
-            tknizr = Tokenizer.from_file(
-                str(TOKENIZERS_DIR / f"{FALLBACK_TOKENIZER}.json")
-            )
-            app_log.warning(
-                "Failed to load model '%s' tokenizer: %s. "
-                "Falling back to model '%s' tokenizer" % (model, e, FALLBACK_TOKENIZER)
-            )
-            return tknizr
-
-        # Disable tokenizer feature
-        except Exception as fallback_err:
-            app_log.warning(
-                "Failed to load model '%s' fallback tokenizer: %s. "
-                "Tokenizer feature disabled" % (FALLBACK_TOKENIZER, fallback_err)
-            )
-            return
-
-
 class LocalTokenizer:
     """Load installed tokenizer."""
 
-    def __init__(self, model: str):
+    def __init__(
+        self,
+        model: str,
+        model_max_tkns: int = MODEL_MAX_TOKENS,
+        model_max: dict = MODEL_MAX,
+    ):
         self.model = model
-        self.load_tknizr = _load_tokenizer(model)
+        self.load_tknizr = load_tokenizer(model)
 
         # User specified max tokens
-        if MODEL_MAX_TOKENS:
-            self.model_max_tkns = MODEL_MAX_TOKENS
+        if model_max_tkns:
+            self.model_max_tkns = model_max_tkns
             app_log.debug(
                 "Imported user specified max token limit " "for model '%s' tokenizer",
                 self.model,
             )
 
         # Fallback to preset list
-        elif self.model in MODEL_MAX:
-            self.model_max_tkns = MODEL_MAX[self.model]
+        elif self.model in model_max:
+            self.model_max_tkns = model_max[self.model]
             app_log.debug(
                 "Max token limit not specified by user. "
                 "Loaded preset limits for model '%s' tokenizer",
@@ -83,8 +56,6 @@ class LocalTokenizer:
                 self.model,
             )
             self.model_max_tkns = None
-
-    # --- Count tokens --------------------------------------------------------
 
     def count_string_tokens(self, text: str) -> int | None:
         """Counts tokens in string."""
@@ -118,8 +89,6 @@ class LocalTokenizer:
             return self.estimate_tokens(text)
         return len(self.load_tknizr.encode(text))
 
-    # --- Encode --------------------------------------------------------------
-
     def encode_text(
         self, txt: str, hooks: AgentHooks | None = None
     ) -> list[int] | None:
@@ -135,3 +104,35 @@ class LocalTokenizer:
             info_str = "Encoding from provided text"
             hooks.on_loading(info_str)
         return self.load_tknizr.encode(txt)
+
+
+@lru_cache(maxsize=None)
+def load_tokenizer(
+    model: str,
+    tknizr_dir: Path = TOKENIZERS_DIR,
+    fb_tknizr: str | None = FALLBACK_TOKENIZER,
+) -> Tokenizer | None:
+    """Load local installed tokenizer."""
+    file = tknizr_dir / f"{model}.json"
+
+    try:
+        # Load pre-installed tokenizer
+        return Tokenizer.from_file(str(file))
+
+    except Exception as e:
+        # Load pre-installed fallback tokenizer
+        try:
+            tknizr = Tokenizer.from_file(str(tknizr_dir / f"{fb_tknizr}.json"))
+            app_log.warning(
+                "Failed to load model '%s' tokenizer: %s. "
+                "Falling back to model '%s' tokenizer" % (model, e, fb_tknizr)
+            )
+            return tknizr
+
+        # Disable tokenizer feature
+        except Exception as fallback_err:
+            app_log.warning(
+                "Failed to load model '%s' fallback tokenizer: %s. "
+                "Tokenizer feature disabled" % (fb_tknizr, fallback_err)
+            )
+            return
