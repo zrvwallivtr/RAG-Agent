@@ -7,6 +7,8 @@ DO NOT IMPORT ANY OTHER MODULES HERE.
 from dataclasses import dataclass
 from typing import Any, Callable, Literal, Optional
 
+AgentResult = tuple[str, int, int, dict[str, dict[str, Any]]]
+
 CompressionResult = tuple[str, int, int, dict[str, dict[str, Any]]]
 
 ModelResult = tuple[str, int, int, bool]

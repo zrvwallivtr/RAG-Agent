@@ -10,7 +10,7 @@ from ._chat_logs import ChatLogs
 
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import (
-    CompressionResult,
+    AgentResult,
     ModelResult,
     DEFAULT_PROMPT,
     COMPRESS_METHODS,
@@ -69,7 +69,7 @@ class Compression:
         unfmt_prompt: str,
         cmp_method: COMPRESS_METHODS,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """
         The main compression function. The model generates summary, update
         previous conversation metadata and add the new response to the
@@ -125,7 +125,7 @@ class Compression:
         cmp_method: Literal["default", "auto"],
         default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """Compress session using the pre-written prompt."""
         return self.compress(
             clean_prompt=default_prompt,
@@ -139,7 +139,7 @@ class Compression:
         unfmt_prompt: str,
         default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """Auto compress session, triggered when session token count reached pre-set limit."""
         app_log.debug(
             "Auto chat compression was triggered for session '%s'",

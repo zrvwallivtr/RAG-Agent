@@ -8,7 +8,7 @@ from src.config.config_toml import MODEL
 
 from src.libs.constants import COMPRESS_CMD
 from src.libs.custom_dataclasses import AgentHooks
-from src.libs.constants import CompressionResult
+from src.libs.constants import AgentResult
 
 from src.agent.chat_session_logs import ChatSessionLogs
 
@@ -26,8 +26,8 @@ class SlashCompress:
     '/compress' calls model to summaries all active conversations (marked
     as is_compressed = FALSE).
 
-    All conversation turns will be updated to compressed
-    (is_compressed = TRUE). NOT INCLUDING the newly generated summary.
+    All conversation turns will be updated in the database as
+    is_compressed = TRUE. NOT INCLUDING the newly generated summary.
     """
 
     def __init__(
@@ -57,13 +57,30 @@ class SlashCompress:
         paths: list[Path] | None,
         cmp_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """
         No instructions, ONLY '/compress' is entered in the chat, a simple
         pre-written user prompt will be sent to the model.
 
         This function does NOT support attachment uploads, a message will
         be displayed to notify user that the uploaded will be ignored.
+
+        Parameters
+        ----------
+            unfmt_prompt: The original prompt including the slash command, used
+                          for logging chat history.
+            paths:        New attachments paths, output a warning message if
+                          present to inform this slash command does not support
+                          the feature.
+            cmp_cmd:      The exact slash command to trigger compression.
+            hooks:        Functions hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The response by the model.
+            - Tokens used from the prompt.
+            - Tokens used during the response generation.
+            - Metadata of the new conversation turn that was saved to the database.
         """
         if paths and hooks and hooks.on_stat_change:
             warn_msg = (
@@ -85,10 +102,29 @@ class SlashCompress:
         paths: list[Path] | None,
         cmp_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """
-        '/compress' with added prompt to instructe the model
+        Compress session with added prompt to instructe the model
         what exactly to summaries.
+
+        Parameters
+        ----------
+            clean_prompt: The user's prompt without the slash command, which will
+                          be sent to the model for generating a response.
+            unfmt_prompt: The original prompt including the slash command, used
+                          for logging chat history.
+            paths:        New attachments paths, output a warning message if
+                          present to inform this slash command does not support
+                          the feature.
+            cmp_cmd:      The exact slash command to trigger compression.
+            hooks:        Functions hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The response by the model.
+            - Tokens used from the prompt.
+            - Tokens used during the response generation.
+            - Metadata of the new conversation turn that was saved to the database.
         """
         if paths and hooks and hooks.on_stat_change:
             warn_msg = (
@@ -112,18 +148,28 @@ class SlashCompress:
         unfmt_prompt: str,
         paths: list[Path] | None,
         hooks: AgentHooks | None = None,
-    ) -> CompressionResult | None:
+    ) -> AgentResult | None:
         """
-        Retrieve and print relevant entries according to user prompt.
+        Route to default compression process if only '/compress' is sent to the 
+        agent.
 
-        COMPRESS PROMPT INCLUDES:
-        - Attachments (optional):
-          -> Allows option to upload attachments that might influence chat
-             compression.
-        - All previous conversations that labelled as 'is_compressed = FALSE'
-          -> Already included in 'compress_active_conv()'.
-        - User prompt:
-          -> Main instruction on compression focus.
+        Parameters
+        ----------
+            clean_prompt: The user's prompt without the slash command, which will
+                          be sent to the model for generating a response.
+            unfmt_prompt: The original prompt including the slash command, used
+                          for logging chat history.
+            paths:        New attachments paths, output a warning message if
+                          present to inform this slash command does not support
+                          the feature.
+            hooks:        Functions hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The response by the model.
+            - Tokens used from the prompt.
+            - Tokens used during the response generation.
+            - Metadata of the new conversation turn that was saved to the database.
         """
         if not clean_prompt:
             return self._default_compression(
