@@ -78,7 +78,9 @@ class ChatLogs:
         execute(
             conn=self._conn,
             sql=("""
-                INSERT INTO chat_logs (session_id, prompt, response, state, total_prompt_tokens, total_output_tokens, metadata)
+                INSERT INTO chat_logs 
+                    (session_id, prompt, response, state, total_prompt_tokens,
+                    total_output_tokens, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s);
                 """),
             params=(

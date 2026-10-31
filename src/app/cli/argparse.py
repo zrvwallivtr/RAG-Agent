@@ -140,10 +140,13 @@ def build_parser() -> None:
 
     # List all uploaded attachment(s) in session
     if args.list_attachments:
+        llm_tknizr = LocalTokenizer(MODEL)
         chat_sess_logs = ChatSessionLogs(
-            conn=CONN, sess_name=args.session, llm_tknizr=LocalTokenizer(MODEL)
+            conn=CONN, sess_name=args.session, llm_tknizr=llm_tknizr
         )
-        attchmnts = Attachments(conn=CONN, chat_sess_logs=chat_sess_logs)
+        attchmnts = Attachments(
+            conn=CONN, llm_tknizr=llm_tknizr, chat_sess_logs=chat_sess_logs
+        )
         # doc_kw_bs = DocumentKnowledgeBase(conn=CONN, chat_sess_logs=chat_sess_logs)
 
         rows = attchmnts.all_attachments_data_from_session()
@@ -279,8 +282,9 @@ def build_parser() -> None:
     if args.generate_expert_doc_des:
         try:
             ExpertDocuments.generate_document_description(
-                CONN,
-                args.expert_document_description,
+                conn=CONN,
+                doc_name=args.expert_document_description,
+                llm_tknizr=LocalTokenizer(MODEL),
                 hooks=print_cli_hooks(),
             )
             print(

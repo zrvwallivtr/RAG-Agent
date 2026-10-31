@@ -1,26 +1,30 @@
 [models]
 
 ollama_host = "http://localhost:11434"
-
-model     = "ministral-3:3b"
+model = "ministral-3:3b"
 embedding = "nomic-embed-text"
-
-# Optional token limits
-# model_max_tokens      =
-# embedding_max_tokens  =
-
-fallback_tokenizer  = "gpt2"
-token_reserve       = 1000
+# model_max_tokens =
+# embedding_max_tokens =
+# fallback_tokenizer = "gpt2"
+# token_reserve = 1000
 
 
 [rag]
 
-retrieve_entry_limit     = 3
-enable_auto_read_dropbox = true
-enable_docling           = true
+# enable_docling = true
+# retrieve_entry_limit = 3
+# min_similarity_score = 0.65
+
 
 [expert]
-exploration_factor         = 100   
-retrieval_limit            = 8
-per_expert_retrieval_limit = 3
-docling_default_chunk_tokens = 300
+
+# exploration_factor = 100 
+# per_expert_retrieval_limit = 3
+# docling_chunk_tokens = 300
+# minimum_similar_score = 0.65
+# reply_reserve_tokens = 10000
+# doc_fallback_chars = 12000
+
+[security]
+
+# enable_path_safety = true

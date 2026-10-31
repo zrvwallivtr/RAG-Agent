@@ -9,7 +9,6 @@ from io import BytesIO
 
 from src.config.config_toml import (
     DOCLING_CHUNK_TKNS,
-    CHUNKER_SAFETY_MARGIN,
     EMBED_MODEL,
 )
 
@@ -27,17 +26,20 @@ class DoclingChunker:
     """
     Parameters
     ----------
-        max_tkns: Ceiling for a chunk, in tokens.
+        emb_tknizr: Already initiated embedding model
+                    tokenizer.
+        max_tkns:   Ceiling for a chunk, in tokens.
     """
 
     def __init__(
         self,
+        emb_tknizr: LocalTokenizer,
         max_tkns: int = DOCLING_CHUNK_TKNS,
     ):
         if max_tkns < 1:
             raise ValueError("max_tkns must be at least 1.")
 
-        self.emb_tknizr = load_tokenizer(EMBED_MODEL)
+        self.emb_tknizr = emb_tknizr
         self.max_tkns = max_tkns
 
         self._chunker = None

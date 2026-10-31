@@ -2,7 +2,6 @@ import sys
 import os
 from typing import Any
 from pathlib import Path
-
 from src.libs.models_database import MODEL_MAX
 from src.config.files_and_directories import CONFIG_FILE, _cfg
 
@@ -50,14 +49,6 @@ def _normalise_to_integer(value: Any) -> int | str | None:
         return "Error: Invalid value '%s'" % value
 
 
-# --- Set model provider ------------------------------------------------------
-
-OLLAMA_HOST = _cfg["models"]["ollama_host"]  # URL for ollama docker service
-
-
-# --- Model values ------------------------------------------------------------
-
-
 def _set_model_tokens(
     field: str,
     field_name: str,
@@ -76,23 +67,27 @@ def _set_model_tokens(
     return model, model_max_tokens
 
 
-MODEL, MODEL_MAX_TOKENS = _set_model_tokens(
-    field="model", field_name="model_max_tokens"
-)
+# URL for Ollama docker service
+OLLAMA_HOST: str = _cfg["models"]["ollama_host"]
 
-EMBED_MODEL, EMBED_MAX_TOKENS = _set_model_tokens(
+# Language model
+_MODEL_RESULT = _set_model_tokens(field="model", field_name="model_max_tokens")
+MODEL: str = _MODEL_RESULT[0]
+MODEL_MAX_TOKENS: int = _MODEL_RESULT[1]
+
+# Embedding model
+_EMB_MODEL_RESULT = _set_model_tokens(
     field="embedding", field_name="embedding_max_tokens"
 )
+EMBED_MODEL: str = _EMB_MODEL_RESULT[0]
+EMBED_MAX_TOKENS: int = _EMB_MODEL_RESULT[1]
 
-
-# --- Tokens ------------------------------------------------------------------
-
-# Set fallback tokenizer
-DEFAULT_FALLBACK_TOKENIZER = "gpt2"
-FALLBACK_TOKENIZER = (
-    _cfg.get("models", {}).get("fallback_tokenizer") or DEFAULT_FALLBACK_TOKENIZER
+# Fallback tokenizer
+_DEFAULT_FALLBACK_TOKENIZER: str = "gpt2"
+FALLBACK_TOKENIZER: str = _cfg.get("models", {}).get(
+    "fallback_tokenizer", _DEFAULT_FALLBACK_TOKENIZER
 )
 
-# Set token reserve for agent
-DEFAULT_TOKEN_RESERVE = 1000
-TOKEN_RESERVE = _cfg.get("models", {}).get("token_reserve") or DEFAULT_TOKEN_RESERVE
+# Token reserve for agent
+_DEFAULT_TOKEN_RESERVE: int = 1000
+TOKEN_RESERVE: int = _cfg.get("models", {}).get("token_reserve", _DEFAULT_TOKEN_RESERVE)

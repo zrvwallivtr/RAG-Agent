@@ -37,17 +37,19 @@ class Attachments:
 
     Parameters
     ----------
-        self.conn:           Connection to postgres.
-        self.chat_sess_logs: Already initiated chat session log class.
-        self.file_reader:    Contains parsers for reading uploaded files of
-                             different formats.
-        self.llm_tknizr:     Tokenizer for the language model for token
-                             managements.
+        conn:           Connection to postgres.
+        llm_tknizr:     Tokenizer for the language model for token
+                        managements.
+        chat_sess_logs: Already initiated chat session log class.
+        file_reader:    Contains parsers for reading uploaded files of
+                        different formats.
+        chunker:        Already initiated Docling chunker.
     """
 
     def __init__(
         self,
         conn,
+        llm_tknizr: LocalTokenizer,
         chat_sess_logs: ChatSessionLogs,
         file_reader: FileReader | None = None,
         chunker: DoclingChunker | None = None,
@@ -63,7 +65,7 @@ class Attachments:
 
         self.file_reader = file_reader
         self.chunker = chunker
-        self.llm_tknizr = load_tokenizer(MODEL)
+        self.llm_tknizr = llm_tknizr
 
     @staticmethod
     def attachment_id_by_title(conn, attchmnt_title: str | int) -> int | None:

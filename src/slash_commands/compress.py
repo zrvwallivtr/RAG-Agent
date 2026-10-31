@@ -11,6 +11,7 @@ from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import AgentResult
 
 from src.agent.chat_session_logs import ChatSessionLogs
+from src.agent.tokenizers.local_tokenizer import LocalTokenizer
 
 from src.rag.attach_files import Attachments, QueryAttachments
 from src.rag.file_reader import FileReader
@@ -32,6 +33,7 @@ class SlashCompress:
     Parameters
     ----------
         conn:           Connection to the database.
+        llm_tknizer:    Already initiated LLM tokenizer.
         chat_sess_logs: Already initiated chat session logs class.
         file_reader:    Already initiated file reader class.
         chunker:        Already initiated content chunker class.
@@ -40,6 +42,7 @@ class SlashCompress:
     def __init__(
         self,
         conn,
+        llm_tknizer: LocalTokenizer,
         chat_sess_logs: ChatSessionLogs,
         file_reader: FileReader,
         chunker: DoclingChunker,
@@ -48,6 +51,7 @@ class SlashCompress:
         self.chat_sess_logs = chat_sess_logs
         self.attchmnts = Attachments(
             conn=self.conn,
+            llm_tknizr=llm_tknizer,
             chat_sess_logs=self.chat_sess_logs,
             file_reader=file_reader,
             chunker=chunker,

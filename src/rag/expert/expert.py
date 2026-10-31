@@ -30,7 +30,7 @@ from src.libs.helpers.file_metadata_helpers import unpack_file_metadata
 
 from ._schema import ensure_schema, ensure_link_schema
 from ._get_or_create import get_or_create_expert
-from .query_expert import QueryExpert, EXPERT_RESERVE_TKNS
+from .query_expert import QueryExpert
 from .documents import ExpertDocuments, StoreStatus
 
 from src.agent.tokenizers import LocalTokenizer
@@ -181,7 +181,7 @@ class Expert:
 
         Returns
         -------
-            - 
+            - A list of dictionary about the matched entries.
         """
         retrieve_lim = (
             PER_EXPERT_RETRIEVAL_LIMIT if len(exp_list) > 1 else EXPERT_RETRIEVE_LIMIT

@@ -51,7 +51,7 @@ class Agent:
         self.file_reader = FileReader(
             basic_parser=BasicParser(), docling_parser=DoclingParser()
         )
-        self.chunker = DoclingChunker()
+        self.chunker = DoclingChunker(emb_tknizr=self.emb_tknizr)
 
         self.sess_name = sess_name
 
@@ -60,12 +60,14 @@ class Agent:
         )
         self.slash_compress = SlashCompress(
             conn=self.conn,
+            llm_tknizer=self.llm_tknizr,
             chat_sess_logs=self.chat_sess_logs,
             file_reader=self.file_reader,
             chunker=self.chunker,
         )
         self.attchmnts = Attachments(
             conn=self.conn,
+            llm_tknizr=self.llm_tknizr,
             chat_sess_logs=self.chat_sess_logs,
             file_reader=self.file_reader,
             chunker=self.chunker,

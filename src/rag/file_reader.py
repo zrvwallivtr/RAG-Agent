@@ -92,36 +92,6 @@ class FileReader:
                     )
                 return None
 
-    def _basic_parser_default(
-        self, path: Path, safe_path: Path, ext: str, hooks: AgentHooks | None = None
-    ) -> ParserResult | None:
-        """
-        Use the basic parser if user disabled docling parser.
-
-        Parameters
-        ----------
-            path:      Target file's path.
-            safe_path: The dedicated directory only for file uploads.
-            ext:       Suffix of the path.
-            hooks:     Function hooks for cli/tui integration.
-
-        Returns
-        -------
-            - Parsed content.
-            - Content's format (e.g. md).
-        """
-        try:
-            if hooks and hooks.on_loading:
-                hooks.on_loading("Running basic parser for '%s'" % path)
-
-            parser = self.basic_parser.formats.get(ext, self.basic_parser.read_txt)
-            return parser(safe_path)
-
-        except Exception as e:
-            if hooks and hooks.on_loading:
-                hooks.on_loading("Failed to run basic parser for '%s': %s" % (path, e))
-            return None
-
     def read_document(
         self,
         path: Path,
@@ -148,6 +118,7 @@ class FileReader:
 
         if not safe_path.exists():
             raise FileNotFoundError("'%s' does not exist" % safe_path)
+
         if not safe_path.is_file():
             raise ValueError("'%s' is not a regular file" % safe_path)
 
@@ -196,6 +167,36 @@ class FileReader:
 
         return attchmnt_dict
 
+    def _basic_parser_default(
+        self, path: Path, safe_path: Path, ext: str, hooks: AgentHooks | None = None
+    ) -> ParserResult | None:
+        """
+        Use the basic parser if user disabled docling parser.
+
+        Parameters
+        ----------
+            path:      Target file's path.
+            safe_path: The dedicated directory only for file uploads.
+            ext:       Suffix of the path.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Parsed content.
+            - Content's format (e.g. md).
+        """
+        try:
+            if hooks and hooks.on_loading:
+                hooks.on_loading("Running basic parser for '%s'" % path)
+
+            parser = self.basic_parser.formats.get(ext, self.basic_parser.read_txt)
+            return parser(safe_path)
+
+        except Exception as e:
+            if hooks and hooks.on_loading:
+                hooks.on_loading("Failed to run basic parser for '%s': %s" % (path, e))
+            return None
+
 
 def _validate_path(
     path: Path,
@@ -215,7 +216,7 @@ def _validate_path(
         enable_path_safety: Set True for only allows reading files in the
                             upload directory, can be set in 'config.toml'.
     """
-    if enable_path_safety:
+    if enable_path_safety is True:
         info_str = "Path safety feature is enabled: Validating upload path '%s'" % (
             path
         )

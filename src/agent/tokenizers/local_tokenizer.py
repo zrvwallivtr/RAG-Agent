@@ -108,15 +108,37 @@ class LocalTokenizer:
         encodings = self.load_tknizr.encode_batch(texts)
         return sum(len(e.ids) for e in encodings) + 4 * len(msgs) + 3
 
-    # @staticmethod
-    # def estimate_tokens(text: str) -> int:
-    #     """Rough estimate (about 4 characters per tokens)."""
-    #     return max(1, len(text) // 4)
+    @staticmethod
+    def estimate_tokens(text: str) -> int:
+        """
+        Fallback, rough estimate (about 4 characters per tokens). 
 
-    # def count_or_estimate_tokens(self, text: str) -> int:
-    #     if not self.load_tknizr:
-    #         return self.estimate_tokens(text)
-    #     return len(self.load_tknizr.encode(text))
+        Parameters
+        ----------
+            text: Text string for token extimation.
+
+        Returns
+        -------
+            - Estimated token used from the string.
+        """
+        return max(1, len(text) // 4)
+
+    def count_or_estimate_tokens(self, text: str) -> int:
+        """
+        Fallback to estimate tokens if tokenizer unavailable for
+        critical features.
+
+        Parameters
+        ----------
+            text: Text string for token count.
+
+        Returns
+        -------
+            - Token used from the string.
+        """
+        if not self.load_tknizr:
+            return self.estimate_tokens(text)
+        return len(self.load_tknizr.encode(text))
 
     def encode_text(
         self, text: str, hooks: AgentHooks | None = None

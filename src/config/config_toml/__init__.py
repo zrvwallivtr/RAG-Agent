@@ -11,7 +11,6 @@ from .rag import (
     ENABLE_DOCLING,
     RETRIEVE_DOC_ENTRY_LIMIT,
     MIN_SIMILARITY_SCORE,
-    CHUNKER_SAFETY_MARGIN,
 )
 from .expert import (
     EXPLORATION_FACTOR,
@@ -19,13 +18,13 @@ from .expert import (
     PER_EXPERT_RETRIEVAL_LIMIT,
     DOCLING_CHUNK_TKNS,
     EXP_MIN_SIM_SCORE,
-    EXPERT_RESERVE_TKNS,
-    EXPERT_DOC_FALLBACK_CHARS,
+    DOC_DES_RESERVE_TKNS,
+    DOC_DES_FALLBACK_CHARS,
 )
 from .security import ENABLE_PATH_SAFETY
 
 __all__ = [
-    # Models
+    # --- Models ---
     "OLLAMA_HOST",
     "MODEL",
     "MODEL_MAX_TOKENS",
@@ -33,19 +32,18 @@ __all__ = [
     "EMBED_MAX_TOKENS",
     "FALLBACK_TOKENIZER",
     "TOKEN_RESERVE",
-    # RAG
+    # --- RAG ---
     "ENABLE_DOCLING",
     "RETRIEVE_DOC_ENTRY_LIMIT",
     "MIN_SIMILARITY_SCORE",
-    "CHUNKER_SAFETY_MARGIN",
-    # Expert
+    # --- Expert ---
     "EXPLORATION_FACTOR",
     "EXPERT_RETRIEVE_LIMIT",
     "PER_EXPERT_RETRIEVAL_LIMIT",
     "DOCLING_CHUNK_TKNS",
     "EXP_MIN_SIM_SCORE",
-    "EXPERT_RESERVE_TKNS",
-    "EXPERT_DOC_FALLBACK_CHARS",
-    # Security
+    "DOC_DES_RESERVE_TKNS",
+    "DOC_DES_FALLBACK_CHARS",
+    # --- Security ---
     "ENABLE_PATH_SAFETY",
 ]

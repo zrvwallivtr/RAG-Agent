@@ -1,4 +1,4 @@
-from src.config.config_toml import EMBED_MODEL
+from src.config.config_toml import MODEL, EMBED_MODEL
 
 from src.libs.custom_dataclasses import AgentHooks
 
@@ -8,13 +8,21 @@ from src import logger
 app_log = logger.app_logger(f"{__name__}.app")
 
 
-def embedding_content(cont: str) -> tuple[str, list[float], int] | None:
+def embedding_content(
+    cont: str,
+    model: str = MODEL,
+    emb_model: str = EMBED_MODEL,
+    hooks: AgentHooks | None = None,
+) -> tuple[str, list[float], int] | None:
     """
     Generate embedding from given texts.
 
     Parameters
     ----------
-        cont: String to embed.
+        cont:      String to embed.
+        model:     Language model name.
+        emb_model: Embedding model name.
+        hooks:     Function hooks for cli/tui integration.
 
     Returns
     -------
@@ -23,15 +31,22 @@ def embedding_content(cont: str) -> tuple[str, list[float], int] | None:
         - Token used for embedding.
     """
     try:
-        response = ollama_clt.embed(model=EMBED_MODEL, input=cont)
+        response = ollama_clt.embed(model=emb_model, input=cont)
         embdings = response["embeddings"][0]
+
         if not embdings:
-            app_log.warning("Error: Model failed to generate vector embedding")
-            return
+            warn_msg = "Model '%s' failed to generate vector embeddings" % model
+            app_log.warning(warn_msg)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(warn_msg)
+            return None
 
         cont_tkns = response.get("prompt_eval_count", 0)
         return cont, embdings, cont_tkns
 
     except Exception as e:
-        app_log.warning("Error: %s", e)
-        return
+        err_msg = "Model '%s' failed to generate vector embeddings: %s" % (model, e)
+        app_log.warning(err_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(err_msg)
+        return None

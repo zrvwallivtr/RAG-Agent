@@ -13,7 +13,7 @@ def _start_directory(
 ) -> Path:
     if enable_path_safety:
         return upload_dir
-    return Path("~/")
+    return Path.home()
 
 
 def tab_completion(screen, cmd_input: Input, event: Key):

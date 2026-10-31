@@ -13,7 +13,7 @@ app_log = app_logger(f"{__name__}.app")
 prompt_log = prompt_logger(f"{__name__}.prompt")
 
 
-def system_prompt(cont: str) -> dict:
+def system_prompt(cont: str) -> dict[str, str]:
     """
     Parameters
     ----------
@@ -27,7 +27,7 @@ def system_prompt(cont: str) -> dict:
     return system_entry
 
 
-def assistant_message(cont: str) -> dict:
+def assistant_message(cont: str) -> dict[str, str]:
     """
     Parameters
     ----------
@@ -41,7 +41,7 @@ def assistant_message(cont: str) -> dict:
     return assistant_entry
 
 
-def user_message(cont: str) -> dict:
+def user_message(cont: str) -> dict[str, str]:
     """
     Parameters
     ----------
@@ -147,36 +147,6 @@ def model_response_with_new_system_prompt_and_context(
     return text, p_tkns, o_tkns, is_stopped
 
 
-def model_response_memory_recall_format(
-    model: str,
-    sys_prompt: str,
-    prompt: str,
-    context: list[dict] | None = None,
-    hooks: AgentHooks | None = None,
-) -> ModelResult | None:
-    """
-    Model reponse with memory recall system prompt and format.
-
-    Parameters
-    ----------
-        model:      Model name.
-        sys_prompt: System prompt.
-        prompt:     User's prompt.
-        context:    Context messages.
-        hooks:      Function hooks for cli/tui integration.
-
-    Returns
-    -------
-        - Model's response.
-        - Prompt tokens.
-        - Output tokens.
-        - Stop.
-    """
-    msgs = _build_messages(sys_prompt, context, prompt)
-    prompt_log.info(sys_prompt)
-    return model_response(model, msgs, hooks=hooks)
-
-
 def _build_messages(
     sys_prompt: str, msgs: list[dict] | None, prompt: str | None
 ) -> list[dict]:
@@ -196,8 +166,8 @@ def _build_messages(
     new_msgs = [system_prompt(sys_prompt)]
 
     if msgs:
-        # Add existing message entries (OTHER THAN "system" role)
-        # into the new list
+        # Add existing message entries (other than the system
+        # prompt) into the new list.
         new_msgs += [msg for msg in msgs if msg["role"] != "system"]
 
     if prompt:

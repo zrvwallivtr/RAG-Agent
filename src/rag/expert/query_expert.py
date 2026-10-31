@@ -5,7 +5,6 @@ from src.config.config_toml import (
     EXPLORATION_FACTOR,
     EXPERT_RETRIEVE_LIMIT,
     EXP_MIN_SIM_SCORE,
-    EXPERT_RESERVE_TKNS,
 )
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all
@@ -133,34 +132,34 @@ class QueryExpert:
         return hits
 
 
-def expert_tkn_budget(
-    model_max: int | None,
-    used_tkns: int,
-    prompt_tkns: int,
-    reply_reserve_tkns: int = EXPERT_RESERVE_TKNS,
-    share: float = 0.5,
-) -> int | None:
-    """
-    Token budget for expert chunks: a share of the context window that is
-    still free after the session history, the prompt and the reply reserve.
-    
-    Parameters
-    ----------
-        model_max:          Model's maximum tokens.
-        used_tkns:          Used tokens.
-        prompt_tkns:        Prompt's token count.
-        reply_reserve_tkns: Reserved tokens for expert's reply.
-        share:              Fraction of the context window that is still
-                            free.
-
-    Returns
-    -------
-        - The token budget for the expert.
-    """
-    if not model_max:
-        return None
-    free = model_max - used_tkns - prompt_tkns - reply_reserve_tkns
-    return max(0, int(free * share))
+        # def expert_tkn_budget(
+        #     model_max: int | None,
+        #     used_tkns: int,
+        #     prompt_tkns: int,
+        #     reply_reserve_tkns: int = EXPERT_RESERVE_TKNS,
+        #     share: float = 0.5,
+        # ) -> int | None:
+        #     """
+        #     Token budget for expert chunks: a share of the context window that is
+        #     still free after the session history, the prompt and the reply reserve.
+        #     
+        #     Parameters
+        #     ----------
+        #         model_max:          Model's maximum tokens.
+        #         used_tkns:          Used tokens.
+        #         prompt_tkns:        Prompt's token count.
+        #         reply_reserve_tkns: Reserved tokens for expert's reply.
+        #         share:              Fraction of the context window that is still
+        #                             free.
+        # 
+        #     Returns
+        #     -------
+        #         - The token budget for the expert.
+        #     """
+        #     if not model_max:
+        #         return None
+        #     free = model_max - used_tkns - prompt_tkns - reply_reserve_tkns
+        #     return max(0, int(free * share))
 
 
 def _format_query_result(
