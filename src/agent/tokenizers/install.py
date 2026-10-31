@@ -20,12 +20,74 @@ app_log = app_logger(__name__)
 ollama_clt = ollama.ollama_clt
 
 
+def install_tokenizers(hooks: AgentHooks | None = None) -> None:
+    """
+    Install the fallback tokenizer and tokenizers from model list,
+    internet connection required.
+
+    Parameters
+    ----------
+        hooks: Function hooks for cli/tui integration.
+    """
+    if not is_connected:
+        warn_str = "Failed to install tokenizers: No internet connection"
+        app_log.warning(warn_str)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(warn_str)
+        return
+
+    _install_fallback_tokenizers(hooks=hooks)
+
+    count = 0
+    installed_models = ollama_clt.list().models
+    for installed_model in installed_models:
+        count += 1
+        model_name = installed_model.model
+        _install_tokenizer_from_huggingface(
+            count=count,
+            model_name=model_name,
+            installed_models=installed_models,
+            hooks=hooks,
+        )
+
+
+def fetch_all_installed_tokenizers(tknizr_dir: Path = TOKENIZERS_DIR) -> list[dict]:
+    """
+    Return the name and modified time of all installed tokenizers
+    in the tokenizer directory.
+
+    Parameters
+    ----------
+        tknizr_dir: The directory storing all the installed tokenizers.
+
+    Returns
+    -------
+        - A list of dictionary about the installed tokenizers.
+    """
+    return [
+        {
+            "name": file.stem,
+            "modified_at": datetime.fromtimestamp(file.stat().st_mtime),
+        }
+        for file in tknizr_dir.iterdir()
+        if file.is_file()
+    ]
+
+
 def _install_fallback_tokenizers(
     tknizr_dir: Path = TOKENIZERS_DIR,
     fb_tknizr: str = FALLBACK_TOKENIZER,
     hooks: AgentHooks | None = None,
 ) -> None:
-    """Install fallback tokenizer."""
+    """
+    Install fallback tokenizer.
+
+    Parameters
+    ----------
+        tknizr_dir: The directory storing all the installed tokenizers.
+        fb_tknizr:  Name of the fallback tokenizer.
+        hooks:      Function hooks for cli/tui integration.
+    """
     fb_tknizr_path = tknizr_dir / f"{fb_tknizr}.json"
 
     # Skip: Tokenizer already installed
@@ -71,7 +133,19 @@ def _install_tokenizer_from_huggingface(
     tknizr_dir: Path = TOKENIZERS_DIR,
     hooks: AgentHooks | None = None,
 ) -> None:
-    """Install tokenizers from huggingface model list."""
+    """
+    Install tokenizers from huggingface model list.
+
+    Parameters
+    ----------
+        count:             Installing tokenizer counter.
+        model_name:        Model name for the tokenizer.
+        installed_models:  All installed models.
+        model_tknizr_dict: Dictionary paring the model name to the huggingface
+                           repo name.
+        tknizr_dir:        The directory storing all the installed tokenizers.
+        hooks:             Function hooks for cli/tui integration.
+    """
     base_name = model_name.split(":")[0]
     hf_repo = model_tknizr_dict.get(base_name)
     tknizr_path = tknizr_dir / f"{model_name}.json"
@@ -117,45 +191,3 @@ def _install_tokenizer_from_huggingface(
         app_log.warning(err_msg)
         if hooks and hooks.on_error:
             hooks.on_error(err_msg)
-
-
-def install_tokenizers(hooks: AgentHooks | None = None) -> None:
-    """
-    Install the fallback tokenizer and tokenizers from model list,
-    internet connection required.
-    """
-    if not is_connected:
-        warn_str = "Failed to install tokenizers: No internet connection"
-        app_log.warning(warn_str)
-        if hooks and hooks.on_stat_change:
-            hooks.on_stat_change(warn_str)
-        return
-
-    _install_fallback_tokenizers(hooks=hooks)
-
-    count = 0
-    installed_models = ollama_clt.list().models
-    for installed_model in installed_models:
-        count += 1
-        model_name = installed_model.model
-        _install_tokenizer_from_huggingface(
-            count=count,
-            model_name=model_name,
-            installed_models=installed_models,
-            hooks=hooks,
-        )
-
-
-def fetch_all_installed_tokenizers(tknizr_dir: Path = TOKENIZERS_DIR) -> list[dict]:
-    """
-    Return the name and modified time of all installed tokenizers
-    in the tokenizer directory.
-    """
-    return [
-        {
-            "name": file.stem,
-            "modified_at": datetime.fromtimestamp(file.stat().st_mtime),
-        }
-        for file in tknizr_dir.iterdir()
-        if file.is_file()
-    ]

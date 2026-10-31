@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Any, Callable
 
 from src.libs.helpers.database_helpers import fetch_one, fetch_all, execute
 from src.libs.custom_dataclasses import AgentHooks
@@ -9,7 +9,15 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 class ChatSessions:
-    """All SQL for the 'chat_session' table."""
+    """
+    All SQL for the 'chat_session' table.
+
+    Parameters
+    ----------
+        conn:            Connection to the database.
+        sess_name:       Session name.
+        sys_prompt_tkns: Token count for the system prompt.
+    """
 
     def __init__(self, conn, sess_name: str, sys_prompt_tkns: Callable[[], int]):
         self._conn = conn
@@ -20,7 +28,17 @@ class ChatSessions:
         )
 
     def create(self, hooks: AgentHooks | None = None) -> str:
-        """Create session entry on the chat_sessions table and return its session id."""
+        """
+        Create session entry on the chat_sessions table and return its session id.
+
+        Parameters
+        ----------
+            hooks: Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Session id of the created session.
+        """
         row = fetch_one(
             conn=self._conn,
             sql=("""
@@ -41,6 +59,11 @@ class ChatSessions:
         return str(row[0])
 
     def update_used_tokens(self, sess_used_tkns: int) -> None:
+        """
+        Parameters
+        ----------
+            sess_used_tkns: Current used tokens of this session.
+        """
         execute(
             conn=self._conn,
             sql=("""
@@ -56,10 +79,15 @@ class ChatSessions:
         Look up this session's id. READ-ONLY: Never creates anything.
         Returns None if the session row does not exist.
 
-        USE WHEN:
-        - The session is certain to exist already.
-        - Listing, searching or checking existence (None is a valid answer).
-        - Deleting or clearing (Must NOT make up session that was not there).
+        Use when
+        --------
+            - The session is certain to exist already.
+            - Listing, searching or checking existence (None is a valid answer).
+            - Deleting or clearing (Must NOT make up session that was not there).
+
+        Returns
+        -------
+            - This session's id.
         """
         if self._sess_id:
             return self._sess_id  # Cached, no query
@@ -79,15 +107,21 @@ class ChatSessions:
 
     def get_or_create_id(self) -> str:
         """
-        Return this session's id, CREATING the session row if it is missing. Never returns None,
-        and writes to the database on a miss.
+        Return this session's id, CREATING the session row if it is missing.
+        Never returns None, and writes to the database on a miss.
 
-        USE WHEN:
-        - Saving data that needs a session_id foreign key (add_conversation_turn).
-        - The session may not exist yet.
+        Use when
+        --------
+            - Saving data that needs a session_id foreign key (add_conversation_turn).
+            - The session may not exist yet.
 
-        NEVER USE IN:
-        - Read-only paths, listing or delete.
+        Never use in
+        ------------
+            - Read-only paths, listing or delete.
+
+        Returns
+        -------
+            - Retrieve or created id for this session.
         """
         sess_id = self.get_id()
         if not sess_id:
@@ -100,6 +134,15 @@ class ChatSessions:
         self._sess_id = None
 
     def get_name(self, sess_id: str) -> str | None:
+        """
+        Parameters
+        ----------
+            sess_id: Session id.
+
+        Returns
+        -------
+            - Session name that matches the id.
+        """
         row = fetch_one(
             conn=self._conn,
             sql="SELECT session_name FROM chat_sessions WHERE session_id = %s;",
@@ -112,6 +155,15 @@ class ChatSessions:
         return str(row[0])
 
     def get_id_from_name(self, sess_name: str) -> str | None:
+        """
+        Parameters
+        ----------
+            sess_name: Session name.
+
+        Returns
+        -------
+            - Session id that matches the name.
+        """
         row = fetch_one(
             conn=self._conn,
             sql="SELECT session_id FROM chat_sessions WHERE session_name = %s;",
@@ -124,6 +176,17 @@ class ChatSessions:
         return str(row[0])
 
     def get_data(self, sess_name: str | None = None) -> tuple[str, str, int] | None:
+        """
+        Parameters
+        ----------
+            sess_name: Session name leave blank for this session.
+
+        Returns
+        -------
+            - Session id
+            - Session created time
+            - Session used tokens
+        """
         name = (
             sess_name if sess_name else self.sess_name
         )  # Specified session name (optional)
@@ -146,7 +209,13 @@ class ChatSessions:
             int(row[2]),
         )  # session id, created at, session used tokens
 
-    def get_all_metadata(self) -> dict | None:
+    def get_all_metadata(self) -> dict[str, Any] | None:
+        """
+        Returns
+        -------
+            - Dictionary containing session name and created time
+              with session id as the keys.
+        """
         rows = fetch_all(
             conn=self._conn,
             sql=("""
@@ -166,6 +235,16 @@ class ChatSessions:
 
     @staticmethod
     def get_session_name_by_id(conn, id: str) -> str | None:
+        """
+        Parameters
+        ----------
+            conn: Connection to the database.
+            id:   Session id.
+
+        Returns
+        -------
+            - Session name.
+        """
         row = fetch_one(
             conn=conn,
             sql="SELECT session_name FROM chat_sessions WHERE session_id = %s;",

@@ -10,8 +10,49 @@ app_log = app_logger(f"{__name__}.app")
 ollama_clt = ollama.Client(host=OLLAMA_HOST)
 
 
+def ollama_pull_model(model: str) -> bool:
+    """
+    Pull an Ollama model, print progress in the terminal.
+
+    Parameters
+    ----------
+        model: Model name.
+
+    Returns
+    -------
+        - A boolean to check if model has been pulled from Ollama.
+    """
+    if _is_model_installed(model):
+        return True
+
+    try:
+        return _ollama_pull_via_docker(model)
+
+    except Exception as e:
+        app_log.warning("Failed to pull model '%s': %s", model, e)
+        return False
+
+
+def ollama_models_list() -> list[str]:
+    """
+    Returns
+    -------
+        - A list of models installed via Ollama.
+    """
+    response = ollama_clt.list()
+    return [m.model for m in response.models]
+
+
 def _is_model_installed(model: str) -> bool:
-    """Return True if model is already installed."""
+    """
+    Parameters
+    ----------
+        model: Model name.
+
+    Returns
+    -------
+        - True if model is already installed.
+    """
     inst = [m["model"] for m in ollama_clt.list()["models"]]
 
     if model in inst:
@@ -27,6 +68,15 @@ def _ollama_pull_via_docker(
     """
     Pull model using temporary Docker container with internet access,
     writing into the same volume the isolated ollama service mounts.
+
+    Parameters
+    ----------
+        model:   Model name.
+        vo_name: Volume name.
+
+    Returns
+    -------
+        - A boolean to check if model has been pulled from Ollama.
     """
     app_log.info("Pulling '%s' via host Docker", model)
     try:
@@ -58,22 +108,3 @@ def _ollama_pull_via_docker(
     except FileNotFoundError:
         app_log.warning("Failed to pull model: Docker CLI not found on host")
         return False
-
-
-def ollama_pull_model(model: str) -> bool:
-    """Pull an Ollama model, print progress in the terminal."""
-    if _is_model_installed(model):
-        return True
-
-    try:
-        return _ollama_pull_via_docker(model)
-
-    except Exception as e:
-        app_log.warning("Failed to pull model '%s': %s", model, e)
-        return False
-
-
-def ollama_models_list() -> list[str]:
-    """Return a list of models installed via Ollama."""
-    response = ollama_clt.list()
-    return [m.model for m in response.models]

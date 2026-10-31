@@ -14,16 +14,47 @@ class ToolCallsMetadata:
     """
 
     @staticmethod
-    def _attachments_tool_call(attchmnts: list[Path] | None) -> dict | None:
+    def all_tool_calls(
+        attchmnts: list[Path] | None = None,
+        unfmt_cmp_prompt: str | None = None,
+        cmp_method: Literal["default", "instruct", "auto"] | None = None,
+    ) -> dict[str, Any]:
         """
-        Returns the dictionary for uploaded attachments storing its metadata.
+        Parameters
+        ----------
+            attchmnts:    List of attachment paths of a turn.
+            unfmt_prompt: The original unedited prompt including the slash command.
+            method:       Compression method.
 
-        {
-            "filename": {
-                "mime_type": ,
-                "size_bytes": ,
-            }
-        }
+        Returns
+        -------
+            - A dictionary contain all tool calls data.
+        """
+        tool_entries = {}
+
+        if attchmnts:
+            tool_entries["attachments"] = ToolCallsMetadata._attachments_tool_call(
+                attchmnts
+            )
+
+        if cmp_method is not None:
+            tool_entries["compress"] = ToolCallsMetadata._compress_tool_call(
+                unfmt_cmp_prompt, cmp_method
+            )
+
+        return tool_entries
+
+    @staticmethod
+    def _attachments_tool_call(attchmnts: list[Path] | None) -> dict[str, Any] | None:
+        """
+        Parameters
+        ----------
+            attchmnts: List of attachment paths of a turn.
+
+        Returns
+        -------
+            - A dictionary containing the attachment's data with
+              attachment name as the keys.
         """
         if attchmnts is None:
             return
@@ -41,57 +72,23 @@ class ToolCallsMetadata:
         return attchmnts_dict
 
     @staticmethod
-    def _memories_tool_call(unfmt_prompt: str | None = None) -> dict[str, str] | None:
-        """
-        Returns the dictionary for storing metadata for the '/memories' slash command.
-
-        {
-            "unformatted_prompt": ,
-        }
-
-        "unformatted_prompt" stores the exact input the user submitted in the chat,
-        it will be used to reconstruct the exact chat conversation history as
-        '/memories' won't be stored in the user prompt.
-        """
-        if unfmt_prompt is None:
-            return None
-        app_log.debug("Added '/memories' too call metadata into the database")
-        return {"unformatted_prompt": unfmt_prompt}
-
-    @staticmethod
-    def _recall_tool_call(unfmt_prompt: str | None = None) -> dict[str, str] | None:
-        """
-        Returns the dictionary for storing metadata for the '/recall' slash command.
-
-        {
-            "unformatted_prompt": ,
-        }
-
-        "unformatted_prompt" stores the exact input the user submitted in the chat,
-        it will be used to reconstruct the exact chat conversation history as
-        '/recall' won't be stored in the user prompt.
-        """
-        if unfmt_prompt is None:
-            return None
-        app_log.debug("Added '/recall' too call metadata into the database")
-        return {"unformatted_prompt": unfmt_prompt}
-
-    @staticmethod
     def _compress_tool_call(
         unfmt_prompt: str | None = None,
         method: Literal["default", "instruct", "auto"] | None = None,
-    ) -> dict | None:
+    ) -> dict[str, str | None] | None:
         """
-        Returns the dictionary for storing metadata for the '/compress' slash command.
-
-        {
-            "unformatted_prompt": ,
-            "method": ,
-        }
-
-        "unformatted_prompt" stores the exact input the user submitted in the chat,
+        "unfmt_prompt" stores the exact input the user submitted in the chat,
         it will be used to reconstruct the exact chat conversation history as
         '/compress' won't be stored in the user prompt.
+
+        Parameters
+        ----------
+            unfmt_prompt: The original unedited prompt including the slash command.
+            method:       Compression method.
+
+        Returns
+        -------
+            - A dictionary about the compression tool call data.
         """
         if method is None:
             return
@@ -103,47 +100,3 @@ class ToolCallsMetadata:
             "unformatted_prompt": unfmt_prompt,
             "method": method,
         }
-
-    @staticmethod
-    def all_tool_calls(
-        attchmnts: list[Path] | None = None,
-        unfmt_mem_prompt: str | None = None,
-        unfmt_recall_prompt: str | None = None,
-        unfmt_cmp_prompt: str | None = None,
-        cmp_method: Literal["default", "instruct", "auto"] | None = None,
-    ) -> dict:
-        """
-        Returns a dictionary of all tool calls metadata:
-
-        {
-            "attachments": ,
-            "memories": ,
-            "recall": ,
-            "compress": ,
-        }
-
-        Return an empty dictionary if no tool calls.
-        """
-        tool_entries = {}
-
-        if attchmnts:
-            tool_entries["attachments"] = ToolCallsMetadata._attachments_tool_call(
-                attchmnts
-            )
-
-        if unfmt_mem_prompt:
-            tool_entries["memorise"] = ToolCallsMetadata._memories_tool_call(
-                unfmt_mem_prompt
-            )
-
-        if unfmt_recall_prompt:
-            tool_entries["recall"] = ToolCallsMetadata._recall_tool_call(
-                unfmt_recall_prompt
-            )
-
-        if cmp_method is not None:
-            tool_entries["compress"] = ToolCallsMetadata._compress_tool_call(
-                unfmt_cmp_prompt, cmp_method
-            )
-
-        return tool_entries

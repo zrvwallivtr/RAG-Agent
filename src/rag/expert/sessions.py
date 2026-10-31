@@ -23,7 +23,19 @@ app_log = logger.app_logger(f"{__name__}.app")
 def _find_session_id_from_name(
     conn, sess_name: str, hooks: AgentHooks | None = None
 ) -> str | None:
-    """Resolve a session name to its id. Raises ValueError if missing."""
+    """
+    Resolve a session name to its id. Raises ValueError if missing.
+
+    Parameters
+    ----------
+        conn:      Connection to the database.
+        sess_name: Name of this session.
+        hooks:     Function hooks for cli/tui integration.
+
+    Returns
+    -------
+        - Session id.
+    """
     row = fetch_one(
         conn=conn,
         sql="SELECT session_id FROM chat_sessions WHERE session_name = %s",
@@ -38,7 +50,17 @@ def _find_session_id_from_name(
 
 
 def _link_table_exists(conn) -> bool:
-    """session_experts is only created once an experts is first enabled."""
+    """
+    session_experts is only created once an experts is first enabled.
+
+    Parameters
+    ----------
+        conn: Connection to the database.
+
+    Returns
+    -------
+        - True if link table exists.
+    """
     row = fetch_one(conn=conn, sql="SELECT to_regclass('session_experts');")
     return bool(row and row[0])
 
@@ -47,6 +69,15 @@ def sessions_using_expert(conn, exp_id: int) -> list[tuple[str, str]]:
     """
     Find all the session the specified expert is enabled in.
     Returns (session_id, session_name) for each.
+
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        exp_id: Expert's id.
+
+    Returns
+    -------
+        - List of session id and name that uses that expert.
     """
     ensure_link_schema(conn)
     rows = fetch_all(
@@ -67,10 +98,12 @@ class SessionExperts:
     """
     The experts enabled in a chat session (multiple experts per session).
 
-    self.conn:     Connection to postgres.
-    self.sess_id:  Given session id.
-    self.exp_name: Existing expert name.
-    self.exp_id:   Optional, specify only from Expert's self.exp_id.
+    Parameters
+    ----------
+        self.conn:     Connection to postgres.
+        self.sess_id:  Given session id.
+        self.exp_name: Existing expert name.
+        self.exp_id:   Optional, specify only from Expert's self.exp_id.
     """
 
     def __init__(
@@ -98,7 +131,13 @@ class SessionExperts:
         ensure_link_schema(self.conn)
 
     def session_enabled_experts(self) -> list[tuple[int, str]]:
-        """(id, name) of every expert enable in this session."""
+        """
+        (id, name) of every expert enable in this session.
+
+        Returns
+        -------
+            - List of session id and name that uses this expert.
+        """
         rows = fetch_all(
             conn=self.conn,
             sql=("""
@@ -113,7 +152,13 @@ class SessionExperts:
         return [(int(r[0]), str(r[1])) for r in rows]
 
     def session_enabled_expert_ids(self) -> list[int]:
-        """Ids of every expert enabled in this session."""
+        """
+        Ids of every expert enabled in this session.
+
+        Returns
+        -------
+            - List of Ids of every expert enabled in this session.
+        """
         return [exp_id for exp_id, _ in self.session_enabled_experts()]
 
     def enable_expert(self) -> None:
@@ -133,6 +178,10 @@ class SessionExperts:
         """
         Disable an expert for a session. Returns false if the expert
         wasn't enabled in this session.
+
+        Returns
+        -------
+            - A boolean if the expert has been disabled for this session.
         """
         return (
             execute(
@@ -145,8 +194,16 @@ class SessionExperts:
 
     def link_expert_to_session(self, sess_name: str) -> bool:
         """
-        Enable this expert in a session. Return False if it was already
-        enabled. Raises ValueError if the session does not exist.
+        Enable this expert in a session. Raises ValueError
+        if the session does not exist.
+
+        Parameters
+        ----------
+            sess_name: Session name.
+
+        Returns
+        -------
+            - False if it was already enabled.
         """
         ensure_link_schema(self.conn)  # Also creates chat_sessions
         sess_id = _find_session_id_from_name(self.conn, sess_name)
@@ -165,10 +222,16 @@ class SessionExperts:
 
     def unlink_expert_from_session(self, sess_name: str) -> bool:
         """
-        Disable this expert in a session, only the link row is removed.
+        Disable this expert in a session, only the link row is
+        removed. Raises ValueError if the session does not exist.
 
-        - Returns False if it was not enabled.
-        - Raises ValueError if the session does not exist.
+        Parameters
+        ----------
+            sess_name: Session name.
+
+        Returns
+        -------
+            - False if it was not enabled.
         """
         if not _link_table_exists(self.conn):
             return False
@@ -192,6 +255,16 @@ class SessionExperts:
         """
         Return the experts with relevant data enabled in a session,
         keyed by expert name.
+
+        Parameters
+        ----------
+            conn:      Connection to the database.
+            sess_name: Session name.
+
+        Returns
+        -------
+            - Structured dictionary about this session's expert's
+              details.
         """
         ensure_schema(conn)
         if not sess_name or not _link_table_exists(conn):

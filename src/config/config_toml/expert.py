@@ -19,7 +19,7 @@ PER_EXPERT_RETRIEVAL_LIMIT = (
     or DEFAULT_PER_EXPERT_RETRIEVAL_LIMIT
 )
 
-# Set docling chunks tokens
+# Set chunks tokens ceiling for docling
 DEFAULT_DOCLING_CHUNK_TKNS = 300
 DOCLING_CHUNK_TKNS = (
     _cfg.get("expert", {}).get("docling_chunk_tokens") or DEFAULT_DOCLING_CHUNK_TKNS

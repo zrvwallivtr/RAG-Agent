@@ -24,14 +24,16 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 class DoclingChunker:
+    """
+    Parameters
+    ----------
+        max_tkns: Ceiling for a chunk, in tokens.
+    """
+
     def __init__(
         self,
         max_tkns: int = DOCLING_CHUNK_TKNS,
     ):
-        """
-        emb_tknizr:   For the embedding model
-        max_tkns:       Ceiling for a chunk, in tokens.
-        """
         if max_tkns < 1:
             raise ValueError("max_tkns must be at least 1.")
 
@@ -41,21 +43,60 @@ class DoclingChunker:
         self._chunker = None
         self._converter = None
 
+    def chunking(self, cont, hooks: AgentHooks | None = None) -> list[dict]:
+        """
+        Chunk DoclingDocument.
+
+        Parameters
+        ----------
+            cont:  Content from a file.
+            hooks: Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - A list of chunks from the document.
+        """
+        chunker = self._get_chunker()
+        doc = (
+            self._parse_to_docling_document(cont, hooks=hooks)
+            if isinstance(cont, str)
+            else cont
+        )
+
+        chunks = []
+        for chunk in chunker.chunk(dl_doc=doc):
+            chunks.append({"text": chunker.contextualize(chunk=chunk)})
+
+        return chunks
+
     def _get_chunker(self):
-        """Lazy import docling chunker."""
+        """
+        Lazy import docling chunker.
+
+        Returns
+        -------
+            - Docling HybridChunker.
+        """
         if self._chunker is None:
             from docling.chunking import HybridChunker
 
             self._chunker = HybridChunker(
                 tokenizer=docling_tokenizer(self.emb_tknizr, self.max_tkns),
-                merge_peers=True,  # optional, defaults to True
+                merge_peers=True,  # Optional, defaults to True
             )
         return self._chunker
 
     def _parse_to_docling_document(
         self, cont: str, hooks: AgentHooks | None = None
     ) -> None:
-        """Turn content into a DoclingDocument for the HybridChunker."""
+        """
+        Turn content into a DoclingDocument for the HybridChunker.
+
+        Parameters
+        ----------
+            cont:  Content from a file.
+            hooks: Function hooks for cli/tui integration.
+        """
         from docling.datamodel.base_models import DocumentStream
         from docling.document_converter import DocumentConverter
 
@@ -69,18 +110,3 @@ class DoclingChunker:
         if hooks and hooks.on_loading:
             hooks.on_loading("Docling chunking content...")
         return self._converter.convert(stream).document
-
-    def chunking(self, cont, hooks: AgentHooks | None = None) -> list[dict]:
-        """Chunk DoclingDocument into [{"text"}]."""
-        chunker = self._get_chunker()
-        doc = (
-            self._parse_to_docling_document(cont, hooks=hooks)
-            if isinstance(cont, str)
-            else cont
-        )
-
-        chunks = []
-        for chunk in chunker.chunk(dl_doc=doc):
-            chunks.append({"text": chunker.contextualize(chunk=chunk)})
-
-        return chunks

@@ -13,9 +13,16 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 def get_expert_id_from_name(conn, exp_name: str) -> int | None:
     """
-    Return the expert's id if exist.
+    Get expert id by name.
 
-    expert: Expert self.
+    Parameters
+    ----------
+        conn:     Connection to the database.
+        exp_name: Name of the expert.
+
+    Returns
+    -------
+        - The expert id that matches the name.
     """
     row = fetch_one(
         conn=conn,
@@ -30,10 +37,14 @@ def get_or_create_expert(
     conn, exp_name: str, des: str | None, hooks: AgentHooks | None = None
 ) -> int:
     """
-    Return the expert's id, creating the expert if it doesn't exist yet.
+    Get the expert's id, creating the expert if it doesn't exist yet.
 
-    expert: Expert self.
-    des:    Only relevant if expert has not been created yet.
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        expert: Name of the expert.
+        des:    Only relevant if expert has not been created yet.
+        hooks:  Function hooks for cli/tui integration.
     """
     exp_id = get_expert_id_from_name(conn, exp_name)
     if exp_id is not None:

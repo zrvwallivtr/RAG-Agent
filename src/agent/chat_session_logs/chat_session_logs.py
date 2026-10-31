@@ -23,6 +23,16 @@ _sys_prompt_tkns: int | None = None
 
 
 class ChatSessionLogs:
+    """
+    Main chat session and logs functions.
+
+    Parameters
+    ----------
+        conn:       Connection to the database.
+        llm_tknizr: Initiated llm tokenizer.
+        sess_name:  Session name.
+    """
+
     def __init__(self, conn, llm_tknizr: LocalTokenizer, sess_name: str | None = None):
         self.conn = conn
 
@@ -85,9 +95,6 @@ class ChatSessionLogs:
     def get_latest_conversation_turn(self):
         return self.chat_logs.latest_conversation_turn()
 
-    def get_old_conversations(self):
-        return self.chat_logs.before_latest_conversations()
-
     def get_session_last_modified_time(self, sess_id: str | None = None):
         return self.chat_logs.last_modified_time(sess_id)
 
@@ -128,7 +135,6 @@ class ChatSessionLogs:
         return self.compression.compress(
             clean_prompt=clean_prompt,
             unfmt_prompt=unfmt_prompt,
-            attchmnt_dict=attchmnt_dict,
             cmp_method=cmp_method,
             hooks=hooks,
         )

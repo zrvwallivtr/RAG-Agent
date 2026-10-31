@@ -3,12 +3,12 @@ Expert class that contains chunked documents and its embeddings, where they
 can be searched by vector similarity.
 
 Document handling:
-- Handles storing documents only once.
-- A document can be linked to muiltiple experts.
+    - Handles storing documents only once.
+    - A document can be linked to muiltiple experts.
 
 Relation with chat sessions:
-- Exist independently of chat sessions.
-- Can be enabled in more than one session.
+    - Exist independently of chat sessions.
+    - Can be enabled in more than one session.
 """
 
 from typing import Sequence, Any
@@ -40,27 +40,17 @@ from src import logger
 app_log = logger.app_logger(f"{__name__}.app")
 
 
-def _document_entry(row: list) -> dict[str, Any]:
-    """
-    Format a document row into a labelled dictionary.
-
-    The row columns must follow:
-    id, title, type, description, created_at, updated_at, metadata.
-    """
-    return {
-        "title": row[1],
-        "type": row[2],
-        "description": row[3],
-        "created_at": row[4],
-        "updated_at": row[5],
-        "metadata": row[6],
-    }
-
-
 class Expert:
     """
     Created on first use (one expert per class), loaded on every use after
     that.
+
+    Parameters
+    ----------
+        conn:     Connection to the database.
+        exp_name: Name of this expert.
+        des:      Description for this expert (optional).
+        hooks:    Function hooks for cli/tui integration.
     """
 
     def __init__(
@@ -81,23 +71,20 @@ class Expert:
             conn=self.conn, exp_name=self.exp_name, exp_id=self.exp_id
         )
 
-    def _query_expert(
-        self,
-        prompt: str,
-        retrieve_lim: int,
-        tkn_budget: int | None = None,
-    ) -> list[dict]:
-        """
-        Search this expert's documents for the chunks closest to the
-        prompt.
-        """
-        return self.qry_exp.query_from_prompt(
-            prompt=prompt, exp_ids=[self.exp_id], tkn_budget=tkn_budget
-        )
-
     @staticmethod
     def exists(conn, exp_name: str) -> bool:
-        """Check by name whether an expert exists, without creating it."""
+        """
+        Check by name whether an expert exists, without creating it.
+
+        Parameters
+        ----------
+            conn:     Connection to the database.
+            exp_name: Expert's name to query.
+
+        Returns
+        -------
+            - If the expert exists.
+        """
         ensure_schema(conn)
         return (
             fetch_one(
@@ -117,6 +104,10 @@ class Expert:
         and session_experts). Documents and chunks are not touched.
 
         NO DOCUMENTS ARE DELETED HERE.
+
+        Returns
+        -------
+            - If the delete action is done.
         """
         return (
             execute(
@@ -135,6 +126,14 @@ class Expert:
         """
         Return relevant data about all the created experts, keyed by expert
         name, including how many documents each one is linked to.
+
+        Parameters
+        ----------
+            conn: Connection to the database.
+
+        Returns
+        -------
+            - Structured dictionary about all existing experts.
         """
         ensure_schema(conn)
         rows = fetch_all(
@@ -171,6 +170,18 @@ class Expert:
 
         The retrieval limit depends on if more than one expert is enabled,
         so a large expert can't crowd out a smaller one.
+
+        Parameters
+        ----------
+            conn:       Connection to the database.
+            prompt:     The string that will be used to perform vector
+                        search on the expert's database.
+            exp_list:   A list of experts to query from.
+            tkn_budget: Token limit to avoid agent context overflow.
+
+        Returns
+        -------
+            - 
         """
         retrieve_lim = (
             PER_EXPERT_RETRIEVAL_LIMIT if len(exp_list) > 1 else EXPERT_RETRIEVE_LIMIT
@@ -192,3 +203,53 @@ class Expert:
                     used += hit["tokens"]
             hits = kept
         return hits
+
+    def _query_expert(
+        self,
+        prompt: str,
+        retrieve_lim: int,
+        tkn_budget: int | None = None,
+    ) -> list[dict]:
+        """
+        Search this expert's documents for the chunks closest to the
+        prompt.
+
+        Parameters
+        ----------
+            prompt:       The string that will be used to perform vector
+                          search on the expert's database.
+            retrieve_lim: Maximum entries returned from teh query.
+            tkn_budget:   Token limit to avoid agent context overflow.
+
+        Returns
+        -------
+            - A list of dictionary about the matched entries.
+        """
+        return self.qry_exp.query_from_prompt(
+            prompt=prompt, exp_ids=[self.exp_id], tkn_budget=tkn_budget
+        )
+
+
+def _document_entry(row: list) -> dict[str, Any]:
+    """
+    Format a document row into a labelled dictionary.
+
+    The row columns must follow:
+
+    Parameters
+    ----------
+        row: Row columns fetched from the database (id, title, type,
+             description, created_at, updated_at, metadata).
+
+    Returns
+    -------
+        - Structured dictionary from the row columns.
+    """
+    return {
+        "title": row[1],
+        "type": row[2],
+        "description": row[3],
+        "created_at": row[4],
+        "updated_at": row[5],
+        "metadata": row[6],
+    }

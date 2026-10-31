@@ -19,7 +19,16 @@ app_log = app_logger(__name__)
 
 
 class LocalTokenizer:
-    """Load installed tokenizer."""
+    """
+    Load installed tokenizer.
+
+    Parameters
+    ----------
+        model:          Model name.
+        model_max_tkns: Model max tokens (context window).
+        model_max:      User define model max tokens, required if
+                        MODEL_MAX_TOKENS is not defined.
+    """
 
     def __init__(
         self,
@@ -58,7 +67,17 @@ class LocalTokenizer:
             self.model_max_tkns = None
 
     def count_string_tokens(self, text: str) -> int | None:
-        """Counts tokens in string."""
+        """
+        Counts tokens in string.
+
+        Parameters
+        ----------
+            text: Text string for token count.
+
+        Returns
+        -------
+            - Token used from the string.
+        """
         if not self.load_tknizr:
             app_log.warning(
                 "Unable to count tokens: Tokenizer feature has been disabled"
@@ -68,7 +87,17 @@ class LocalTokenizer:
         return len(self.load_tknizr.encode(text))
 
     def count_history_tokens(self, msgs: list[dict]) -> int | None:
-        """Calculates total token count in the message list."""
+        """
+        Calculates total token count in the message list.
+
+        Parameters
+        ----------
+            msgs: List of dictionary contain messages.
+
+        Returns
+        -------
+            - Token used across the messages.
+        """
         if not self.load_tknizr:
             app_log.warning(
                 "Unable to count tokens: Tokenizer feature has been disabled"
@@ -79,20 +108,31 @@ class LocalTokenizer:
         encodings = self.load_tknizr.encode_batch(texts)
         return sum(len(e.ids) for e in encodings) + 4 * len(msgs) + 3
 
-    @staticmethod
-    def estimate_tokens(text: str) -> int:
-        """Rough estimate (about 4 characters per tokens)."""
-        return max(1, len(text) // 4)
+    # @staticmethod
+    # def estimate_tokens(text: str) -> int:
+    #     """Rough estimate (about 4 characters per tokens)."""
+    #     return max(1, len(text) // 4)
 
-    def count_or_estimate_tokens(self, text: str) -> int:
-        if not self.load_tknizr:
-            return self.estimate_tokens(text)
-        return len(self.load_tknizr.encode(text))
+    # def count_or_estimate_tokens(self, text: str) -> int:
+    #     if not self.load_tknizr:
+    #         return self.estimate_tokens(text)
+    #     return len(self.load_tknizr.encode(text))
 
     def encode_text(
-        self, txt: str, hooks: AgentHooks | None = None
+        self, text: str, hooks: AgentHooks | None = None
     ) -> list[int] | None:
-        """Encode text using the loaded tokenizer."""
+        """
+        Encode text using the loaded tokenizer.
+
+        Parameters
+        ----------
+            text:  Text string for encoding.
+            hooks: Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Encodings.
+        """
         if not self.load_tknizr:
             warn_str = "Unable to encode text: Tokenizer feature has been disabled"
             app_log.warning(warn_str)
@@ -103,7 +143,7 @@ class LocalTokenizer:
         if hooks and hooks.on_loading:
             info_str = "Encoding from provided text"
             hooks.on_loading(info_str)
-        return self.load_tknizr.encode(txt)
+        return self.load_tknizr.encode(text)
 
 
 @lru_cache(maxsize=None)
@@ -112,7 +152,19 @@ def load_tokenizer(
     tknizr_dir: Path = TOKENIZERS_DIR,
     fb_tknizr: str | None = FALLBACK_TOKENIZER,
 ) -> Tokenizer | None:
-    """Load local installed tokenizer."""
+    """
+    Load local installed tokenizer.
+
+    Parameters
+    ----------
+        model:      Model name.
+        tknizr_dir: The directory storing all the installed tokenizers.
+        fb_tknizr:  Fallback tokenizer's name.
+
+    Returns
+    -------
+        - The tokenizer class.
+    """
     file = tknizr_dir / f"{model}.json"
 
     try:

@@ -28,6 +28,13 @@ class SlashCompress:
 
     All conversation turns will be updated in the database as
     is_compressed = TRUE. NOT INCLUDING the newly generated summary.
+
+    Parameters
+    ----------
+        conn:           Connection to the database.
+        chat_sess_logs: Already initiated chat session logs class.
+        file_reader:    Already initiated file reader class.
+        chunker:        Already initiated content chunker class.
     """
 
     def __init__(

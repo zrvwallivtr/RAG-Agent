@@ -12,6 +12,15 @@ def docling_tokenizer(
     """
     Wrap this tokenizer for Docling's HybridChunker (it accepts any
     BaseTokenizer, uses installed tokenizer so that it works offline).
+
+    Parameters
+    ----------
+        tknizr:   Model's local tokenizer.
+        max_tkns: Maximum tokens for each chunk.
+
+    Returns
+    -------
+        - Tokenizer formatted specifically for docling's HybridChunker.
     """
     from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 

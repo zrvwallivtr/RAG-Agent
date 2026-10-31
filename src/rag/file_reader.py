@@ -20,8 +20,8 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 class PathTraversalError(Exception):
     """
-    Raised when a file path attempts to escape outside
-    the permitted upload directory.
+    Raised when a file path attempts to escape outside the permitted upload
+    directory.
     """
 
     pass
@@ -31,6 +31,11 @@ class FileReader:
     """
     Manages secure file path resolution, verification, and text extraction via
     Docling or basic parsers.
+
+    Parameters
+    ----------
+        basic_parser:   Already initiated basic Parser.
+        docling_parser: Already initiatted Docling parser.
     """
 
     def __init__(self, basic_parser: BasicParser, docling_parser: DoclingParser):
@@ -45,6 +50,18 @@ class FileReader:
 
         Attempts to parse a document using Docling first, falling back to
         the basic parsers upon failure.
+
+        Parameters
+        ----------
+            path:      Target file's path.
+            safe_path: The dedicated directory only for file uploads.
+            ext:       Suffix of the path.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Parsed content.
+            - Content's format (e.g. md).
         """
         # Docling parser
         try:
@@ -80,6 +97,18 @@ class FileReader:
     ) -> ParserResult | None:
         """
         Use the basic parser if user disabled docling parser.
+
+        Parameters
+        ----------
+            path:      Target file's path.
+            safe_path: The dedicated directory only for file uploads.
+            ext:       Suffix of the path.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Parsed content.
+            - Content's format (e.g. md).
         """
         try:
             if hooks and hooks.on_loading:
@@ -100,8 +129,20 @@ class FileReader:
         hooks: AgentHooks | None = None,
     ) -> ParserResult | None:
         """
-        Return file content as a string using mapped parsers
+        Read file content as a string using mapped parsers
         and converted file format.
+
+        Parameters
+        ----------
+            path:           Target file's path.
+            enable_docling: Switch for if docling is enabled, could
+                            be set in 'config.toml'.
+            hooks:          Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Parsed content.
+            - Content's format (e.g. md).
         """
         safe_path = _validate_path(path)
 
@@ -127,7 +168,18 @@ class FileReader:
     def read_content(
         self, attch_paths: list[Path] | None
     ) -> dict[Path, dict[str, str]] | None:
-        """Return content in attachment(s)."""
+        """
+        Read content in attachment(s).
+
+        Parameters
+        ----------
+            attch_paths: A list of path that will be read.
+
+        Returns
+        -------
+            - A dictionary with the file path as the key and another
+              dictionary about the file including its content.
+        """
         if not attch_paths:
             return
 
@@ -151,9 +203,17 @@ def _validate_path(
     enable_path_safety: bool = ENABLE_PATH_SAFETY,
 ) -> Path:
     """
-    If path safety is enabled:
-    This function resolves the given path and ensures it remains strictly
-    contained within the permitted upload directory.
+    If path safety is enabled
+    -------------------------
+        This function resolves the given path and ensures it remains
+        strictly contained within the permitted upload directory.
+
+    Parameters
+    ----------
+        path:               File path for validation.
+        upload_dir:         The dedicated directory for uploading files.
+        enable_path_safety: Set True for only allows reading files in the
+                            upload directory, can be set in 'config.toml'.
     """
     if enable_path_safety:
         info_str = "Path safety feature is enabled: Validating upload path '%s'" % (

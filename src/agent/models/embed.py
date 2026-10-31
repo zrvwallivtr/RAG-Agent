@@ -9,7 +9,19 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 def embedding_content(cont: str) -> tuple[str, list[float], int] | None:
-    """Generate embedding from given texts."""
+    """
+    Generate embedding from given texts.
+
+    Parameters
+    ----------
+        cont: String to embed.
+
+    Returns
+    -------
+        - The original string.
+        - Embeddings of the string.
+        - Token used for embedding.
+    """
     try:
         response = ollama_clt.embed(model=EMBED_MODEL, input=cont)
         embdings = response["embeddings"][0]

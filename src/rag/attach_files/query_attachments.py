@@ -32,7 +32,6 @@ _SEARCH_SQL = """
     ORDER BY c.embeddings <=> %s::vector
     LIMIT %s;
     """
-
 _SEARCH_SPECIFIED_SQL = """
     SELECT a.title, c.content, c.metadata, c.prompt_tokens,
         c.embeddings <=> %s::vector AS distance
@@ -46,7 +45,15 @@ _SEARCH_SPECIFIED_SQL = """
 
 
 class QueryAttachments:
-    """Search for the attachments of the current session."""
+    """
+    Search for the attachments of the current session.
+
+    Parameters
+    ----------
+        conn:           Connection to the database.
+        chat_sess_logs: Already initiated chat session logs class.
+        ef_search:      Exploration factor for the vector search.
+    """
 
     def __init__(
         self, conn, chat_sess_logs: ChatSessionLogs, ef_search: int = EXPLORATION_FACTOR
@@ -61,7 +68,13 @@ class QueryAttachments:
         return self.chat_sess_logs.get_session_id()
 
     def all_attachments_titles(self) -> list[str]:
-        """Titles of all attachments in the current session."""
+        """
+        Titles of all attachments in the current session.
+
+        Returns
+        -------
+            - A list containing all titles of attachments stored.
+        """
         if not self.sess_id:
             return []
         rows = fetch_all(
@@ -80,7 +93,17 @@ class QueryAttachments:
     ) -> list[dict[str, Any]]:
         """
         Closest chunks of the current session's attachments, best first.
-        Returns [] if there are none or none reach min_sim_score.
+
+        Parameters
+        ----------
+            qry_embeddings: The embedding prompt for searching the database.
+            retrieve_lim:   Maximum number of entry retrieved from vector search.
+            min_sim_score:  Minimum similarity score of the entry.
+            hooks:          Functions hooks for cli/tui integration.
+
+        Returns
+        -------
+            - List of attachment chunks retrieved that fits the minimum requirements.
         """
         if not self.sess_id:
             return []
@@ -138,7 +161,20 @@ class QueryAttachments:
     ) -> list[dict[str, Any]] | None:
         """
         Closest chunks of the given (already stored) attachments, best first,
-        limited to tkn_budget tokens. Returns None if none are found.
+        limited to tkn_budget tokens.
+
+        Parameters
+        ----------
+            qry_embeddings:      The embedding prompt for searching the database.
+            attchmnt_dict:       Dictionary containing the attachments chunks and
+                                 relevant data.
+            attchmnt_chunks_lim: Retrieval limit from the attchmnt_dict.
+            tkn_budget:          Calculated token budget of the current session.
+            hooks:               Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The retrieved dictionary for attachments chunks.
         """
         if not attchmnt_dict or not self.sess_id:
             return None
@@ -148,7 +184,6 @@ class QueryAttachments:
 
         hashes = [hash_string(data["content"]) for data in attchmnt_dict.values()]
 
-        paths = attchmnt_dict.keys()
         fetch_one(
             conn=self.conn,
             sql="SELECT set_config('hnsw.ef_search', %s, false);",
@@ -169,7 +204,7 @@ class QueryAttachments:
 
         hits, used = [], 0
         for title, cont, meta, tkns, dist in rows:
-            # Skip chunks that don't fit
+            # Skip chunks that don't fit the context window
             if tkn_budget is not None and used + tkns > tkn_budget:
                 continue
 

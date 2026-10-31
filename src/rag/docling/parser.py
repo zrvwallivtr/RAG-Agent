@@ -50,7 +50,19 @@ class DoclingParser:
     def _docling_convert_to_md(
         self, path: Path, hooks: AgentHooks | None = None
     ) -> ParserResult | None:
-        """Convert any file to markdown via docling."""
+        """
+        Convert any file to markdown via docling.
+
+        Parameters
+        ----------
+            path:  File's path.
+            hooks: Function's hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The parsed file contents in markdown format.
+            - Format string.
+        """
         string = "Docling converting %s file '%s'..." % (
             path.suffix.lstrip(".").upper(),
             path,
@@ -76,7 +88,7 @@ class DoclingParser:
             if hooks and hooks.on_error:
                 hooks.on_error(err_string)
             app_log.warning(err_string)
-            return
+            return None
 
     # --- Libreoffice ---------------------------------------------------------
 

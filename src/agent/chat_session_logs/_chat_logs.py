@@ -22,7 +22,14 @@ _HISTORY_FILTER_SQL = {
 
 
 class ChatLogs:
-    """All SQL for the 'chat_logs' table."""
+    """
+    All SQL for the 'chat_logs' table.
+
+    Parameters
+    ----------
+        conn:      Connection to the database.
+        chat_sess: Already initiated chat session class.
+    """
 
     def __init__(self, conn, chat_sess: ChatSessions):
         self._conn = conn
@@ -35,8 +42,6 @@ class ChatLogs:
         state: Literal["external", "internal"],
         # --- Tool calls ---
         attchmnts: list[Path] | None = None,
-        unfmt_mem_prompt: str | None = None,
-        unfmt_recall_prompt: str | None = None,
         unfmt_cmp_prompt: str | None = None,
         cmp_method: Literal["default", "instruct", "auto"] | None = None,
         # --- Token counts ---
@@ -44,14 +49,28 @@ class ChatLogs:
         o_tkns: int = 0,
     ) -> dict[str, dict[str, Any]]:
         """
-        Insert new conversation turn including metadata
-        into the specified session database table. Return
-        the all tool calls metadata.
+        Insert new conversation turn including metadata into the specified
+        session database table.
+
+        Parameters
+        ----------
+            prompt:           User's prompt.
+            response:         Agent's response.
+            state:            External or internal, dictates whether the turn
+                              will be shown on the chat.
+            attchmnts:        User uploaded file paths for this turn.
+            unfmt_cmp_prompt: Full instruction string including slash
+                              command.
+            cmp_method:       Compression method.
+            p_tkns:           Prompt tokens.
+            o_tkns:           Output tokens.
+
+        Returns
+        -------
+            - All tool calls metadata.
         """
         metadata = ToolCallsMetadata.all_tool_calls(
             attchmnts=attchmnts,
-            unfmt_mem_prompt=unfmt_mem_prompt,
-            unfmt_recall_prompt=unfmt_recall_prompt,
             unfmt_cmp_prompt=unfmt_cmp_prompt,
             cmp_method=cmp_method,
         )
@@ -74,7 +93,7 @@ class ChatLogs:
         )
         return metadata
 
-    def mark_active_as_compressed(self):
+    def mark_active_as_compressed(self) -> None:
         execute(
             conn=self._conn,
             sql=("""
@@ -86,7 +105,13 @@ class ChatLogs:
         )
 
     def clear_session_logs(self) -> bool:
-        """Delete all turns of this session. False if there was nothing to delete."""
+        """
+        Delete all turns for this session.
+
+        Returns
+        -------
+            - False if there is nothing to delete.
+        """
         deleted = execute(
             conn=self._conn,
             sql="DELETE FROM chat_logs WHERE session_id = %s;",
@@ -103,8 +128,17 @@ class ChatLogs:
 
     def active_conversations(self, sys_prompt: str = SYS_PROMPT) -> list[dict]:
         """
-        Get all messages in a session with filter options.
-        If session does not exists, return system prompt.
+        Get all messages in a session with filter options. If
+        session does not exists, return system prompt.
+
+        Parameters
+        ----------
+            sys_prompt: Entire system prompt.
+
+        Returns
+        -------
+            - A list of dictionary containing every active conversation
+              (not compressed) in this session.
         """
         rows = fetch_all(
             conn=self._conn,
@@ -126,7 +160,16 @@ class ChatLogs:
 
     def conversation_history(
         self, filter: Literal["compressed", "not_compressed", "all"]
-    ):
+    ) -> list[dict] | None:
+        """
+        Parameters
+        ----------
+            filter: Filter for which conversation turn to retrieve.
+
+        Returns
+        -------
+            - All conversation turns that satisfy the filter condition.
+        """
         if filter == "compressed":
             sql = """
                 SELECT prompt, response, total_prompt_tokens, total_output_tokens, metadata
@@ -180,6 +223,11 @@ class ChatLogs:
         return convs
 
     def latest_conversation_turn(self) -> list[dict] | None:
+        """
+        Returns
+        -------
+            - Prompt and response of the last turn.
+        """
         row = fetch_one(
             conn=self._conn,
             sql=("""
@@ -203,39 +251,18 @@ class ChatLogs:
             {"role": "assistant", "content": row[1]},
         ]
 
-    def before_latest_conversations(self) -> list[dict] | None:
-        """
-        Get all previous user/assistant conversation turns right
-        before the latest external one.
-        """
-        sess_id = self._chat_sess.get_or_create_id()
-        rows = fetch_all(
-            conn=self._conn,
-            sql=("""
-                SELECT prompt, response
-                FROM chat_logs
-                WHERE session_id = %s
-                    AND id < (
-                        SELECT MAX(id)
-                        FROM chat_logs
-                        WHERE session_id = %s AND state = 'external'
-                    )
-                ORDER BY id ASC;
-                """),
-            params=(sess_id, sess_id),
-        )
-
-        if not rows:
-            return None
-
-        convs = []
-        for prompt, response in rows:
-            convs.append({"role": "user", "content": prompt})
-            convs.append({"role": "assistant", "content": response})
-        return convs
-
     def last_modified_time(self, sess_id: str | None = None) -> str | None:
-        """Get the latest created time from session id in the chat logs."""
+        """
+        Get the latest created time from session id in the chat logs.
+
+        Parameters
+        ----------
+            sess_id: This session's id.
+
+        Returns
+        -------
+            - Created time of the last conversation turn.
+        """
         row = fetch_one(
             conn=self._conn,
             sql=("""
@@ -253,6 +280,12 @@ class ChatLogs:
         """
         Get the chat 'session_name' and 'created_time' that has
         the latest 'created_time' of the chat logs.
+
+        Returns
+        -------
+            By latest created time of conversation turn:
+                - Session id
+                - Created time
         """
         row = fetch_one(
             conn=self._conn,

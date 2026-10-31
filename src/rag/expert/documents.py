@@ -47,8 +47,8 @@ from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
 
-# Document statuses:
-#
+# Document statuses
+# -----------------
 # added:          New document, embedded and linked to the expert.
 # linked:         Document already existed (embedded once before), now linked
 #                 to this expert.
@@ -61,59 +61,6 @@ StoreStatus = Literal[
 ]
 
 
-def _document_entry(row: list) -> dict[str, Any]:
-    """
-    Format a document row into a labelled dictionary.
-
-    The row columns must follow:
-    id, title, type, description, created_at, updated_at, metadata.
-    """
-    return {
-        "title": row[1],
-        "type": row[2],
-        "description": row[3],
-        "created_at": row[4],
-        "updated_at": row[5],
-        "metadata": row[6],
-    }
-
-
-def _format_to_document_dictionary(
-    path: Path, cont: str, chunks: list, cont_hash: str
-) -> dict[str, dict[Any, Any]] | None:
-    """
-    Format into the expected dictionary structure for _store_documents().
-    Return None if the file's metadata can't be read.
-
-    "title": {
-        "doc_type": ,
-        "cont_hash": ,
-        "cont": ,
-        "chunks": [],
-        "path": ,
-        "metadata": {},
-    }
-    """
-    file_data = unpack_file_metadata(path)
-    if not file_data:
-        return
-    name, mime, size = file_data
-
-    return {
-        name: {
-            "doc_type": path.suffix.lstrip(".").lower()[:20],
-            "cont_hash": cont_hash,
-            "cont": cont,
-            "chunks": chunks,
-            "path": str(path.resolve()),
-            "metadata": {
-                "mime_type": mime,
-                "size_bytes": size,
-            },
-        }
-    }
-
-
 class ExpertDocuments:
     """
     Stores documents and links them to ONE expert. Can be called without first
@@ -124,10 +71,12 @@ class ExpertDocuments:
     expert reuses the existing chunks and embeddings instead of embedding it
     again.
 
-    self.conn:         Connection to postgres.
-    self.exp_name:     Existing expert name.
-    self.exp_id:       Optional, specify only from Expert's self.exp_id.
-    self.llm_tknizr: LLM token managements.
+    Parameters
+    ----------
+        self.conn:       Connection to the database.
+        self.exp_name:   Existing expert name.
+        self.exp_id:     Optional, specify only from Expert's self.exp_id.
+        self.llm_tknizr: LLM token managements.
     """
 
     def __init__(
@@ -151,7 +100,378 @@ class ExpertDocuments:
         self.llm_tknizr = load_tokenizer(MODEL)
         self.emb_tknizr = load_tokenizer(EMBED_MODEL)
 
+    @staticmethod
+    def find_document_id(conn, doc: str | int) -> int:
+        """
+        Resolve a document title or id to a document id. A title is tried
+        first. then a number is treated as an id. Raises ValueError if nothing
+        matches, or if several documents share the title (use the id then).
+
+        Parameters
+        ----------
+            conn: Connection to the database.
+            doc:  Document id or string.
+
+        Returns
+        -------
+            - The target document's id.
+        """
+        if isinstance(doc, int):
+            row = fetch_one(
+                conn=conn,
+                sql="SELECT id FROM documents WHERE id = %s;",
+                params=(doc,),
+            )
+            if row is None:
+                raise ValueError("No documents with id %d." % doc)
+            return int(row[0])
+
+        rows = fetch_all(
+            conn=conn,
+            sql="SELECT id FROM documents WHERE title = %s ORDER BY id;",
+            params=(doc,),
+        )
+        if len(rows) == 1:
+            return int(rows[0][0])
+
+        # More than one titles exists
+        if len(rows) > 1:
+            raise ValueError(
+                "%d documents are named '%s' (ids: %s). Use the id instead"
+                % (len(rows), doc, ", ".join(str(r[0]) for r in rows))
+            )
+
+        # No matches
+        if doc.isdigit():
+            return ExpertDocuments.find_document_id(conn, int(doc))
+        raise ValueError("No document named '%s'" % doc)
+
+    def all_documents_data_from_self(self) -> dict[int, dict[str, Any]]:
+        """
+        Returns
+        -------
+            - All documents that are linked to this expert, keyed by id.
+        """
+        rows = fetch_all(
+            conn=self.conn,
+            sql=("""
+                SELECT d.id, d.title, d.type, d.description,
+                    d.created_at, d.updated_at, d.metadata
+                FROM expert_documents ed
+                JOIN documents d ON d.id = ed.document_id
+                WHERE ed.expert_id = %s
+                ORDER BY d.title, d.id;
+                """),
+            params=(self.exp_id,),
+        )
+
+        return {row[0]: _document_entry(row) for row in rows}
+
+    @staticmethod
+    def all_documents_data_across_experts(conn) -> dict[int, dict[str, Any]]:
+        """
+        Parameters
+        ----------
+            conn: Connection to the database.
+
+        Returns
+        -------
+            - Every single document stored in the database.
+        """
+        ensure_schema(conn)
+        rows = fetch_all(
+            conn=conn,
+            sql=("""
+                SELECT d.id, d.title, d.type, d.description,
+                    d.created_at, d.updated_at, d.metadata,
+                    array_agg(e.name ORDER BY e.name)
+                        FILTER (WHERE e.name IS NOT NULL)
+                FROM documents d
+                LEFT JOIN expert_documents ed ON ed.document_id = d.id
+                LEFT JOIN experts e ON e.id = ed.expert_id
+                GROUP BY d.id
+                ORDER BY d.title, d.id;
+                """),
+        )
+        return {
+            row[0]: {**_document_entry(row), "experts": row[7] or []} for row in rows
+        }
+
+    @staticmethod
+    def generate_document_description(
+        conn, doc_name: str, hooks: AgentHooks | None = None
+    ) -> str | None:
+        """
+        Have the chat model read the stored document and write a short summary
+        of the whole document into documents.description, which helps
+        retrieval.
+
+        Raises ValueError if the document isn't found.
+
+        Parameters
+        ----------
+            conn:     Connection to the database.
+            doc_name: Name of the document.
+            hooks:    Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - The description generated by the model.
+        """
+        local_tknizr = load_tokenizer(MODEL)
+        if not local_tknizr:
+            return None
+
+        ensure_schema(conn)
+        doc_id = ExpertDocuments.find_document_id(conn, doc_name)
+        row = fetch_one(
+            conn=conn,
+            sql="SELECT title, content FROM documents WHERE id = %s;",
+            params=(doc_id,),
+        )
+        title, cont = row
+
+        if hooks and hooks.on_loading:
+            hooks.on_loading("Generating description for document '%s'..." % title)
+
+        # Keep the document in the model's context
+        max_tkns = local_tknizr.model_max_tkns
+        max_chars = (
+            max(2000, (max_tkns - EXPERT_RESERVE_TKNS - 500) * 3)
+            if max_tkns
+            else EXPERT_DOC_FALLBACK_CHARS
+        )
+
+        response = model_response_with_new_system_prompt_and_context(
+            model=MODEL,
+            sys_prompt=DOC_DES_PROMPT,
+            prompt="Title: %s\n\n%s" % (title, cont[:max_chars]),
+            hooks=hooks,
+        )
+        if not response:
+            return None
+
+        text, _, _, is_stopped = response
+        if is_stopped is True or not text.strip():
+            return None
+        des = text.strip()
+
+        execute(
+            conn=conn,
+            sql=("""
+                UPDATE documents
+                SET description = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+                """),
+            params=(des, doc_id),
+        )
+        info_msg = "Document '%s' description has been generated" % title
+        app_log.info(info_msg)
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(info_msg)
+        return des
+
+    def link_document(
+        self,
+        doc_id: int,
+        embed_model: str = EMBED_MODEL,
+        hooks: AgentHooks | None = None,
+    ) -> bool:
+        """
+        Link an ALREADY STORED DOCUMENT to this expert.
+
+        Warns if the document was embedded with a different model than
+        the current one, as search skips those until re-embedded.
+
+        Parameters
+        ----------
+            doc_id:      Id from an already existing document.
+            embed_model: Current user set embedding model, used for validating
+                         if it matches the model that was used during the
+                         embedding of the document.
+            hooks:       Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - A boolean if the document was already linked or not.
+        """
+        row = fetch_one(
+            conn=self.conn,
+            sql="SELECT embedding_model FROM documents WHERE id = %s;",
+            params=(doc_id,),
+        )
+
+        if row is None:
+            raise ValueError("Document id %d does not exist." % doc_id)
+
+        if row[0] != embed_model:
+            warn_msg = (
+                "Document id %d was embedded with '%s' but the current model "
+                "is '%s'. It won't appear in searches until re-embedded."
+                % (doc_id, row[0], embed_model)
+            )
+            app_log.warning(warn_msg)
+            if hooks and hooks.on_stat_change:
+                hooks.on_stat_change(warn_msg)
+        return self._link(doc_id)
+
+    def link_multiple_documents(
+        self, doc_names: list[str], hooks: AgentHooks | None = None
+    ) -> dict[str, str]:
+        """
+        Link already stored documents (titles or ids) to this expert.
+
+        Parameters
+        ----------
+            doc_names: A list of document names to link to the expert.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - {name: "linked" | "already_linked" | "failed: <reason>"}.
+        """
+        results = {}
+        for name in doc_names:
+            try:
+                linked = self.link_document(
+                    ExpertDocuments.find_document_id(self.conn, name)
+                )
+            except ValueError as e:
+                # Skip this document if failed
+                warn_msg = "Cannot link '%s' to expert '%s': %s" % (
+                    name,
+                    self.exp_name,
+                    e,
+                )
+                app_log.warning(warn_msg)
+                if hooks and hooks.on_stat_change:
+                    hooks.on_stat_change(warn_msg)
+                results[name] = f"failed: {e}"
+                continue
+
+            results[name] = "linked" if linked else "already_linked"
+        return results
+
+    def unlink_document(self, doc_id: int) -> bool:
+        """
+        Unlink a document from this expert.
+
+        The document and its chunks are NOT deleted.
+
+        Parameters
+        ----------
+            doc_id: Id from an already existing document.
+
+        Returns
+        -------
+            - If the unlink action is done.
+        """
+        return (
+            execute(
+                conn=self.conn,
+                sql=("""
+                DELETE FROM expert_documents
+                WHERE expert_id = %s AND document_id = %s;
+                """),
+                params=(self.exp_id, doc_id),
+            )
+            > 0
+        )
+
+    def unlink_multiple_documents(
+        self, doc_names: list[str], hooks: AgentHooks | None = None
+    ) -> dict[str, str]:
+        """
+        Unlink documents (titles or ids) from this expert. The documents
+        themselves are NOT deleted.
+
+        Parameters
+        ----------
+            doc_names: A list of document names to unlink from expert.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - {name: "unlinked" | "not_linked" | "failed: <reason>"}.
+        """
+        results = {}
+        for name in doc_names:
+            try:
+                linked = self.unlink_document(
+                    ExpertDocuments.find_document_id(self.conn, name)
+                )
+            except ValueError as e:
+                # Skip this document if failed
+                warn_str = "Cannot link '%s' to expert '%s': %s" % (
+                    name,
+                    self.exp_name,
+                    e,
+                )
+                app_log.warning(warn_str)
+                if hooks and hooks.on_stat_change:
+                    hooks.on_stat_change(warn_str)
+                results[name] = f"failed: {e}"
+                continue
+
+            results[name] = "unlinked" if linked else "not_linked"
+        return results
+
+    def chunk_document_to_database(
+        self,
+        path: Path,
+        is_docling: bool = ENABLE_DOCLING,
+        hooks: AgentHooks | None = None,
+    ) -> dict[str, tuple[int, StoreStatus]] | None:
+        """
+        Read a file, chunk it, embed the chunks and store everything in the
+        database, linked to this expert.
+
+        Parameters
+        ----------
+            path:       The path of the document that is going to be stored
+                        to the database.
+            is_docling: A switch if docling is enabled.
+            hooks:      Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - {title: (document id, status)}
+        """
+        if not self.emb_tknizr:
+            app_log.warning("Failed to chunk '%s': No tokenizers loaded", path)
+            return None
+
+        out = FileReader(
+            basic_parser=BasicParser(), docling_parser=DoclingParser()
+        ).read_document(path)
+        if not out:
+            app_log.warning("Failed to read '%s'. Skipping", path)
+            return None
+        cont, _ = out
+
+        chunks = DoclingChunker().chunking(cont, hooks=hooks)
+        if not chunks:
+            app_log.warning("No chunks produced from '%s'. Skipping", path)
+            return None
+
+        cont_hash = hash_string(cont)
+        doc_dict = _format_to_document_dictionary(path, cont, chunks, cont_hash)
+        if not doc_dict:
+            app_log.warning("No file metadata for '%s'. Skipping", path)
+            return None
+
+        return self._store_documents(doc_dict, hooks=hooks)
+
     def _get_document_id_by_hash(self, cont_hash: str) -> int | None:
+        """
+        Parameters
+        ----------
+            cont_hash: Hashed representation of a document's content.
+
+        Returns
+        -------
+            - The stored document id that matches the hashed string exactly.
+        """
         row = fetch_one(
             conn=self.conn,
             sql="SELECT id FROM documents WHERE content_hash = %s;",
@@ -164,7 +484,14 @@ class ExpertDocuments:
         Link the document to this expert.
         Return False if it was already linked or None if expert does not exist.
 
-        Set 'commit=False' to include it in an open transaction.
+        Parameters
+        ----------
+            doc_id: Id of the document.
+            commit: 'commit=False' to include it in an open transaction.
+
+        Returns
+        -------
+            - A boolean to indicate if link action is done.
         """
         return (
             execute(
@@ -184,17 +511,31 @@ class ExpertDocuments:
         """
         Link an already stored document and report what happend.
 
-        doc_id: Id from an already existing document.
+        Parameters
+        ----------
+            doc_id: Id from an already existing document.
+
+        Returns
+        -------
+            - Status of the document with the expert.
         """
         if self.link_document(doc_id):
             return "linked"
         return "already_linked"
 
     @staticmethod
-    def _formatted_chunks_with_data(chunks: list) -> list[dict]:
+    def _formatted_chunks_with_data(chunks: list[dict]) -> list[dict]:
         """
         Accept plain strings or {"text": str, "metadata": dict} dictionaries.
         Always returns [{"text": str, "metadata": dict}].
+
+        Parameters
+        ----------
+            chunks: List of document chunks dictionary.
+
+        Returns
+        -------
+            - Formatted list that was given.
         """
         normalised = []
         for chunk in chunks:
@@ -208,6 +549,16 @@ class ExpertDocuments:
         """
         Embed every chunk, in order. Returns (vector, embed_tokens) per chunk.
         Raises if any chunk fails, before anything is written.
+
+        Parameters
+        ----------
+            chunks: List of document chunks dictionary.
+            hooks:  Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - A list containing the embeddings and token used of the chunks
+              of the entire document.
         """
         embed_results = []
         tol = len(chunks)
@@ -222,9 +573,9 @@ class ExpertDocuments:
                     "Failed to embed chunk %d/%d for expert '%s'"
                     % (i, tol, self.exp_name)
                 )
-            _, vector, embed_tkns = result
+            _, embdings, embed_tkns = result
 
-            embed_results.append((vector, embed_tkns or 0))
+            embed_results.append((embdings, embed_tkns or 0))
         return embed_results
 
     def _add_document(
@@ -240,6 +591,19 @@ class ExpertDocuments:
         Insert the document row. Returns None if the hash already exists (e.g.
         another process stored it first). Does NOT commit: call insisde
         transaction().
+
+        Parameters
+        ----------
+            title:     The title of the document.
+            doc_type:  Document type.
+            cont_hash: Hashed representation of the content of the document.
+            cont:      Entire content in the document.
+            path:      Document's path.
+            metadata:  Relevant data about the document.
+
+        Returns
+        -------
+            - The id of the document stored.
         """
         row = fetch_one(
             conn=self.conn,
@@ -274,6 +638,14 @@ class ExpertDocuments:
         Insert every chunk with its embedding.
 
         Does NOT commit: call inside transaction().
+
+        Parameters
+        ----------
+            doc_id:        Target document id.
+            chunks:        All chunks from the document.
+            embed_results: A list containing the embeddings and
+                           token used of the chunks of the
+                           entire document.
         """
         if not self.llm_tknizr:
             return None
@@ -323,6 +695,22 @@ class ExpertDocuments:
         the expert link are written in ONE transaction, so failure leaves
         nothing behind. Content is already stored is not embedded again: it is
         just linked to this expert.
+
+        Parameters
+        ----------
+            title:     Document's title.
+            doc_type:  Document's type.
+            cont_hash: Hashed representation of the content.
+            cont:      Content of the entire document.
+            chunks:    All the document chunks.
+            path:      Document's path.
+            metadata:  Relevant database about the document.
+            hooks:     Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Document id.
+            - Document's status with the expert.
         """
         chunks = self._formatted_chunks_with_data(chunks)
         if not chunks:
@@ -388,7 +776,14 @@ class ExpertDocuments:
         _format_to_document_dictionary for its structure) and link it to this
         expert.
 
-        Returns {title: (document id, status)}.
+        Parameters
+        ----------
+            doc_dict: Dictionary containing key detail of documents.
+            hooks:    Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - {title: (document id, status)}.
         """
         results = {}
 
@@ -405,308 +800,65 @@ class ExpertDocuments:
             )
         return results
 
-    @staticmethod
-    def find_document_id(conn, doc: str | int) -> int:
-        """
-        Resolve a document title or id to a document id. A title is tried
-        first. then a number is treated as an id. Raises ValueError if nothing
-        matches, or if several documents share the title (use the id then).
-        """
-        if isinstance(doc, int):
-            row = fetch_one(
-                conn=conn,
-                sql="SELECT id FROM documents WHERE id = %s;",
-                params=(doc,),
-            )
-            if row is None:
-                raise ValueError("No documents with id %d." % doc)
-            return int(row[0])
 
-        rows = fetch_all(
-            conn=conn,
-            sql="SELECT id FROM documents WHERE title = %s ORDER BY id;",
-            params=(doc,),
-        )
-        if len(rows) == 1:
-            return int(rows[0][0])
+def _document_entry(row: list) -> dict[str, Any]:
+    """
+    Format a document row into a labelled dictionary.
 
-        # More than one titles exists
-        if len(rows) > 1:
-            raise ValueError(
-                "%d documents are named '%s' (ids: %s). Use the id instead"
-                % (len(rows), doc, ", ".join(str(r[0]) for r in rows))
-            )
+    The row columns must follow:
+    id, title, type, description, created_at, updated_at, metadata.
 
-        # No matches
-        if doc.isdigit():
-            return ExpertDocuments.find_document_id(conn, int(doc))
-        raise ValueError("No document named '%s'" % doc)
+    Parameters
+    ----------
+        row: List containing a document's data.
 
-    def all_documents_data_from_self(self) -> dict[int, dict[str, Any]]:
-        """Return all documents that are linked to this expert, keyed by id."""
-        rows = fetch_all(
-            conn=self.conn,
-            sql=("""
-                SELECT d.id, d.title, d.type, d.description,
-                    d.created_at, d.updated_at, d.metadata
-                FROM expert_documents ed
-                JOIN documents d ON d.id = ed.document_id
-                WHERE ed.expert_id = %s
-                ORDER BY d.title, d.id;
-                """),
-            params=(self.exp_id,),
-        )
+    Returns
+    -------
+        - A formatted dictionary of the document entry.
+    """
+    return {
+        "title": row[1],
+        "type": row[2],
+        "description": row[3],
+        "created_at": row[4],
+        "updated_at": row[5],
+        "metadata": row[6],
+    }
 
-        return {row[0]: _document_entry(row) for row in rows}
 
-    @staticmethod
-    def all_documents_data_across_experts(conn) -> dict[int, dict[str, Any]]:
-        """
-        Return every stored document, including ones no expert uses, keyed by
-        document id.
-        """
-        ensure_schema(conn)
-        rows = fetch_all(
-            conn=conn,
-            sql=("""
-                SELECT d.id, d.title, d.type, d.description,
-                    d.created_at, d.updated_at, d.metadata,
-                    array_agg(e.name ORDER BY e.name)
-                        FILTER (WHERE e.name IS NOT NULL)
-                FROM documents d
-                LEFT JOIN expert_documents ed ON ed.document_id = d.id
-                LEFT JOIN experts e ON e.id = ed.expert_id
-                GROUP BY d.id
-                ORDER BY d.title, d.id;
-                """),
-        )
-        return {
-            row[0]: {**_document_entry(row), "experts": row[7] or []} for row in rows
+def _format_to_document_dictionary(
+    path: Path, cont: str, chunks: list, cont_hash: str
+) -> dict[str, dict[Any, Any]] | None:
+    """
+    Format into the expected dictionary structure for _store_documents().
+    Return None if the file's metadata can't be read.
+
+    Parameters
+    ----------
+        path:      Document path.
+        cont:      Entire content in the document.
+        chunks:    All chunks from the document.
+        cont_hash: Hashed representation of the document's content.
+
+    Returns
+    -------
+        - A formatted dictionary of the document.
+    """
+    file_data = unpack_file_metadata(path)
+    if not file_data:
+        return
+    name, mime, size = file_data
+
+    return {
+        name: {
+            "doc_type": path.suffix.lstrip(".").lower()[:20],
+            "cont_hash": cont_hash,
+            "cont": cont,
+            "chunks": chunks,
+            "path": str(path.resolve()),
+            "metadata": {
+                "mime_type": mime,
+                "size_bytes": size,
+            },
         }
-
-    @staticmethod
-    def generate_document_description(
-        conn, doc_name: str, hooks: AgentHooks | None = None
-    ):
-        """
-        Have the chat model read the stored document and write a short summary
-        of the whole document into documents.description, which helps
-        retrieval.
-
-        - Returns the description, or None if the model produced
-        nothing.
-        - Raises ValueError if the document isn't found.
-        """
-        local_tknizr = load_tokenizer(MODEL)
-        if not local_tknizr:
-            return None
-
-        ensure_schema(conn)
-        doc_id = ExpertDocuments.find_document_id(conn, doc_name)
-        row = fetch_one(
-            conn=conn,
-            sql="SELECT title, content FROM documents WHERE id = %s;",
-            params=(doc_id,),
-        )
-        title, cont = row
-
-        if hooks and hooks.on_loading:
-            hooks.on_loading("Generating description for document '%s'..." % title)
-
-        # Keep the document in the model's context
-        max_tkns = local_tknizr.model_max_tkns
-        max_chars = (
-            max(2000, (max_tkns - EXPERT_RESERVE_TKNS - 500) * 3)
-            if max_tkns
-            else EXPERT_DOC_FALLBACK_CHARS
-        )
-
-        response = model_response_with_new_system_prompt_and_context(
-            model=MODEL,
-            sys_prompt=DOC_DES_PROMPT,
-            prompt="Title: %s\n\n%s" % (title, cont[:max_chars]),
-            hooks=hooks,
-        )
-        if not response:
-            return None
-
-        text, _, _, is_stopped = response
-        if is_stopped is True or not text.strip():
-            return None
-        des = text.strip()
-
-        execute(
-            conn=conn,
-            sql=("""
-                UPDATE documents
-                SET description = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s;
-                """),
-            params=(des, doc_id),
-        )
-        info_msg = "Document '%s' description has been generated" % title
-        app_log.info(info_msg)
-        if hooks and hooks.on_stat_change:
-            hooks.on_stat_change(info_msg)
-        return des
-
-    # --- Link / unlink -------------------------------------------------------
-
-    def link_document(
-        self,
-        doc_id: int,
-        embed_model: str = EMBED_MODEL,
-        hooks: AgentHooks | None = None,
-    ) -> bool:
-        """
-        Link an ALREADY STORED DOCUMENT to this expert.
-
-        doc_id:      Id from an already existing document.
-        embed_model: Current user set embedding model, used for validating
-                     if it matches the model that was used during the
-                     embedding of the document.
-
-        Returen False if it was already linked or None if expert does not
-        exists.
-
-        Warns if the document was embedded with a different model than
-        the current one, as search skips those until re-embedded.
-        """
-        row = fetch_one(
-            conn=self.conn,
-            sql="SELECT embedding_model FROM documents WHERE id = %s;",
-            params=(doc_id,),
-        )
-
-        if row is None:
-            raise ValueError("Document id %d does not exist." % doc_id)
-
-        if row[0] != embed_model:
-            warn_msg = (
-                "Document id %d was embedded with '%s' but the current model "
-                "is '%s'. It won't appear in searches until re-embedded."
-                % (doc_id, row[0], embed_model)
-            )
-            app_log.warning(warn_msg)
-            if hooks and hooks.on_stat_change:
-                hooks.on_stat_change(warn_msg)
-        return self._link(doc_id)
-
-    def link_multiple_documents(
-        self, doc_names: list[str], hooks: AgentHooks | None = None
-    ) -> dict[str, str]:
-        """
-        Link already stored documents (titles or ids) to this expert.
-        Returns {name: "linked" | "already_linked" | "failed: <reason>"}.
-        """
-        results = {}
-        for name in doc_names:
-            try:
-                linked = self.link_document(
-                    ExpertDocuments.find_document_id(self.conn, name)
-                )
-            except ValueError as e:
-                # Skip this document if failed
-                warn_msg = "Cannot link '%s' to expert '%s': %s" % (
-                    name,
-                    self.exp_name,
-                    e,
-                )
-                app_log.warning(warn_msg)
-                if hooks and hooks.on_stat_change:
-                    hooks.on_stat_change(warn_msg)
-                results[name] = f"failed: {e}"
-                continue
-
-            results[name] = "linked" if linked else "already_linked"
-        return results
-
-    def unlink_document(self, doc_id: int) -> bool:
-        """
-        Unlink a document from this expert.
-        The document and its chunks are NOT deleted. Return False if it was't
-        linked or None if expert does not exists.
-
-        doc_id: Id from an already existing document.
-        """
-        return (
-            execute(
-                conn=self.conn,
-                sql=("""
-                DELETE FROM expert_documents
-                WHERE expert_id = %s AND document_id = %s;
-                """),
-                params=(self.exp_id, doc_id),
-            )
-            > 0
-        )
-
-    def unlink_multiple_documents(
-        self, doc_names: list[str], hooks: AgentHooks | None = None
-    ) -> dict[str, str]:
-        """
-        Unlink documents (titles or ids) from this expert. The documents
-        themselves are NOT deleted.
-        Returns {name: "unlinked" | "not_linked" | "failed: <reason>"}.
-        """
-        results = {}
-        for name in doc_names:
-            try:
-                linked = self.unlink_document(
-                    ExpertDocuments.find_document_id(self.conn, name)
-                )
-            except ValueError as e:
-                # Skip this document if failed
-                warn_str = "Cannot link '%s' to expert '%s': %s" % (
-                    name,
-                    self.exp_name,
-                    e,
-                )
-                app_log.warning(warn_str)
-                if hooks and hooks.on_stat_change:
-                    hooks.on_stat_change(warn_str)
-                results[name] = f"failed: {e}"
-                continue
-
-            results[name] = "unlinked" if linked else "not_linked"
-        return results
-
-    def chunk_document_to_database(
-        self,
-        path: Path,
-        is_docling: bool = ENABLE_DOCLING,
-        hooks: AgentHooks | None = None,
-    ) -> dict[str, tuple[int, StoreStatus]] | None:
-        """
-        Read a file, chunk it, embed the chunks and store everything in the
-        database, linked to this expert.
-
-        Returns {title: (document id, status)}, or None if the file could not
-        be read, has no content, or has no readable metadata.
-        """
-        if not self.emb_tknizr:
-            app_log.warning("Failed to chunk '%s': No tokenizers loaded", path)
-            return None
-
-        out = FileReader(
-            basic_parser=BasicParser(), docling_parser=DoclingParser()
-        ).read_document(path)
-        if not out:
-            app_log.warning("Failed to read '%s'. Skipping", path)
-            return None
-        cont, _ = out
-
-        chunks = DoclingChunker().chunking(
-            cont, hooks=hooks
-        )
-        if not chunks:
-            app_log.warning("No chunks produced from '%s'. Skipping", path)
-            return None
-
-        cont_hash = hash_string(cont)
-        doc_dict = _format_to_document_dictionary(path, cont, chunks, cont_hash)
-        if not doc_dict:
-            app_log.warning("No file metadata for '%s'. Skipping", path)
-            return None
-
-        return self._store_documents(doc_dict, hooks=hooks)
+    }

@@ -28,7 +28,16 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 class Agent:
-    """Contains functions for how the agent response."""
+    """
+    Contains functions for how the agent response.
+
+    Parameters
+    ----------
+        sess_name: The name of the session, none for default_session.
+        model:     The name of the model, could be set in 'config.toml'.
+        emb_model: The name of the embedding model, could be set in
+                   'config.toml'.
+    """
 
     def __init__(
         self,
@@ -82,10 +91,10 @@ class Agent:
             3. Turn prompt into embeddings.
             4. Retrieve and all retevant context including attachments
                and from the database, then combined them into a string.
-            5. Handles if attachments exceeds the language model's 
+            5. Handles if attachments exceeds the language model's
                context window and rebuild the string that will be sent
                to the model.
-            6. Compress session if the token count is estimated to 
+            6. Compress session if the token count is estimated to
                exceed the token limit.
             7. Send the messages and prompt to the model to response.
             8. Add the new conversation turn to the database and store
@@ -111,7 +120,8 @@ class Agent:
             - The response by the model.
             - Tokens used from the prompt.
             - Tokens used during the response generation.
-            - Metadata of the new conversation turn that was saved to the database.
+            - Metadata of the new conversation turn that was saved to the
+              database.
         """
         msgs = self.chat_sess_logs.get_active_conversations()
         cmd, clean_prompt = detect_cmd(prompt)
@@ -220,7 +230,7 @@ class Agent:
             msgs:    Active message history from current session for calculating
                      token budget use.
             prompt:  What the user sent (text) to the model.
-            reserve: Token reserve for token estimation, could be set by the 
+            reserve: Token reserve for token estimation, could be set by the
                      user in 'config.toml'.
             hooks:   Function hooks for cli/tui integration.
 
@@ -316,6 +326,12 @@ class Agent:
         Return embeddings for user prompt for document and previously attaached
         content retrieval features, if no embedding failed turn off related featurs.
 
+        Parameters
+        ----------
+            prompt:           User's prompt.
+            is_auto_doc_rtve: Switch to determine should the agent retrieve
+                              previously uploaded attachments from the database.
+
         Returns
         -------
             - The prompt user sent.
@@ -345,6 +361,11 @@ class Agent:
         """
         Query every expert enabled in this session. Returns the closest
         chunks across them, best first, or None if none are enabled.
+
+        Parameters
+        ----------
+            prompt: User' prompt.
+            hooks:  Function hooks for cli/tui integration.
 
         Returns
         -------
@@ -456,17 +477,23 @@ class Agent:
         if not self.llm_tknizr.model_max_tkns:
             return cmbind_prompt, attchmnt_dict, False
 
+        # Count tokens
         hist_tkns = self.llm_tknizr.count_history_tokens(msgs) or 0
         added_tkns = self.llm_tknizr.count_string_tokens(cmbind_prompt) or 0
 
+        # Do nothing if the token budget fits
         if hist_tkns + added_tkns + tkn_reserve <= self.llm_tknizr.model_max_tkns:
             return cmbind_prompt, attchmnt_dict, False
 
-        stored = self.attchmnts.store_already_read_attachments(attchmnt_dict, hooks=hooks)
+        # Store the attachments to the database first
+        stored = self.attchmnts.store_already_read_attachments(
+            attchmnt_dict, hooks=hooks
+        )
         if not stored:
             app_log.warning("Failed to store attachments: Sending in full")
             return cmbind_prompt, attchmnt_dict, False
 
+        # Calculate the token used without the attachments
         base_prompt = build_prompt(
             prompt=prompt, exp_chunks=exp_chunks, doc_list=retrieved_attchmnts
         )
@@ -477,6 +504,8 @@ class Agent:
             - (self.llm_tknizr.count_string_tokens(base_prompt) or 0)
         )
 
+        # Query for entries from the newly uploaded attachments with
+        # vector search
         hits = self.qry_attchmnts.query_specified_session_attachments(
             qry_embeddings=prompt_embdings,
             attchmnt_dict=attchmnt_dict,
@@ -486,6 +515,7 @@ class Agent:
         if not hits:
             app_log.warning("No attachment chunks fit the token budget")
 
+        # Re-build the final version of the complete prompt
         cmbind_prompt = build_prompt(
             prompt=prompt,
             exp_chunks=exp_chunks,

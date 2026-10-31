@@ -28,7 +28,15 @@ app_log = logger.app_logger(f"{__name__}.app")
 
 
 class Compression:
-    """Summarise a session's active conversation turns with model."""
+    """
+    Summarise a session's active conversation turns with model.
+
+    Parameters
+    ----------
+        _chat_sess_logs: Initiated chat session log class.
+        _chat_logs:      Initiated chat logs class.
+        llm_tknizr:      Initiated llm tokenizer.
+    """
 
     def __init__(
         self,
@@ -39,29 +47,6 @@ class Compression:
         self._chat_sess_logs = chat_sess_logs
         self._chat_logs = chat_logs
         self.llm_tknizr = llm_tknizr
-
-    def _model_compress_with_given_context(
-        self,
-        prompt: str,
-        model: str = MODEL,
-        cmp_prompt: str = COMPRESS_PROMPT,
-        hooks: AgentHooks | None = None,
-    ) -> ModelResult | None:
-        """
-        Model reads chats from current session and generate a response with
-        the compression system prompt.
-        """
-        cmbind_prompt = build_prompt(
-            prompt=prompt,
-            cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed"),
-        )
-        response = llm.model_response_with_new_system_prompt_and_context(
-            model=model,
-            sys_prompt=cmp_prompt,
-            prompt=cmbind_prompt,
-            hooks=hooks,
-        )
-        return response
 
     def compress(
         self,
@@ -74,6 +59,21 @@ class Compression:
         The main compression function. The model generates summary, update
         previous conversation metadata and add the new response to the
         database.
+
+        Parameters
+        ----------
+            clean_prompt: Prompt without the slash command for model.
+            unfmt_prompt: Original prompt with the slash command
+                          for chat history logs.
+            cmp_method:   Compression method.
+            hooks:        Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Summary of the active conversation of this session.
+            - Prompt tokens for the summary.
+            - Output tokens for the summary.
+            - Metadata of this turn.
         """
         # Auto compression
         is_auto = cmp_method == "auto"
@@ -126,7 +126,25 @@ class Compression:
         default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> AgentResult | None:
-        """Compress session using the pre-written prompt."""
+        """
+        Compress session using the pre-written prompt.
+
+        Parameters
+        ----------
+            unfmt_prompt:   Original prompt with the slash command
+                            for chat history logs.
+            cmp_method:     Compression method.
+            default_prompt: Pre-written prompt that instructs the model to
+                            compression active conversations.
+            hooks:          Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Summary of the active conversation of this session.
+            - Prompt tokens for the summary.
+            - Output tokens for the summary.
+            - Metadata of this turn.
+        """
         return self.compress(
             clean_prompt=default_prompt,
             unfmt_prompt=unfmt_prompt,
@@ -140,7 +158,24 @@ class Compression:
         default_prompt: str = DEFAULT_PROMPT,
         hooks: AgentHooks | None = None,
     ) -> AgentResult | None:
-        """Auto compress session, triggered when session token count reached pre-set limit."""
+        """
+        Auto compress session, triggered when session token count reached pre-set limit.
+
+        Parameters
+        ----------
+            unfmt_prompt:   Original prompt with the slash command
+                            for chat history logs.
+            default_prompt: Pre-written prompt that instructs the model to
+                            compression active conversations.
+            hooks:          Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Summary of the active conversation of this session.
+            - Prompt tokens for the summary.
+            - Output tokens for the summary.
+            - Metadata of this turn.
+        """
         app_log.debug(
             "Auto chat compression was triggered for session '%s'",
             self._chat_sess_logs.sess_name,
@@ -158,3 +193,40 @@ class Compression:
             info_msg = "Compression completed. Continuing session..."
             hooks.on_stat_change(info_msg)
         return result
+
+    def _model_compress_with_given_context(
+        self,
+        prompt: str,
+        model: str = MODEL,
+        cmp_prompt: str = COMPRESS_PROMPT,
+        hooks: AgentHooks | None = None,
+    ) -> ModelResult | None:
+        """
+        Model reads chats from current session and generate a response with
+        the compression system prompt.
+
+        Parameters
+        ----------
+            prompt:     User's prompt.
+            model:      Model's name.
+            cmp_prompt: Slash command to activate compression.
+            hooks:      Function hooks for cli/tui integration.
+
+        Returns
+        -------
+            - Model's response.
+            - Prompt tokens.
+            - Output tokens.
+            - Stop.
+        """
+        cmbind_prompt = build_prompt(
+            prompt=prompt,
+            cmp_convs=self._chat_sess_logs.get_chat_history("not_compressed"),
+        )
+        response = llm.model_response_with_new_system_prompt_and_context(
+            model=model,
+            sys_prompt=cmp_prompt,
+            prompt=cmbind_prompt,
+            hooks=hooks,
+        )
+        return response
