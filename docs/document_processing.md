@@ -1,6 +1,7 @@
 # Document Processing
 
-Attached files are converted to plain text or Markdown, added to the current turn's context, and stored in the knowledge base so they can be retrieved later.
+Attached files are converted to plain text or Markdown, added to the current
+turn's context, and stored in the knowledge base so they can be retrieved later.
 
 ## Supported formats
 
@@ -25,4 +26,6 @@ Attached files are converted to plain text or Markdown, added to the current tur
 
 ## Parsing
 
-With `enable_docling = true`, attachments are parsed with Docling. With `false`, the basic parsers are used. See the `[file_reader]` section of the [configuration reference](./CONFIGURATION.md).
+With `enable_docling = true`, attachments are parsed with Docling. With `false`,
+the basic parsers are used. See the `[file_reader]` section of the
+[configuration reference](./configuration.md).

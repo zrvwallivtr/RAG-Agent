@@ -1,9 +1,7 @@
 from .models import (
     OLLAMA_HOST,
     MODEL,
-    MODEL_MAX_TOKENS,
     EMBED_MODEL,
-    EMBED_MAX_TOKENS,
     FALLBACK_TOKENIZER,
     TOKEN_RESERVE,
 )
@@ -27,9 +25,7 @@ __all__ = [
     # --- Models ---
     "OLLAMA_HOST",
     "MODEL",
-    "MODEL_MAX_TOKENS",
     "EMBED_MODEL",
-    "EMBED_MAX_TOKENS",
     "FALLBACK_TOKENIZER",
     "TOKEN_RESERVE",
     # --- RAG ---

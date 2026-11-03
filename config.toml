@@ -3,8 +3,6 @@
 ollama_host = "http://localhost:11434"
 model = "ministral-3:3b"
 embedding = "nomic-embed-text"
-# model_max_tokens =
-# embedding_max_tokens =
 # fallback_tokenizer = "gpt2"
 # token_reserve = 1000
 

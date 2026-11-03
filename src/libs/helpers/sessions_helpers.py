@@ -15,13 +15,19 @@ def _delete_chat_session(
     chat_sess_logs: ChatSessionLogs,
     sess_name: str | None = None,
     hooks: AgentHooks | None = None,
-):
+) -> None:
     """
     Delete the chat session entry on the chat session table from the
     database.
 
     ONLY CALL THIS WHEN ALL THE OTHER DATABASE LINKED TO A SESSION IS
     DELETED.
+
+    Parameters
+    ----------
+        chat_sess_logs: Chat session log class.
+        sess_name:      Session name.
+        hooks:          Function hooks for cli/tui integration.
     """
     sess_id = chat_sess_logs.get_session_id()
     try:
@@ -48,16 +54,20 @@ def _delete_chat_session(
 
 
 def delete_session(
-    llm_tknizr: LocalTokenizer,
     sess_name: str | None = None,
     hooks: AgentHooks | None = None,
 ) -> None:
     """
     Delete session related chat logs and database contents. If 'session'
     is not specified, delete default session related contents.
+
+    Parameters
+    ----------
+        sess_name:  Session name.
+        hooks:      Function hooks for cli/tui integration.
     """
     chat_sess_logs = ChatSessionLogs(
-        conn=CONN, sess_name=sess_name, llm_tknizr=llm_tknizr
+        conn=CONN, sess_name=sess_name
     )
     attchmnts = Attachments(conn=CONN, chat_sess_logs=chat_sess_logs)
 

@@ -1,6 +1,7 @@
 # Docker Services
 
-Backing services run with Docker Compose. The compose file is at `~/.agent/docker-compose.yaml`.
+Backing services run with Docker Compose. The compose file is at
+`~/.agent/docker-compose.yaml`.
 
 ```sh
 cd ~/.agent
@@ -21,7 +22,7 @@ All ports should be bound to `127.0.0.1` so nothing is exposed to the network.
 
 ## Environment variables
 
-Create `~/.agent_app/.env`:
+Create `~/.agent/.env`:
 
 ```sh
 # PostgreSQL
@@ -34,9 +35,11 @@ PGDB_PASSWORD    = "postgres"
 # PGADMIN_PASSWORD    = "admin"
 ```
 
-## pgAdmin
+## pgAdmin (optional)
 
-Open <http://127.0.0.1:5050> in a browser of choice and login with `PGADMIN_EMAIL` and `PGADMIN_PASSWORD`. When registering the server, use host `postgres` and prot `5432` (pgAdmin reaches it over teh internal Docker network).
+Open <http://127.0.0.1:5050> in a browser of choice and login with `PGADMIN_EMAIL`
+and `PGADMIN_PASSWORD`. When registering the server, use host `postgres` and prot
+`5432` (pgAdmin reaches it over teh internal Docker network).
 
 ## Default compose file
 
@@ -74,7 +77,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Pgadmin (optional)
+  # pgAdmin (optional)
   # pgadmin:
   #   image: dpage/pgadmin4
   #   container_name: pgadmin
@@ -98,4 +101,3 @@ volumes:
   ollama_models:
   pgdata:
 ```
-

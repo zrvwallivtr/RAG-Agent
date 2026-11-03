@@ -9,7 +9,17 @@ app_log = app_logger(f"{__name__}.app")
 
 
 def format_size_bytes(size_bytes: int) -> str:
-    """Converts size bytes into a human readable string (KB, MB, GB)."""
+    """
+    Converts size bytes into a human readable string.
+
+    Parameters
+    ----------
+        size_bytes: File size in bytes.
+
+    Returns
+    -------
+        - Size with units (KB, MB, GB, ...).
+    """
     if size_bytes is None or size_bytes < 0:
         return "0 B"
 
@@ -25,7 +35,17 @@ def format_size_bytes(size_bytes: int) -> str:
 
 
 def unpack_file_metadata(path: Path) -> tuple[str, str, int] | None:
-    """Return name, mime type and size bytes from given path."""
+    """
+    Parameters
+    ----------
+        path: File path.
+
+    Returns
+    -------
+        - Name of the file.
+        - Mime type of the file.
+        - Size bytes of the file.
+    """
     if not path.exists():
         app_log.warning(
             "File '%s' is not in the upload directory '%s'", path.name, UPLOAD_DIR

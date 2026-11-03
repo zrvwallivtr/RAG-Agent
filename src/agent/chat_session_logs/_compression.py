@@ -42,11 +42,9 @@ class Compression:
         self,
         chat_sess_logs: "ChatSessionLogs",
         chat_logs: ChatLogs,
-        llm_tknizr: LocalTokenizer,
     ):
         self._chat_sess_logs = chat_sess_logs
         self._chat_logs = chat_logs
-        self.llm_tknizr = llm_tknizr
 
     def compress(
         self,

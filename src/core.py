@@ -5,7 +5,6 @@ from src.config.postgres import CONN
 from src.config.config_toml import MODEL, EMBED_MODEL, TOKEN_RESERVE
 
 from src.libs.helpers.format_context_helper import build_prompt
-from src.libs.helpers.slash_commands_helpers import detect_cmd
 from src.libs.custom_dataclasses import AgentHooks
 from src.libs.constants import AgentResult, AgentResult
 
@@ -81,7 +80,6 @@ class Agent:
         prompt: str,
         paths: list[Path] | None = None,
         enabled_exp: list[str] | None = None,
-        is_auto_doc_rtve: bool = True,
         compress_cmd: str = COMPRESS_CMD,
         hooks: AgentHooks | None = None,
     ) -> AgentResult | None:
@@ -112,8 +110,6 @@ class Agent:
             prompt:           What the user sent (text) to the model.
             paths:            Attachments paths.
             enabled_exp:      The enabled expert list for the current session.
-            is_auto_doc_rtve: Switch to determine should the agent retrieve
-                              previously uploaded attachments from the database.
             compress_cmd:     The exact slash command string.
             hooks:            Function hooks for cli/tui integration.
 
@@ -126,7 +122,7 @@ class Agent:
               database.
         """
         msgs = self.chat_sess_logs.get_active_conversations()
-        cmd, clean_prompt = detect_cmd(prompt)
+        cmd, clean_prompt = _detect_cmd(prompt)
 
         if cmd:
             # Run budget check and auto compress only when slash command is
@@ -143,9 +139,9 @@ class Agent:
                 hooks=hooks,
             )
 
-        prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve = (
+        prompt, prompt_tkns, prompt_embdings = (
             self._embedding_content_retrieval_controller(
-                prompt=prompt, is_auto_doc_rtve=is_auto_doc_rtve
+                prompt=prompt,
             )
         )
 
@@ -155,7 +151,6 @@ class Agent:
             self._combine_context(
                 prompt=prompt,
                 prompt_embdings=prompt_embdings,
-                is_auto_doc_rtve=is_auto_doc_rtve,
                 paths=paths,
                 hooks=hooks,
             )
@@ -322,24 +317,22 @@ class Agent:
             return result if result else None
 
     def _embedding_content_retrieval_controller(
-        self, prompt: str, is_auto_doc_rtve: bool
-    ) -> tuple[str, int, list[float], bool]:
+        self, prompt: str
+    ) -> tuple[str, int, list[float]]:
         """
-        Return embeddings for user prompt for document and previously attaached
-        content retrieval features, if no embedding failed turn off related featurs.
+        Return embeddings for user prompt for document and previously 
+        attached content retrieval features, if no embedding failed
+        turn off related featurs.
 
         Parameters
         ----------
-            prompt:           User's prompt.
-            is_auto_doc_rtve: Switch to determine should the agent retrieve
-                              previously uploaded attachments from the database.
+            prompt: User's prompt.
 
         Returns
         -------
             - The prompt user sent.
             - The token used for embedding the prompt.
             - Embeddings generated from the 'prompt'.
-            - Pass through the auto document retrieve switch.
         """
         embed_response = embedding_content(prompt)
 
@@ -353,9 +346,8 @@ class Agent:
             )
             prompt_embdings = [0.0]
             prompt_tkns = 0
-            is_auto_doc_rtve = False  # Turn off auto document chunk retrieve
 
-        return prompt, prompt_tkns, prompt_embdings, is_auto_doc_rtve
+        return prompt, prompt_tkns, prompt_embdings
 
     def _query_experts(
         self, prompt: str, hooks: AgentHooks | None = None
@@ -384,7 +376,6 @@ class Agent:
         self,
         prompt: str,
         prompt_embdings: list[float],
-        is_auto_doc_rtve: bool,
         paths: list[Path] | None = None,
         hooks: AgentHooks | None = None,
     ) -> tuple[str, list[dict] | None, list[dict] | None, dict | None]:
@@ -397,8 +388,6 @@ class Agent:
         ----------
             prompt:           What the user sent (text) to the model.
             prompt_embdings:  The embeddings generated from the 'prompt'.
-            is_auto_doc_rtve: Switch to determine should the agent retrieve
-                              previously uploaded attachments from the database.
             paths:            Attachments paths.
             hooks:            Function hooks for cli/tui integration.
 
@@ -415,10 +404,9 @@ class Agent:
 
         # Auto retrieve relevant session attachments
         retrieved_attchmnts = None
-        if is_auto_doc_rtve:
-            retrieved_attchmnts = self.qry_attchmnts.query_session_attachments(
-                qry_embeddings=prompt_embdings,
-            )
+        retrieved_attchmnts = self.qry_attchmnts.query_session_attachments(
+            qry_embeddings=prompt_embdings,
+        )
 
         # Uploaded attachments (optional)
         attchmnt_dict = None
@@ -429,7 +417,7 @@ class Agent:
         cmbind_prompt = build_prompt(
             prompt=prompt,
             exp_chunks=exp_chunks,
-            doc_list=retrieved_attchmnts,
+            sess_attchmnt_list=retrieved_attchmnts,
             attchmnt_dict=attchmnt_dict,
         )
 
@@ -497,7 +485,7 @@ class Agent:
 
         # Calculate the token used without the attachments
         base_prompt = build_prompt(
-            prompt=prompt, exp_chunks=exp_chunks, doc_list=retrieved_attchmnts
+            prompt=prompt, exp_chunks=exp_chunks, sess_attchmnt_list=retrieved_attchmnts
         )
         tkn_budget = (
             self.llm_tknizr.model_max_tkns
@@ -521,6 +509,31 @@ class Agent:
         cmbind_prompt = build_prompt(
             prompt=prompt,
             exp_chunks=exp_chunks,
-            doc_list=[*(retrieved_attchmnts or []), *(hits or [])],
+            sess_attchmnt_list=[*(retrieved_attchmnts or []), *(hits or [])],
         )
         return cmbind_prompt, attchmnt_dict, True
+
+
+def _detect_cmd(prompt: str) -> tuple[str | None, str]:
+    """
+    Extracts shortcut if detected.
+
+    Parameters
+    ----------
+        prompt: User's prompt.
+
+    Returns
+    -------
+        - Slash command string.
+        - User's prompt but removed slash command.
+    """
+    question_trimmed = prompt.strip()
+
+    if question_trimmed.startswith(f"/"):
+        parts = question_trimmed.split(" ", 1)
+        cmd = parts[0]
+        cleaned_text = parts[1].strip() if len(parts) > 1 else ""
+        app_log.debug("Command detected: %s", cmd)
+        return cmd, cleaned_text
+
+    return None, prompt

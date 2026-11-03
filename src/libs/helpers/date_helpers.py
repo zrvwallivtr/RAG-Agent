@@ -7,8 +7,15 @@ from src.agent.tokenizers import LocalTokenizer
 
 def trimmed_date(iso_str: str | None) -> str:
     """
-    Trim the date format from 'ISO 8601 with microseconds' to
-    'DD/MM/YYYY HH:MM'.
+    Trim the date to human readable format.
+
+    Parameters
+    ----------
+        iso_str: Date in 'ISO 8601 with microseconds'.
+
+    Returns
+    -------
+        - 'DD/MM/YYYY HH:MM'
     """
     if not iso_str:  # Fallback
         return "    ---         "
@@ -17,16 +24,22 @@ def trimmed_date(iso_str: str | None) -> str:
     return dt.strftime("%d/%m/%Y %H:%M")
 
 
-def get_session_with_dates(sess_dict: dict, sess_id: str, llm_tknizr: LocalTokenizer) -> str | None:
+def get_session_with_dates(sess_dict: dict, sess_id: str) -> str | None:
     """
-    Return a string containing session's:
-    last modified at    created at    session name
-
     Applicable for a selection list, not suitable for a table.
+
+    Parameters
+    ----------
+        sess_dict: Dictionary about the chat session.
+        sess_id:   Session id.
+
+    Returns
+    -------
+        - 'last modified at    created at    session name'
     """
     from src.agent.chat_session_logs import ChatSessionLogs
 
-    chat_session_logs = ChatSessionLogs(conn=CONN, llm_tknizr=llm_tknizr)
+    chat_session_logs = ChatSessionLogs(conn=CONN)
 
     sess_name = sess_dict[sess_id]["session_name"]
     created_at = trimmed_date(iso_str=sess_dict[sess_id]["created_at"])

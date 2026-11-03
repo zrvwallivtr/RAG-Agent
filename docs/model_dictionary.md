@@ -1,0 +1,55 @@
+# Model Dictionary
+
+The dictionary lives in `~/.agent/model_dictionary`. If the file is missing, the default is copied
+from the code base.
+
+## Full default file
+
+```
+# -----------------------------------------------------------------------------
+# Model dictionary format
+# -----------------------
+#
+# For language model the dictionary format must follow:
+#
+# MODELS = {
+#     "MODEL_NAME": {
+#         "huggingface_repo": "HUGGINGFACE_REPO_NAME",
+#         "context_window": MODEL_MAX_TOKENS,
+#     }
+# }
+#
+# For embedding models the dictionary format must follow:
+#
+# MODELS = {
+#     "MODEL_NAME": {
+#         "huggingface_repo": "HUGGINGFACE_REPO_NAME",
+#         "context_window": MODEL_MAX_TOKENS,
+#         "dimension": MODEL_DIMENSION,
+#     }
+# }
+# -----------------------------------------------------------------------------
+
+MODELS = {
+    "ministral-3:3b": {
+        "huggingface_repo": "ministral/Ministral-3b-instruct",
+        "context_window": 4096,
+    },
+
+    "llama3.2:3b": {
+        "huggingface_repo": "meta-llama/Llama-3.2-3B-Instruct",
+        "context_window": 4096,
+    },
+
+    "gemma3:1b": {
+        "huggingface_repo": "google/gemma-3-4b-it",
+        "context_window": 4096,
+    },
+
+    "nomic-embed-text": {
+        "huggingface_repo": "nomic-ai/nomic-embed-text-v1.5",
+        "context_window": 2048,
+        "dimension": 768,
+    },
+}
+```

@@ -33,12 +33,16 @@ class ChatSessionLogs:
         sess_name:  Session name.
     """
 
-    def __init__(self, conn, llm_tknizr: LocalTokenizer, sess_name: str | None = None):
+    def __init__(
+        self,
+        conn,
+        llm_tknizr: LocalTokenizer | None = None,
+        sess_name: str | None = None,
+    ):
         self.conn = conn
-
         self.sess_name = sess_name.strip() if sess_name else "default_session"
-
         self.llm_tknizr = llm_tknizr
+        self._sys_prompt_tkns = None
 
         ensure_schema(self.conn)
         self.chat_sess = ChatSessions(
@@ -50,15 +54,29 @@ class ChatSessionLogs:
             conn=self.conn,
             chat_sess=self.chat_sess,
         )
-        self.compression = Compression(self, chat_logs=self.chat_logs, llm_tknizr=self.llm_tknizr)
+        self.compression = Compression(self, chat_logs=self.chat_logs)
 
     def _system_prompt_tokens(self, sys_prompt: str = SYS_PROMPT) -> int:
-        global _sys_prompt_tkns
-        if _sys_prompt_tkns is None:
-            _sys_prompt_tkns = (
+        """
+        Calculate the token usage for the system prompt, call only
+        when a new session is created.
+
+        Parameters
+        ----------
+            sys_prompt: System prompt string.
+
+        Returns
+        -------
+            - System prompt's token count.
+        """
+        if not self.llm_tknizr:
+            return 0
+
+        if self._sys_prompt_tkns is None:
+            self._sys_prompt_tkns = (
                 self.llm_tknizr.count_string_tokens(text=sys_prompt) or 0
             )
-        return _sys_prompt_tkns
+        return self._sys_prompt_tkns
 
     def get_session_id(self):
         return self.chat_sess.get_id()
@@ -82,6 +100,8 @@ class ChatSessionLogs:
         return self.chat_sess.create(hooks)
 
     def update_session_used_tokens(self):
+        if not self.llm_tknizr:
+            return None
         msgs = self.get_active_conversations()
         sess_used_tkns = self.llm_tknizr.count_history_tokens(msgs)
         return self.chat_sess.update_used_tokens(sess_used_tkns or 0)

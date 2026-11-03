@@ -18,7 +18,8 @@ session_experts is an optional link table created on demand.
 from src.config.config_toml import EMBED_MODEL
 
 from src.libs.custom_dataclasses import AgentHooks
-from src.libs.models_database import EMB_MODEL_DIMENSION
+from src.libs.helpers.model_dictionary_helpers import embedding_model_dimension, EMB_DIM
+from src.config.files_and_directories import TOKENIZERS_DIR, MODEL_DICT, ModelDict
 from src.libs.helpers.database_helpers import fetch_all, fetch_one, init_database
 
 from src import logger
@@ -148,32 +149,33 @@ def stored_dimension(conn) -> int | None:
     return int(row[0]) if row and row[0] > 0 else None
 
 
-def ensure_schema(conn, hooks: AgentHooks | None = None) -> None:
+def ensure_schema(
+    conn, emb_dim: int | None = EMB_DIM, hooks: AgentHooks | None = None
+) -> None:
     """Create the core expert tables. Needs no chat tables."""
     global _schema_ready
     if _schema_ready:
         return
-    dim = EMB_MODEL_DIMENSION.get(EMBED_MODEL)
-    if dim is None:
+    if emb_dim is None:
         raise ValueError(f"Unknown embedding dimension for model '{EMBED_MODEL}'. ")
 
     if hooks and hooks.on_loading:
         hooks.on_loading("Initialising expert tables...")
 
-    stmts = tuple(s.format(dimension=int(dim)) for s in _STATEMENTS)
+    stmts = tuple(s.format(dimension=int(emb_dim)) for s in _STATEMENTS)
     init_database(conn=conn, stmts=stmts)
 
     # The vector size is fixed when teh table is first created. Warn, rather
     # than raise, so experts can still be listed and deleted after a model
     # change.
     existing = stored_dimension(conn)
-    if existing is not None and existing != int(dim):
+    if existing is not None and existing != int(emb_dim):
         app_log.warning(
             "Embedding model '%s' produces %d-dimension vectores but "
             "document_chunks stores %d. Documents must be re-embedded before "
             "adding or searching.",
             EMBED_MODEL,
-            int(dim),
+            int(emb_dim),
             existing,
         )
 

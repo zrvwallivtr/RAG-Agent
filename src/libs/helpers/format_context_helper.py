@@ -4,31 +4,36 @@ from typing import Any
 
 
 def sanitize_tag_content(cont, tag: str) -> str:
-    """Prevent content from closing its own delimiter tag early."""
+    """
+    Prevent content from closing its own delimiter tag early.
+
+    Parameters
+    ----------
+        cont: Content string.
+        tag:  xml tag.
+
+    Returns
+    -------
+        - Sanitized content string.
+    """
     if not isinstance(cont, str):
         cont = str(cont)
     cont = re.sub(rf"</?{tag}[^>]*>", f"[{tag}_tag_removed]", cont, flags=re.IGNORECASE)
     return cont
 
 
-def _attr(value) -> str:
-    """Make a value safe inside a single-quoted tag attribute."""
-    return (
-        str(value)
-        .replace("&", "&amp;")
-        .replace("'", "&#39;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-
-# --- Format sections ---------------------------------------------------------
-
-
-def expert_section(hits: list[dict] | None) -> str:
+def _expert_section(hits: list[dict] | None) -> str:
     """
     Rearrange all retrieved expert document chunks with relavent data
     into a tagged, trust-labeled block.
+
+    Parameters
+    ----------
+        hit: Matches retrieved from the expert knowledge base.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
     """
     if not hits:
         return ""
@@ -59,15 +64,26 @@ def expert_section(hits: list[dict] | None) -> str:
     )
 
 
-def document_knowledge_base_section(doc_list):
-    """Rearrange documents contents into a tagged, trust-labeled block."""
-    if not doc_list:
+def _retrieved_session_attachments_section(sess_attchmnt_list) -> str:
+    """
+    Rearrange the retrieved session attachment contents into a tagged,
+    trust-labeled block.
+
+    Parameters
+    ----------
+        sess_attchmnt_list: Retrieved attachment list.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
+    """
+    if not sess_attchmnt_list:
         return ""
     doc_tag = "document"
     docs_tag = "documents"
 
     docs = []
-    for item in doc_list:
+    for item in sess_attchmnt_list:
         cont = sanitize_tag_content(item["content"], "document")
         docs.append(
             f"<{doc_tag} similarity='{item["similarity"]:.3f}'>\n"
@@ -82,8 +98,18 @@ def document_knowledge_base_section(doc_list):
     )
 
 
-def attachment_section(attchmnt_dict: dict[Path, dict[str, str]] | None) -> str:
-    """Rearrange attachments into a tagged, trust-labeled block."""
+def _attachment_section(attchmnt_dict: dict[Path, dict[str, str]] | None) -> str:
+    """
+    Rearrange attachments into a tagged, trust-labeled block.
+
+    Parameters
+    ----------
+        attchmnt_dict: Attachments dictionary.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
+    """
     if not attchmnt_dict:
         return ""
     attch_tag = "attachment"
@@ -105,8 +131,18 @@ def attachment_section(attchmnt_dict: dict[Path, dict[str, str]] | None) -> str:
     )
 
 
-def compress_section(cmp_convs: list[dict] | None):
-    """Rearrange all uncompressed conversations into a tagged, trust-labeled block."""
+def _compress_section(cmp_convs: list[dict] | None):
+    """
+    Rearrange all uncompressed conversations into a tagged, trust-labeled block.
+
+    Parameters
+    ----------
+        cmp_convs: Conversations for compression.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
+    """
     if not cmp_convs:
         return ""
     pre_convs_tag = "previous_conversations"
@@ -126,28 +162,70 @@ def compress_section(cmp_convs: list[dict] | None):
     )
 
 
-def user_prompt_section(prompt: str) -> str:
-    """Wrap the user prompt the only trusted instruction block."""
+def _user_prompt_section(prompt: str) -> str:
+    """
+    Wrap the user prompt the only trusted instruction block.
+
+    Parameters
+    ----------
+        prompt: User's prompt.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
+    """
     usr_prompt_tag = "user_prompt"
     return f"<{usr_prompt_tag}>\n{prompt}\n</{usr_prompt_tag}>"
-
-
-# --- Combined sections -------------------------------------------------------
 
 
 def build_prompt(
     prompt: str,
     exp_chunks: list[dict[str, Any]] | None = None,
-    doc_list: list[dict[str, Any]] | None = None,
+    sess_attchmnt_list: list[dict[str, Any]] | None = None,
     attchmnt_dict: dict[Path, dict[str, str]] | None = None,
     cmp_convs: list[dict] | None = None,
 ) -> str:
-    """Assemble the full payload. Empty sections are omitted, not left blank."""
+    """
+    Assemble the full payload. Empty sections are omitted, not left blank.
+
+    Parameters
+    ----------
+        prompt:             User's prompt.
+        exp_chunks:         Matches retrieved from the expert knowledge base.
+        sess_attchmnt_list: Retrieved attachment list.
+        attchmnt_dict:      Attachments dictionary.
+        cmp_convs:          Conversations for compression.
+
+    Returns
+    -------
+        - LLM friendly content string with tags.
+    """
     sections = [
-        expert_section(exp_chunks),
-        document_knowledge_base_section(doc_list),
-        attachment_section(attchmnt_dict),
-        compress_section(cmp_convs),
-        user_prompt_section(prompt),
+        _expert_section(exp_chunks),
+        _retrieved_session_attachments_section(sess_attchmnt_list),
+        _attachment_section(attchmnt_dict),
+        _compress_section(cmp_convs),
+        _user_prompt_section(prompt),
     ]
     return "\n\n".join(s for s in sections if s)
+
+
+def _attr(value) -> str:
+    """
+    Make a value safe inside a single-quoted tag attribute.
+
+    Parameters
+    ----------
+        value: Target value.
+
+    Returns
+    -------
+        - Safe value string.
+    """
+    return (
+        str(value)
+        .replace("&", "&amp;")
+        .replace("'", "&#39;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )

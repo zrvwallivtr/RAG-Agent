@@ -4,8 +4,7 @@ A local AI assistant featuring long-term memory, file context injection and auto
 token management. It runs on [Ollama](https://ollama.com) and PostgreSQL (pgvector),
 keeping all user's data on host machine.
 
-- **CLI and TUI support:** Interact with the agent in the terminal with `agent "MESSAGE"`
-or enter full-screen terminal UI with `agent`.
+- **CLI and TUI support:** Interact with the agent in the terminal with `agent "MESSAGE"` or enter full-screen terminal UI with `agent`.
 - **File context:** Attach PDFs, documents, spreadsheets, code and more. Parsed content is injected into the prompt and stored to the database for later retrieval by vector similarity.
 - **Sessions:** Named sessions with persistent chat logs and message token counts.
 - **Experts:** Named knowledge bases built from uploaded documents of choice. They exist independently of chat sessions and can be reused by any of them.
@@ -31,19 +30,20 @@ git clone https://github.com/zrvwallivtr/RAG-Agent.git
 All the docker services must be started before running the application:
 
 ```sh
-cd ~/.agent_app
+cd ~/.agent
 docker-compose up -d
-```
-Compose reads credentials from `~/.agent_app/.env`.
+``` Compose reads credentials from `~/.agent/.env`.
 
 ### 3. Install models
 
-Install a caht model and an embedding model before you can start any conversation. To enable token counts and automatic compression features, install the tokenizer for the LLM as well:
+Install a caht model and an embedding model before you can start any conversation.
+To enable token counts and automatic compression features, install the tokenizer
+for the LLM as well:
 
 ```sh
 agent --install-model OLLAMA_LLM_NAME
 agent --install-model OLLAMA_EMBEDDING_MODEL_NAME
-agent --install-tokenizer   # Auto installs a fallback tokenizer (specified in `~/.agent_app/config.toml` and all tokenizers for your installed models
+agent --install-tokenizer   # Auto installs a fallback tokenizer (specified in `~/.agent/config.toml` and all tokenizers for your installed models
 
 # Exmaple
 agent --install-model ministral-3:3b
@@ -61,7 +61,8 @@ agent                                       # TUI: Open the terminal UI
 
 ### 5. Expert
 
-An expert is a named subject area. Its documents are chunked, embedded and searched by similarity, where the agent can answer from them.
+An expert is a named subject area. Its documents are chunked, embedded and searched
+by similarity, where the agent can answer from them.
 
 ```sh
 agent --create-expert EXPERT_NAME                       # Create an expert
@@ -71,7 +72,8 @@ agent --enable-session-expert SESSION_NAME EXPERT_NAME  # Enable the expert for 
 agent --delete-expert EXPERT_NAME                       # Delete the expert (No uploaded documents will be deleted)
 ```
 
-Run `agent -h` for all flags. See the [CLI reference](./docs/cli_reference.md) and [TUI reference](./docs/tui_reference.md).
+Run `agent -h` for all flags. See the [CLI reference](./docs/cli_reference.md)
+and [TUI reference](./docs/tui_reference.md).
 
 ---
 
@@ -88,25 +90,42 @@ Activate by adding the command at the start of a prompt.
 ## How it works
 
 **Sessions:**
-Every conversation turn (prompt, response, token counts, attachment metadata) is saved to the `chat_logs` table and linked to a row in `chat_sessions`. Allowing the creating, storing and switching between sessions.
+Every conversation turn (prompt, response, token counts, attachment metadata) is
+saved to the `chat_logs` table and linked to a row in `chat_sessions`. Allowing
+the creating, storing and switching between sessions.
 
 **Documents:**
-Attached files are converted to plain text or Markdown, injected into the current conversation turn and stored in the knowledge base for similarity retrieval in later turns. Details: [Document Processing](./docs/document_processing.md).
+Attached files are converted to plain text or Markdown, injected into the current
+conversation turn and stored in the knowledge base for similarity retrieval in
+later turns. Details: [Document Processing](./docs/document_processing.md).
 
 **Token management:**
-Before each turn the agent estimates the size of the history plus the new prompt, with 1,000 tokens reserved for the reply. If that exceeds teh model's limit, older turns are summarised automatically. `/compress` does the same on demand. The auto compression requires a known token limit for the chat model, sess [Configuration](./docs/CONFIGURATION.md).
+Before each turn the agent estimates the size of the history plus the new prompt,
+with 1,000 tokens reserved for the reply. If that exceeds teh model's limit, older
+turns are summarised automatically. `/compress` does the same on demand. The auto
+compression requires a known token limit for the chat model, sess
+[Configuration](./docs/CONFIGURATION.md).
 
 **Experts:**
-An expert is a named set of documents. Each document is parsed with Docling, split into chunks (Docling's `HybridChunker`, sized with the embedding model's tokenizer), embedded and stored in pgvector.
+An expert is a named set of documents. Each document is parsed with Docling, split
+into chunks (Docling's `HybridChunker`, sized with the embedding model's
+tokenizer), embedded and stored in pgvector.
 
 ---
 
 ## Configuration
 
-Behaviour, models and features toggles live in `~/.agent_app/config.toml`. A default file
-is copied there on first run if none exists. Secrets (database and pgAdmin credentials)
-live in `~/.agent_app/.env`, never in `config.toml`. Every option is described in the
-[configuration reference](./docs/configuration.md).
+Behaviour, models and features toggles live in `~/.agent/config.toml`. A default
+file is copied there on first run if none exists. Secrets (database and pgAdmin
+credentials) live in `~/.agent/.env`, never in `config.toml`. Every option is
+described in the [configuration reference](./docs/configuration.md).
+
+---
+
+## Model dictionary
+
+The model's dictionary contains the model name, huggingface repo, context window and
+model dimension (only for embedding models) live in `~/.agent/model_dictionary`.
 
 ---
 

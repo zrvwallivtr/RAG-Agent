@@ -49,7 +49,7 @@ agent [PROMPT] [OPTIONS]
 | `-m`, `--model MODEL_NAME` | Select the chat model (default: the `model` model in the `config.toml`). |
 | `-lm`, `--list-models` | List all installed Ollama models. |
 | `--install-model MODEL_NAME` | Pull an Ollama model, for example `ministral-3:3b` or `nomic-embed-text`. |
-| `--install-tokenizer` | Install a fallback tokenizer that is specified in `~/.agent_app/config.toml` and tokenizers for all currently installed models. No argument required. |
+| `--install-tokenizer` | Install a fallback tokenizer that is specified in `~/.agent/config.toml` and tokenizers for all currently installed models. No argument required. |
 
 ## Output
 

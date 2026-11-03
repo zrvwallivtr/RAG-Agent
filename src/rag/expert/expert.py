@@ -168,14 +168,11 @@ class Expert:
         """
         Closest chunks across the experts, best first, as one flat list.
 
-        The retrieval limit depends on if more than one expert is enabled,
-        so a large expert can't crowd out a smaller one.
-
         Parameters
         ----------
             conn:       Connection to the database.
-            prompt:     The string that will be used to perform vector
-                        search on the expert's database.
+            prompt:     The string that will be used to perform
+                        vector search on the expert's database.
             exp_list:   A list of experts to query from.
             tkn_budget: Token limit to avoid agent context overflow.
 
@@ -183,9 +180,7 @@ class Expert:
         -------
             - A list of dictionary about the matched entries.
         """
-        retrieve_lim = (
-            PER_EXPERT_RETRIEVAL_LIMIT if len(exp_list) > 1 else EXPERT_RETRIEVE_LIMIT
-        )
+        retrieve_lim = _calculate_retrieval_limit(exp_list)
 
         hits = []
         for exp_name in exp_list:
@@ -253,3 +248,28 @@ def _document_entry(row: list) -> dict[str, Any]:
         "updated_at": row[5],
         "metadata": row[6],
     }
+
+
+def _calculate_retrieval_limit(
+    exp_list: list[str],
+    per_exp_retrieval_lim: int = PER_EXPERT_RETRIEVAL_LIMIT,
+    exp_retrieve_lim: int = EXPERT_RETRIEVE_LIMIT,
+) -> int:
+    """
+    The retrieval limit depends on if more than one expert is enabled,
+    so a large expert can't crowd out a smaller one.
+
+    Parameters
+    ----------
+        exp_list:              A list of experts to query from.
+        per_exp_retrieval_lim: Limit the number of entries retrieved from
+                               a single expert when multiple experts is
+                               enabled.
+        exp_retrieve_lim:      Limit the number of entries retrieved when
+                               only a single expert is enabled.
+
+    Returns
+    -------
+        - The retrieval entry limit.
+    """
+    return per_exp_retrieval_lim if len(exp_list) > 1 else exp_retrieve_lim

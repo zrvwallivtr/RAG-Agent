@@ -7,32 +7,30 @@ from src.config.postgres import CONN
 
 from src.libs.helpers.date_helpers import get_session_with_dates
 
-from src.agent.tokenizers import LocalTokenizer
-
 TITLE = "Last modified\t\tCreated at\t\tSession name\n"
 sessions: list[tuple[str, str]] = []
 
 
-def load_sessions(llm_tknizr: LocalTokenizer) -> None:
+def load_sessions() -> None:
     """Query the database ONCE. Call when the picker opens and after create/delete."""
     from src.agent.chat_session_logs import ChatSessionLogs
 
-    sess_dict = ChatSessionLogs(conn=CONN, llm_tknizr=llm_tknizr).get_all_existing_session_metadata() or {}
+    sess_dict = ChatSessionLogs(conn=CONN).get_all_existing_session_metadata() or {}
 
     loaded: list[tuple[str, str]] = []
     for sess_id, data in sess_dict.items():
         name = data["session_name"]
-        label = get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id, llm_tknizr=llm_tknizr)
+        label = get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id)
         loaded.append((name, label or name))  # fallback to the bare name
 
     sessions[:] = loaded  # Store to the existing list
 
 
-def show_session_list(sess_list: OptionList, llm_tknizr: LocalTokenizer) -> None:
+def show_session_list(sess_list: OptionList) -> None:
     """Show list of sessions with created time, modified time and session name."""
     from src.agent.chat_session_logs import ChatSessionLogs
 
-    chat_sess_logs = ChatSessionLogs(conn=CONN, llm_tknizr=llm_tknizr)
+    chat_sess_logs = ChatSessionLogs(conn=CONN)
 
     sess_dict = chat_sess_logs.get_all_existing_session_metadata()
     if not sess_dict:
@@ -48,7 +46,7 @@ def show_session_list(sess_list: OptionList, llm_tknizr: LocalTokenizer) -> None
 
     for sess_id in sess_dict:
         sess_name = sess_dict[sess_id]["session_name"]
-        sess_with_dates = get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id, llm_tknizr=llm_tknizr)
+        sess_with_dates = get_session_with_dates(sess_dict=sess_dict, sess_id=sess_id)
         sess_list.add_option(Option(sess_with_dates, id=sess_name))
 
     sess_list.remove_class("hidden")

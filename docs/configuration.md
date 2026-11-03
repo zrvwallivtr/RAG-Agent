@@ -1,12 +1,13 @@
 # Configuration
 
-Settings live in `~/.agent_app/config.toml`. If the file is missing, the default is copied from the code base.
+Settings live in `~/.agent/config.toml`. If the file is missing, the default is copied
+from the code base.
 
 ## `[models]`
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `ollama_host` | `str` | `http://localhost:11434` | URL for the Ollama docker service from `~/.agent_app/docker-compose.yaml`, default URL is `http://localhost:11434`. |
+| `ollama_host` | `str` | `http://localhost:11434` | URL for the Ollama docker service from `~/.agent/docker-compose.yaml`, default URL is `http://localhost:11434`. |
 | `model` | `str` | `ministral-3:3b` | Language model used for conversation. |
 | `embedding` | `str` | `nomic-embed-text` | Embedding model used for all features that requires embeddings (attachments, documents, query knowledge base). |
 
@@ -17,8 +18,6 @@ Settings live in `~/.agent_app/config.toml`. If the file is missing, the default
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `model_max_tokens` | `int` | `None` | Set token limit for `model` model. |
-| `embedding_max_tokens` | `int` | `None` | Set token limit for `embedding` model. |
 | `fallback_tokenizer` | `str` | `gpt2` | Hugging Face tokenizer for `model` model (must be the exact repo name). |
 | `token_reserve` | `int` | `1000` | Token reserve for agent's response. |
 
@@ -57,8 +56,6 @@ If the agent does not know the model's token limit (either form built in or spec
 ollama_host = "http://localhost:11434"
 model = "ministral-3:3b"
 embedding = "nomic-embed-text"
-# model_max_tokens =
-# embedding_max_tokens =
 # fallback_tokenizer = "gpt2"
 # token_reserve = 1000
 

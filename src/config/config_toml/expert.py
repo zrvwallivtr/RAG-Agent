@@ -1,4 +1,4 @@
-from src.config.files_and_directories import _cfg
+from src.config.files_and_directories import CONFIG
 
 # Exploration factor
 # ------------------
@@ -6,7 +6,7 @@ from src.config.files_and_directories import _cfg
 # 'ef_search' in pgvector, tuning for the query execution for
 # the HNSW (Hierachical Navigable Small World) index type.
 _DEFALUT_EXPLORATION_FACTOR: int = 100
-EXPLORATION_FACTOR: int = _cfg.get("expert", {}).get(
+EXPLORATION_FACTOR: int = CONFIG.get("expert", {}).get(
     "exploration_factor", _DEFALUT_EXPLORATION_FACTOR
 )
 
@@ -18,7 +18,7 @@ EXPLORATION_FACTOR: int = _cfg.get("expert", {}).get(
 # Limit the number of entries retrieved from all the expert
 # knowledge base.
 _DEFAULT_EXPERT_RETRIEVAL_LIMIT: int = 8
-EXPERT_RETRIEVE_LIMIT: int = _cfg.get("expert", {}).get(
+EXPERT_RETRIEVE_LIMIT: int = CONFIG.get("expert", {}).get(
     "retrieval_limit", _DEFAULT_EXPERT_RETRIEVAL_LIMIT
 )
 
@@ -31,7 +31,7 @@ EXPERT_RETRIEVE_LIMIT: int = _cfg.get("expert", {}).get(
 # knowledge base to prevent a single expert will a large
 # knowledge base drowning out the others.
 _DEFAULT_PER_EXPERT_RETRIEVAL_LIMIT: int = 3
-PER_EXPERT_RETRIEVAL_LIMIT: int = _cfg.get("expert", {}).get(
+PER_EXPERT_RETRIEVAL_LIMIT: int = CONFIG.get("expert", {}).get(
     "per_expert_retrieval_limit", _DEFAULT_PER_EXPERT_RETRIEVAL_LIMIT
 )
 
@@ -41,7 +41,7 @@ PER_EXPERT_RETRIEVAL_LIMIT: int = _cfg.get("expert", {}).get(
 # Set a ceiling to limit the chunk size split by Docling, as
 # a large chunk might exceed the model's context window.
 _DEFAULT_DOCLING_CHUNK_TKNS: int = 300
-DOCLING_CHUNK_TKNS: int = _cfg.get("expert", {}).get(
+DOCLING_CHUNK_TKNS: int = CONFIG.get("expert", {}).get(
     "docling_chunk_tokens", _DEFAULT_DOCLING_CHUNK_TKNS
 )
 
@@ -51,7 +51,7 @@ DOCLING_CHUNK_TKNS: int = _cfg.get("expert", {}).get(
 # Set minimum similarity score that would be sent to the
 # model to prevent irrelevant context injection.
 _DEFAULT_EXPERT_MIN_SIM_SCORE: float = 0.65
-EXP_MIN_SIM_SCORE: float = _cfg.get("expert", {}).get(
+EXP_MIN_SIM_SCORE: float = CONFIG.get("expert", {}).get(
     "minimum_similar_score", _DEFAULT_EXPERT_MIN_SIM_SCORE
 )
 
@@ -62,7 +62,7 @@ EXP_MIN_SIM_SCORE: float = _cfg.get("expert", {}).get(
 # model, for calculating the character count the model can read
 # before context overflow in the document to generate a description.
 _DEFAULT_DOC_DES_RESERVE_TKNS: int = 10000
-DOC_DES_RESERVE_TKNS: int = _cfg.get("expert", {}).get(
+DOC_DES_RESERVE_TKNS: int = CONFIG.get("expert", {}).get(
     "reply_reserve_tokens", _DEFAULT_DOC_DES_RESERVE_TKNS
 )
 
@@ -73,6 +73,6 @@ DOC_DES_RESERVE_TKNS: int = _cfg.get("expert", {}).get(
 # for the document description, this will only take effect
 # if the tokenizer is not set.
 _DEFAULT_DOC_DES_FALLBACK_CHARS: int = 12000
-DOC_DES_FALLBACK_CHARS: int = _cfg.get("expert", {}).get(
+DOC_DES_FALLBACK_CHARS: int = CONFIG.get("expert", {}).get(
     "doc_fallback_chars", _DEFAULT_DOC_DES_FALLBACK_CHARS
 )

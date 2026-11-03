@@ -2,8 +2,7 @@ import sys
 import os
 from typing import Any
 from pathlib import Path
-from src.libs.models_database import MODEL_MAX
-from src.config.files_and_directories import CONFIG_FILE, _cfg
+from src.config.files_and_directories import CONFIG_FILE, CONFIG
 
 
 def _model_not_found(
@@ -55,39 +54,38 @@ def _set_model_tokens(
     config_file: Path = CONFIG_FILE,
 ) -> tuple[str, Any]:
     """Verify if 'model_name' is on the list or specified in 'config.toml'."""
-    model = _cfg["models"][field]
-    max_tokens = _cfg["models"].get(field_name, None)
+    model = CONFIG["models"][field]
+    max_tokens = CONFIG["models"].get(field_name, None)
     model_max_tokens = _normalise_to_integer(max_tokens)
-
-    if model not in MODEL_MAX:
-        if model_max_tokens is None:
-            _model_not_found(config_file, field, field_name)
-        _check_if_value_is_valid(config_file, field_name, model_max_tokens)
 
     return model, model_max_tokens
 
 
 # URL for Ollama docker service
-OLLAMA_HOST: str = _cfg["models"]["ollama_host"]
+OLLAMA_HOST: str = CONFIG["models"]["ollama_host"]
 
 # Language model
-_MODEL_RESULT = _set_model_tokens(field="model", field_name="model_max_tokens")
-MODEL: str = _MODEL_RESULT[0]
-MODEL_MAX_TOKENS: int = _MODEL_RESULT[1]
+# _MODEL_RESULT = _set_model_tokens(field="model", field_name="model_max_tokens")
+# MODEL: str = _MODEL_RESULT[0]
+MODEL: str = CONFIG.get("models", {}).get("model", None)
+if not MODEL:
+    raise ValueError("Error: Model not set in 'config.toml'")
 
 # Embedding model
-_EMB_MODEL_RESULT = _set_model_tokens(
-    field="embedding", field_name="embedding_max_tokens"
-)
-EMBED_MODEL: str = _EMB_MODEL_RESULT[0]
-EMBED_MAX_TOKENS: int = _EMB_MODEL_RESULT[1]
+# _EMB_MODEL_RESULT = _set_model_tokens(
+#     field="embedding", field_name="embedding_max_tokens"
+# )
+# EMBED_MODEL: str = _EMB_MODEL_RESULT[0]
+EMBED_MODEL: str = CONFIG.get("models", {}).get("embedding", None)
+if not EMBED_MODEL:
+    raise ValueError("Error: Embedding model not set in 'config.toml'")
 
 # Fallback tokenizer
 _DEFAULT_FALLBACK_TOKENIZER: str = "gpt2"
-FALLBACK_TOKENIZER: str = _cfg.get("models", {}).get(
+FALLBACK_TOKENIZER: str = CONFIG.get("models", {}).get(
     "fallback_tokenizer", _DEFAULT_FALLBACK_TOKENIZER
 )
 
 # Token reserve for agent
 _DEFAULT_TOKEN_RESERVE: int = 1000
-TOKEN_RESERVE: int = _cfg.get("models", {}).get("token_reserve", _DEFAULT_TOKEN_RESERVE)
+TOKEN_RESERVE: int = CONFIG.get("models", {}).get("token_reserve", _DEFAULT_TOKEN_RESERVE)

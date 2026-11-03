@@ -38,9 +38,9 @@ class Attachments:
     Parameters
     ----------
         conn:           Connection to postgres.
+        chat_sess_logs: Already initiated chat session log class.
         llm_tknizr:     Tokenizer for the language model for token
                         managements.
-        chat_sess_logs: Already initiated chat session log class.
         file_reader:    Contains parsers for reading uploaded files of
                         different formats.
         chunker:        Already initiated Docling chunker.
@@ -49,8 +49,8 @@ class Attachments:
     def __init__(
         self,
         conn,
-        llm_tknizr: LocalTokenizer,
         chat_sess_logs: ChatSessionLogs,
+        llm_tknizr: LocalTokenizer | None = None,
         file_reader: FileReader | None = None,
         chunker: DoclingChunker | None = None,
     ):

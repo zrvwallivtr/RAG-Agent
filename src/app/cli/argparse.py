@@ -63,7 +63,8 @@ def build_parser() -> None:
     if args.install_tokenizer:
         from src.agent.tokenizers import install_tokenizers
 
-        install_tokenizers()
+        install_tokenizers(print_cli_hooks())
+        return
 
     # --- Session -------------------------------------------------------------
     # General arguments for session features.
@@ -91,14 +92,13 @@ def build_parser() -> None:
 
     # Delete default session
     if args.delete_default_session:
-        delete_session(llm_tknizr=LLM_TKNIZR, hooks=print_cli_hooks())
+        delete_session(hooks=print_cli_hooks())
         return
 
     # Delete session
     if args.delete_session:
         response = delete_session(
             sess_name=args.delete_session,
-            llm_tknizr=LLM_TKNIZR,
             hooks=print_cli_hooks(),
         )
         if response:

@@ -7,6 +7,16 @@ def is_connected(host="1.1.1.1", port=53, timeout=3) -> bool:
     otherwise returns false.
     Host (Cloudflare DNS):  1.1.1.1
     Port (DNS traffic):     53
+
+    Parameters
+    ----------
+        host:    DNS.
+        port:    Port number.
+        timeout: Max duration.
+
+    Returns
+    -------
+        - If internet is connected.
     """
     try:
         # Create socket object with connection timeout

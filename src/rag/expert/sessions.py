@@ -1,7 +1,6 @@
 """
 Optional links between experts and chat sessions. Experts work fine without
-any of this. sess_id is the UUID string from
-ChatSessionLogs.get_or_create_session_id().
+any of this. sess_id is the UUID string from ChatSessionLogs.get_or_create_session_id().
 
 Deleting a session or an expert removes only the link rows.
 """
@@ -18,80 +17,6 @@ from src.libs.custom_dataclasses import AgentHooks
 from src import logger
 
 app_log = logger.app_logger(f"{__name__}.app")
-
-
-def _find_session_id_from_name(
-    conn, sess_name: str, hooks: AgentHooks | None = None
-) -> str | None:
-    """
-    Resolve a session name to its id. Raises ValueError if missing.
-
-    Parameters
-    ----------
-        conn:      Connection to the database.
-        sess_name: Name of this session.
-        hooks:     Function hooks for cli/tui integration.
-
-    Returns
-    -------
-        - Session id.
-    """
-    row = fetch_one(
-        conn=conn,
-        sql="SELECT session_id FROM chat_sessions WHERE session_name = %s",
-        params=(sess_name,),
-    )
-    if row is None:
-        err_msg = "No session named '%s'" % sess_name
-        if hooks and hooks.on_stat_change:
-            hooks.on_stat_change(err_msg)
-        raise ValueError(err_msg)
-    return row[0]
-
-
-def _link_table_exists(conn) -> bool:
-    """
-    session_experts is only created once an experts is first enabled.
-
-    Parameters
-    ----------
-        conn: Connection to the database.
-
-    Returns
-    -------
-        - True if link table exists.
-    """
-    row = fetch_one(conn=conn, sql="SELECT to_regclass('session_experts');")
-    return bool(row and row[0])
-
-
-def sessions_using_expert(conn, exp_id: int) -> list[tuple[str, str]]:
-    """
-    Find all the session the specified expert is enabled in.
-    Returns (session_id, session_name) for each.
-
-    Parameters
-    ----------
-        conn:   Connection to the database.
-        exp_id: Expert's id.
-
-    Returns
-    -------
-        - List of session id and name that uses that expert.
-    """
-    ensure_link_schema(conn)
-    rows = fetch_all(
-        conn=conn,
-        sql=("""
-            SELECT s.session_id, s.session_name
-            FROM session_experts se
-            JOIN chat_sessions s ON s.session_id = se.session_id
-            WHERE se.expert_id = %s
-            ORDER BY s.session_name;
-            """),
-        params=(exp_id,),
-    )
-    return [(str(row[0]), str(row[1])) for row in rows]
 
 
 class SessionExperts:
@@ -294,3 +219,77 @@ class SessionExperts:
             }
             for row in rows
         }
+
+
+def sessions_using_expert(conn, exp_id: int) -> list[tuple[str, str]]:
+    """
+    Find all the session the specified expert is enabled in.
+    Returns (session_id, session_name) for each.
+
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        exp_id: Expert's id.
+
+    Returns
+    -------
+        - List of session id and name that uses that expert.
+    """
+    ensure_link_schema(conn)
+    rows = fetch_all(
+        conn=conn,
+        sql=("""
+            SELECT s.session_id, s.session_name
+            FROM session_experts se
+            JOIN chat_sessions s ON s.session_id = se.session_id
+            WHERE se.expert_id = %s
+            ORDER BY s.session_name;
+            """),
+        params=(exp_id,),
+    )
+    return [(str(row[0]), str(row[1])) for row in rows]
+
+
+def _find_session_id_from_name(
+    conn, sess_name: str, hooks: AgentHooks | None = None
+) -> str | None:
+    """
+    Resolve a session name to its id. Raises ValueError if missing.
+
+    Parameters
+    ----------
+        conn:      Connection to the database.
+        sess_name: Name of this session.
+        hooks:     Function hooks for cli/tui integration.
+
+    Returns
+    -------
+        - Session id.
+    """
+    row = fetch_one(
+        conn=conn,
+        sql="SELECT session_id FROM chat_sessions WHERE session_name = %s",
+        params=(sess_name,),
+    )
+    if row is None:
+        err_msg = "No session named '%s'" % sess_name
+        if hooks and hooks.on_stat_change:
+            hooks.on_stat_change(err_msg)
+        raise ValueError(err_msg)
+    return row[0]
+
+
+def _link_table_exists(conn) -> bool:
+    """
+    session_experts is only created once an experts is first enabled.
+
+    Parameters
+    ----------
+        conn: Connection to the database.
+
+    Returns
+    -------
+        - True if link table exists.
+    """
+    row = fetch_one(conn=conn, sql="SELECT to_regclass('session_experts');")
+    return bool(row and row[0])

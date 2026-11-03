@@ -6,8 +6,6 @@ from src.config.postgres import CONN
 
 from src.libs.helpers.sessions_helpers import delete_session
 
-from src.agent.tokenizers import LocalTokenizer
-
 from .fuzzy_search import load_sessions, show_session_list, sessions
 from .action_bar import show_session_action_bar
 
@@ -20,12 +18,12 @@ def go_to_session(screen, sess_name: str) -> None:
     screen.app.push_screen(ChatScreen(sess_name=sess_name))
 
 
-def reset_session_list_layout(screen, llm_tknizr: LocalTokenizer) -> None:
+def reset_session_list_layout(screen) -> None:
     """Return to default sessions view if in an input mode."""
     if screen.in_sess_search or screen.in_new_sess_input or screen.in_del_sess_input:
         screen.in_new_sess_input = False
         screen.in_del_sess_input = False
-        show_sessions(screen, llm_tknizr)
+        show_sessions(screen)
 
 
 def option_list_highlight_none(screen) -> None:
@@ -35,7 +33,7 @@ def option_list_highlight_none(screen) -> None:
             opt_list.highlighted = None
 
 
-def show_sessions(screen, llm_tknizr: LocalTokenizer) -> None:
+def show_sessions(screen) -> None:
     """
     Consist:
     - Show latest sessions. If selected go to the chat screen for said session.
@@ -47,7 +45,7 @@ def show_sessions(screen, llm_tknizr: LocalTokenizer) -> None:
     screen.in_del_sess_input = False
     screen.curr_to_sess = None
 
-    load_sessions(llm_tknizr)
+    load_sessions()
     count = len(sessions)
 
     title = (
@@ -59,7 +57,7 @@ def show_sessions(screen, llm_tknizr: LocalTokenizer) -> None:
 
     # Session list
     sess_list = screen.query_one("#session-list", OptionList)
-    show_session_list(sess_list=sess_list, llm_tknizr=llm_tknizr)
+    show_session_list(sess_list=sess_list)
 
     show_session_action_bar(screen)
 
@@ -100,14 +98,14 @@ def show_session_search_input(screen) -> None:
 # --- Create new session -----------------------------------------
 
 
-def show_new_session_input(screen, llm_tknizr: LocalTokenizer) -> None:
+def show_new_session_input(screen) -> None:
     """
     Consist of the input bar for naming the new session.
     Show existing session list with fuzzy search on.
     """
     screen.in_new_sess_input = True  # User is entering session name
     sess_list = screen.query_one("#session-list", OptionList)
-    show_session_list(sess_list=sess_list, llm_tknizr=llm_tknizr)
+    show_session_list(sess_list=sess_list)
 
     # Existing session list
     sess_list = screen.query_one("#session-list", OptionList)
@@ -127,7 +125,7 @@ def show_new_session_input(screen, llm_tknizr: LocalTokenizer) -> None:
     screen.query_one("#session-action-bar").add_class("hidden")
 
 
-def create_new_session(screen, sess_name: str, llm_tknizr: LocalTokenizer) -> None:
+def create_new_session(screen, sess_name: str) -> None:
     """Create new session."""
     clean_name = sess_name.strip()
     if not clean_name:
@@ -136,7 +134,7 @@ def create_new_session(screen, sess_name: str, llm_tknizr: LocalTokenizer) -> No
 
     from src.agent.chat_session_logs import ChatSessionLogs
 
-    chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=clean_name, llm_tknizr=llm_tknizr)
+    chat_sess_logs = ChatSessionLogs(conn=CONN, sess_name=clean_name)
 
     try:
         chat_sess_logs.create_session()
@@ -147,7 +145,7 @@ def create_new_session(screen, sess_name: str, llm_tknizr: LocalTokenizer) -> No
         return
 
     screen.notify(f"New session created: {clean_name}")
-    reset_session_list_layout(screen, llm_tknizr)
+    reset_session_list_layout(screen)
     go_to_session(screen, clean_name)
 
 
@@ -175,19 +173,19 @@ def show_delete_session_input(screen) -> None:
     screen.query_one("#session-action-bar").add_class("hidden")
 
 
-def _delete_session(screen, sess_name: str, llm_tknizr: LocalTokenizer) -> None:
+def _delete_session(screen, sess_name: str) -> None:
     """Delete session."""
-    result = delete_session(sess_name=sess_name, llm_tknizr=llm_tknizr)
+    result = delete_session(sess_name=sess_name)
 
     if result and "fail" in result.lower():
         screen.notify(result, severity="error")
         return
 
     screen.notify(f"Session deleted: {sess_name}")
-    show_sessions(screen, llm_tknizr)
+    show_sessions(screen)
 
 
-def confirm_and_delete_session(screen, sess_name: str, llm_tknizr: LocalTokenizer) -> None:
+def confirm_and_delete_session(screen, sess_name: str) -> None:
     clean_name = sess_name.strip()
     if not clean_name:
         screen.notify("Session name cannot be empty.", severity="error")
@@ -197,7 +195,7 @@ def confirm_and_delete_session(screen, sess_name: str, llm_tknizr: LocalTokenize
 
     def handle_confirmation(is_confirm: bool | None) -> None:
         if is_confirm:
-            _delete_session(screen, sess_name=clean_name, llm_tknizr=llm_tknizr)
+            _delete_session(screen, sess_name=clean_name)
 
     title = f"Proceed to delete session '{sess_name}'?"
     positive = "Proceed"

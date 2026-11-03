@@ -8,7 +8,7 @@ from src.libs.helpers.database_helpers import fetch_one, init_database
 
 from src.config.config_toml import EMBED_MODEL
 
-from src.libs.models_database import EMB_MODEL_DIMENSION
+from src.libs.helpers.model_dictionary_helpers import embedding_model_dimension, EMB_DIM
 
 from src import logger
 
@@ -82,15 +82,14 @@ def _stored_dimension(conn) -> int | None:
 def ensure_schema(
     conn,
     emb_model: str = EMBED_MODEL,
-    emb_model_dim: dict[str, int] = EMB_MODEL_DIMENSION,
+    emb_dim: int | None = EMB_DIM,
     hooks: AgentHooks | None = None,
 ) -> None:
     """Create attachments tables. Requires session table."""
     global _schema_ready
     if _schema_ready:
         return
-    dim = emb_model_dim.get(emb_model)
-    if dim is None:
+    if emb_dim is None:
         raise ValueError(f"Unknown embedding dimension for model '{EMBED_MODEL}'. ")
 
     from src.agent.chat_session_logs.schema import ensure_schema as ensure_chat_schema
@@ -100,20 +99,20 @@ def ensure_schema(
     if hooks and hooks.on_loading:
         hooks.on_loading("Initialising attachments table...")
 
-    stmts = tuple(s.format(dimension=int(dim)) for s in _STATEMENTS)
+    stmts = tuple(s.format(dimension=int(emb_dim)) for s in _STATEMENTS)
     init_database(conn=conn, stmts=stmts)
 
     # The vector size is fixed when teh table is first created. Warn, rather
     # than raise, so experts can still be listed and deleted after a model
     # change.
     existing = _stored_dimension(conn)
-    if existing is not None and existing != int(dim):
+    if existing is not None and existing != int(emb_dim):
         app_log.warning(
             "Embedding model '%s' produces %d-dimension vectores but "
             "attachment_chunks stores %d. Documents must be re-embedded before "
             "adding or searching.",
             emb_model,
-            int(dim),
+            int(emb_dim),
             existing,
         )
 

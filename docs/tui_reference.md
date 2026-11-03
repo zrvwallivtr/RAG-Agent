@@ -29,7 +29,7 @@ Type a command in the command bar and press `Enter`.
 
 | Command | Description |
 | --- | --- |
-| `:q`, `:quit` | Exist the app |
+| `:q`, `:quit` | Exit the app |
 | `:d`, `:dashboard` | Go to the dashboard |
 | `:s`, `:session` | Open the default session chat |
 | `:s SESSION_NAME`, `:session SESSION_NAME` | Open the chat in the session `SESSION_NAME` |
@@ -37,4 +37,7 @@ Type a command in the command bar and press `Enter`.
 
 ## Attachments
 
-Use `:a` or `:attach` to queue files, then send your prompt. Paths are resolved relative to the uploads directory, and quoted paths with spaces are supported. If any path is not found, none are added. Open the attachments manager (`Space` then `a`) to  review or remove pending files. Pending attachments are cleared once the prompt has been sent.
+Use `:a` or `:attach` to queue files, then send your prompt. Paths are resolved relative
+to the uploads directory, and quoted paths with spaces are supported. If any path is not
+found, none are added. Open the attachments manager (`Space` then `a`) to  review or
+remove pending files. Pending attachments are cleared once the prompt has been sent.

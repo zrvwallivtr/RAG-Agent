@@ -4,13 +4,16 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any, Literal
 
-from src.config.config_toml import FALLBACK_TOKENIZER, MODEL_MAX_TOKENS
-from src.config.files_and_directories import TOKENIZERS_DIR
+from src.config.config_toml import FALLBACK_TOKENIZER
+from src.config.files_and_directories import TOKENIZERS_DIR, MODEL_DICT, ModelDict
 
 from src.libs.helpers.internet_helpers import is_connected
-from src.libs.models_database import MODEL_MAX
 from src.libs.custom_dataclasses import AgentHooks
-from src.libs.huggingface_repo import MODEL_NAME_TO_HF_TOKENIZER
+from src.libs.helpers.model_dictionary_helpers import (
+    tokenizer_file,
+    model_context_window,
+    model_huggingface_repo,
+)
 
 from src.agent.models import ollama
 from src.logger import app_logger
@@ -33,38 +36,10 @@ class LocalTokenizer:
     def __init__(
         self,
         model: str,
-        model_max_tkns: int = MODEL_MAX_TOKENS,
-        model_max: dict = MODEL_MAX,
     ):
         self.model = model
         self.load_tknizr = load_tokenizer(model)
-
-        # User specified max tokens
-        if model_max_tkns:
-            self.model_max_tkns = model_max_tkns
-            app_log.debug(
-                "Imported user specified max token limit " "for model '%s' tokenizer",
-                self.model,
-            )
-
-        # Fallback to preset list
-        elif self.model in model_max:
-            self.model_max_tkns = model_max[self.model]
-            app_log.debug(
-                "Max token limit not specified by user. "
-                "Loaded preset limits for model '%s' tokenizer",
-                self.model,
-            )
-
-        # Neither option is available
-        else:
-            app_log.warning(
-                "Model '%s' not in 'MODEL_MAX' and no max tokens provided. "
-                "Add it to 'MODEL_MAX' or set 'chat_max tokens' in "
-                "'~/.agent_app/config.toml'.",
-                self.model,
-            )
-            self.model_max_tkns = None
+        self.model_max_tkns = _load_model_max_tokens(model)
 
     def count_string_tokens(self, text: str) -> int | None:
         """
@@ -111,7 +86,7 @@ class LocalTokenizer:
     @staticmethod
     def estimate_tokens(text: str) -> int:
         """
-        Fallback, rough estimate (about 4 characters per tokens). 
+        Fallback, rough estimate (about 4 characters per tokens).
 
         Parameters
         ----------
@@ -168,18 +143,64 @@ class LocalTokenizer:
         return self.load_tknizr.encode(text)
 
 
+# @lru_cache(maxsize=None)
+# def load_tokenizer(
+#     model: str,
+#     tknizr_dir: Path = TOKENIZERS_DIR,
+#     fb_tknizr: str | None = FALLBACK_TOKENIZER,
+# ) -> Tokenizer | None:
+#     """
+#     Load local installed tokenizer.
+#
+#     Parameters
+#     ----------
+#         model:      Model name.
+#         tknizr_dir: The directory storing all the installed tokenizers.
+#         fb_tknizr:  Fallback tokenizer's name.
+#
+#     Returns
+#     -------
+#         - The tokenizer class.
+#     """
+#     file = tknizr_dir / f"{model}.json"
+#
+#     try:
+#         # Load pre-installed tokenizer
+#         return Tokenizer.from_file(str(file))
+#
+#     except Exception as e:
+#         # Load pre-installed fallback tokenizer
+#         try:
+#             tknizr = Tokenizer.from_file(str(tknizr_dir / f"{fb_tknizr}.json"))
+#             app_log.warning(
+#                 "Failed to load model '%s' tokenizer: %s. "
+#                 "Falling back to model '%s' tokenizer" % (model, e, fb_tknizr)
+#             )
+#             return tknizr
+#
+#         # Disable tokenizer feature
+#         except Exception as fallback_err:
+#             app_log.warning(
+#                 "Failed to load model '%s' fallback tokenizer: %s. "
+#                 "Tokenizer feature disabled" % (fb_tknizr, fallback_err)
+#             )
+#             return
+
+
 @lru_cache(maxsize=None)
 def load_tokenizer(
     model: str,
+    model_dict: ModelDict = MODEL_DICT,
     tknizr_dir: Path = TOKENIZERS_DIR,
     fb_tknizr: str | None = FALLBACK_TOKENIZER,
 ) -> Tokenizer | None:
     """
-    Load local installed tokenizer.
+    Load local installed tokenizer with matching huggingface repo name.
 
     Parameters
     ----------
         model:      Model name.
+        model_dict: Model's dictionary.
         tknizr_dir: The directory storing all the installed tokenizers.
         fb_tknizr:  Fallback tokenizer's name.
 
@@ -187,15 +208,16 @@ def load_tokenizer(
     -------
         - The tokenizer class.
     """
-    file = tknizr_dir / f"{model}.json"
+    hf_repo = model_huggingface_repo(model)
 
     try:
-        # Load pre-installed tokenizer
-        return Tokenizer.from_file(str(file))
-
+        if not hf_repo:
+            raise FileNotFoundError("No huggingface_repo set for model '%s'" % model)
+        # Load tokenizer with matching huggingface repo name
+        return Tokenizer.from_file(str(tokenizer_file(hf_repo)))
     except Exception as e:
-        # Load pre-installed fallback tokenizer
         try:
+            # Load fallback tokenizer
             tknizr = Tokenizer.from_file(str(tknizr_dir / f"{fb_tknizr}.json"))
             app_log.warning(
                 "Failed to load model '%s' tokenizer: %s. "
@@ -203,10 +225,35 @@ def load_tokenizer(
             )
             return tknizr
 
-        # Disable tokenizer feature
         except Exception as fallback_err:
+            # Disable tokenizer feature
             app_log.warning(
                 "Failed to load model '%s' fallback tokenizer: %s. "
                 "Tokenizer feature disabled" % (fb_tknizr, fallback_err)
             )
-            return
+            return None
+
+
+def _load_model_max_tokens(
+    model: str, model_dict: ModelDict = MODEL_DICT
+) -> int | None:
+    """
+    Parameters
+    ----------
+        model:      Model name
+        model_dict: Model's dictionary.
+
+    Returns
+    -------
+        - Model's max tokens
+    """
+    model_max_tkns = model_context_window(model)
+
+    if not model_max_tkns:
+        app_log.warning(
+            "Model '%s' not in 'MODEL_MAX' and no max tokens provided. "
+            "Add it to 'MODEL_MAX' or set 'chat_max tokens' in "
+            "'~/.agent_app/config.toml'.",
+            model,
+        )
+    return model_max_tkns

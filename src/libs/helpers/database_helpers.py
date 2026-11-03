@@ -3,13 +3,16 @@
 from contextlib import contextmanager
 from typing import Iterable
 
-
 @contextmanager
 def transaction(conn):
     """
     Make several helper calls ONE all-or-nothing transaction. Pass commit=False
     to each helper inside the block; this commits once on success and rolls everything
     back if anything raises.
+
+    Parameters
+    ----------
+        conn: Connection to the database.
     """
     try:
         yield conn
@@ -20,6 +23,14 @@ def transaction(conn):
 
 
 def init_database(conn, stmts: tuple[str, ...]) -> None:
+    """
+    Initialise the database.
+
+    Parameters
+    ----------
+        conn:  Connection to the database.
+        stmts: SQL strings.
+    """
     try:
         with conn.cursor() as cur:
             for stmt in stmts:
@@ -30,8 +41,20 @@ def init_database(conn, stmts: tuple[str, ...]) -> None:
         raise
 
 
-def fetch_one(conn, sql: str, params: tuple = (), commit: bool = True):
-    """Run a query, return one row (or None). Commits when done unless specified."""
+def fetch_one(conn, sql: str, params: tuple = (), commit: bool = True) -> list:
+    """
+    Run a query, return one row (or None). Commits when done unless specified.
+
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        sql:    SQL string.
+        params: Parameters in the SQL.
+
+    Returns
+    -------
+        - Row column.
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -48,6 +71,17 @@ def fetch_one(conn, sql: str, params: tuple = (), commit: bool = True):
 
 
 def fetch_all(conn, sql: str, params: tuple = ()) -> list:
+    """
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        sql:    SQL string.
+        params: Parameters in the SQL.
+
+    Returns
+    -------
+        - Row columns.
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -60,7 +94,20 @@ def fetch_all(conn, sql: str, params: tuple = ()) -> list:
 
 
 def execute(conn, sql: str, params: tuple = (), commit: bool = True) -> int:
-    """Run INSERT/UPDATE/DELETE. Returns teh number of rows affected."""
+    """
+    Run INSERT/UPDATE/DELETE. Returns teh number of rows affected.
+
+    Parameters
+    ----------
+        conn:   Connection to the database.
+        sql:    SQL string.
+        params: Parameters in the SQL.
+        commit: If commit the execution.
+
+    Returns
+    -------
+        - Number of executions.
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -76,7 +123,16 @@ def execute(conn, sql: str, params: tuple = (), commit: bool = True) -> int:
 def execute_many(
     conn, sql: str, params_seq: Iterable[tuple], commit: bool = True
 ) -> None:
-    """Runn one INSERT/UPDATE once per params tuple. No-op if params_seq is empty."""
+    """
+    Runn one INSERT/UPDATE once per params tuple. No-op if params_seq is empty.
+
+    Parameters
+    ----------
+        conn:       Connection to the database.
+        sql:        SQL string.
+        params_seq: Parameters sequences in the SQL.
+        commit:     If commit the execution.
+    """
     rows = list(params_seq)
     if not rows:
         return

@@ -36,7 +36,6 @@ from .session_selector import (
 )
 
 from src.agent.models import ollama
-from src.agent.tokenizers import LocalTokenizer
 from src.app.tui.screens.base_screen import BaseScreen
 from assests.icons import app_icon_ascii
 
@@ -46,8 +45,6 @@ SESSION_INPUT_IDS = {
     "new-session-input",
     "delete-session-input",
 }
-
-LLM_TKNIZR = LocalTokenizer(MODEL)
 
 
 def app_icon() -> str:
@@ -150,7 +147,7 @@ class DashboardScreen(BaseScreen):
         self.query_one("#app-icon", Static).update(app_icon())
         update_model_status_section(self)
         update_tokenizer_status_section(self)
-        show_sessions(self, LLM_TKNIZR)
+        show_sessions(self)
         self.refresh(layout=True)
         self.refresh_status()
 
@@ -160,7 +157,7 @@ class DashboardScreen(BaseScreen):
             show_session_search_input(self)
 
         elif event.button.id == "new-session-button":
-            show_new_session_input(self, LLM_TKNIZR)
+            show_new_session_input(self)
 
         elif event.button.id == "delete-session-button":
             show_delete_session_input(self)
@@ -182,7 +179,7 @@ class DashboardScreen(BaseScreen):
                 go_to_session(self, sess_name=event.option.id)
 
             elif self.in_del_sess_input:
-                confirm_and_delete_session(self, sess_name=event.option.id, llm_tknizr=LLM_TKNIZR)
+                confirm_and_delete_session(self, sess_name=event.option.id)
 
             else:
                 go_to_session(self, sess_name=event.option.id)
@@ -220,7 +217,7 @@ class DashboardScreen(BaseScreen):
 
         # New session naming bar
         if event.input.id == "new-session-input":
-            create_new_session(self, sess_name=event.value, llm_tknizr=LLM_TKNIZR)
+            create_new_session(self, sess_name=event.value)
             return
 
         # Delete session search bar
@@ -234,7 +231,7 @@ class DashboardScreen(BaseScreen):
             if not selected_option.id:
                 return
 
-            confirm_and_delete_session(self, sess_name=selected_option.id, llm_tknizr=LLM_TKNIZR)
+            confirm_and_delete_session(self, sess_name=selected_option.id)
             return
 
     def on_key(self, event: Key) -> None:
@@ -367,5 +364,5 @@ class DashboardScreen(BaseScreen):
         elif event.key == "escape":
             event.prevent_default()
             event.stop()
-            reset_session_list_layout(self, LLM_TKNIZR)
+            reset_session_list_layout(self)
             option_list_highlight_none(self)
